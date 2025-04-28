@@ -1,0 +1,29 @@
+{
+    "name": "php-mcp/reactphp-sample",
+    "description": "ReactPHP HTTP+SSE example for php-mcp",
+    "type": "project",
+    "require": {
+        "php": ">=8.1",
+        "php-mcp/server": "@dev",
+        "react/http": "^1.11"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../../",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Test\\": ""
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    }
+}
