@@ -9,6 +9,7 @@ use PhpMcp\Server\JsonRpc\Notification;
 use PhpMcp\Server\JsonRpc\Request;
 use PhpMcp\Server\JsonRpc\Response;
 use PhpMcp\Server\Processor;
+use PhpMcp\Server\Server;
 use PhpMcp\Server\State\TransportState;
 use Psr\Log\LoggerInterface;
 use React\EventLoop\Loop;
@@ -24,6 +25,8 @@ use Throwable;
  */
 class StdioTransportHandler implements TransportHandlerInterface
 {
+    protected Processor $processor;
+
     /**
      * The event loop instance.
      */
@@ -46,6 +49,10 @@ class StdioTransportHandler implements TransportHandlerInterface
 
     private const CLIENT_ID = 'stdio_client';
 
+    private TransportState $transportState;
+
+    private LoggerInterface $logger;
+
     /**
      * Create a new STDIO transport handler.
      *
@@ -54,11 +61,20 @@ class StdioTransportHandler implements TransportHandlerInterface
      * @param  LoggerInterface  $logger  The PSR logger.
      */
     public function __construct(
-        private readonly Processor $processor,
-        private readonly TransportState $transportState,
-        private readonly LoggerInterface $logger
+        protected readonly Server $server,
+        ?TransportState $transportState = null,
+        ?ReadableStreamInterface $inputStream = null,
+        ?WritableStreamInterface $outputStream = null,
+        ?LoopInterface $loop = null
     ) {
-        $this->loop = Loop::get();
+        $this->loop = $loop ?? Loop::get();
+        $this->inputStream = $inputStream ?? new ReadableResourceStream(STDIN, $this->loop);
+        $this->outputStream = $outputStream ?? new WritableResourceStream(STDOUT, $this->loop);
+
+        $container = $server->getContainer();
+        $this->processor = $server->getProcessor();
+        $this->transportState = $transportState ?? new TransportState($container);
+        $this->logger = $container->get(LoggerInterface::class);
     }
 
     /**
@@ -71,9 +87,6 @@ class StdioTransportHandler implements TransportHandlerInterface
         try {
             $this->logger->info('MCP: Starting STDIO Transport Handler.');
             fwrite(STDERR, "MCP: Starting STDIO Transport Handler...\n");
-
-            $this->inputStream = new ReadableResourceStream(STDIN, $this->loop);
-            $this->outputStream = new WritableResourceStream(STDOUT, $this->loop);
 
             $this->inputStream->on('error', function (Throwable $error) {
                 $this->logger->error('MCP: Input stream error', ['exception' => $error]);

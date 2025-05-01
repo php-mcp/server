@@ -17,7 +17,8 @@ This package currently supports the `2024-11-05` version of the Model Context Pr
 
 ## Key Features
 
-*   **Attribute-Based Definition:** Define MCP elements (Tools, Resources, Prompts, Templates) using simple PHP 8 Attributes (`#[McpTool]`, `#[McpResource]`, `#[McpPrompt]`, `#[McpResourceTemplate]`, `#[McpTemplate]`).
+*   **Attribute-Based Definition:** Define MCP elements (Tools, Resources, Prompts, Templates) using simple PHP 8 Attributes (`#[McpTool]`, `#[McpResource]`, `#[McpPrompt]`, `#[McpResourceTemplate]`, `#[McpTemplate]`) on your methods or **directly on invokable classes**.
+*   **Manual Registration:** Programmatically register MCP elements using fluent methods on the `Server` instance (e.g., `->withTool()`, `->withResource()`).
 *   **Automatic Metadata Inference:** Leverages method names, parameter names, PHP type hints (for schema), and DocBlocks (for schema and descriptions) to automatically generate MCP definitions, minimizing boilerplate code.
 *   **PSR Compliant:** Integrates seamlessly with standard PHP interfaces:
     *   `PSR-3` (LoggerInterface): Bring your own logger (e.g., Monolog).
@@ -130,18 +131,32 @@ Now, when you connect your client, it should discover the `adder` tool.
 
 ## Core Concepts
 
-The primary way to expose functionality through `php-mcp/server` is by decorating your PHP methods with specific Attributes. The server automatically discovers these attributes and translates them into the corresponding MCP definitions.
+The primary ways to expose functionality through `php-mcp/server` are:
 
-### `#[McpTool]`
+1.  **Attribute Discovery:** Decorating your PHP methods or invokable classes with specific Attributes (`#[McpTool]`, `#[McpResource]`, etc.). The server automatically discovers these during the `->discover()` process.
+2.  **Manual Registration:** Using fluent methods (`->withTool()`, `->withResource()`, etc.) on the `Server` instance before running it.
 
-Marks a method as an MCP Tool. Tools represent actions or functions the client can invoke, often with parameters.
+### Attributes for Discovery
+
+These attributes mark classes or methods to be found by the `->discover()` process.
+
+#### `#[McpTool]`
+
+Marks a method **or an invokable class** as an MCP Tool. Tools represent actions or functions the client can invoke, often with parameters.
+
+**Usage:**
+
+*   **On a Method:** Place the attribute directly above a public, non-static method.
+*   **On an Invokable Class:** Place the attribute directly above a class definition that contains a public `__invoke` method. The `__invoke` method will be treated as the tool's handler.
 
 The attribute accepts the following parameters:
 
-*   `name` (optional): The name of the tool exposed to the client. Defaults to the method name (e.g., `addNumbers` becomes `addNumbers`).
-*   `description` (optional): A description for the tool. Defaults to the method's DocBlock summary.
+*   `name` (optional): The name of the tool exposed to the client.
+    *   When on a method, defaults to the method name (e.g., `addNumbers` becomes `addNumbers`).
+    *   When on an invokable class, defaults to the class's short name (e.g., `class AdderTool` becomes `AdderTool`).
+*   `description` (optional): A description for the tool. Defaults to the method's DocBlock summary (or the `__invoke` method's summary if on a class).
 
-The method's parameters (including name, type hints, and defaults) define the tool's input schema. The method's return type hint defines the output schema. DocBlock `@param` and `@return` descriptions are used for parameter/output descriptions.
+The parameters (including name, type hints, and defaults) of the target method (or `__invoke`) define the tool's input schema. The return type hint defines the output schema. DocBlock `@param` and `@return` descriptions are used for parameter/output descriptions.
 
 **Return Value Formatting**
 
@@ -179,22 +194,43 @@ public function getPhpCode(): TextContent
 {
     return TextContent::code('<?php echo \'Hello World\';', 'php');
 }
+
+/**
+ * An invokable class acting as a tool.
+ */
+#[McpTool(description: 'An invokable adder tool.')]
+class AdderTool {
+    /**
+     * Adds two numbers.
+     * @param int $a First number.
+     * @param int $b Second number.
+     * @return int The sum.
+     */
+    public function __invoke(int $a, int $b): int {
+        return $a + $b;
+    }
+}
 ```
 
-### `#[McpResource]`
+#### `#[McpResource]`
 
-Marks a method as representing a specific, static MCP Resource instance. Resources represent pieces of content or data identified by a URI. This method will typically be called when a client performs a `resources/read` for the specified URI.
+Marks a method **or an invokable class** as representing a specific, static MCP Resource instance. Resources represent pieces of content or data identified by a URI. The target method (or `__invoke`) will typically be called when a client performs a `resources/read` for the specified URI.
+
+**Usage:**
+
+*   **On a Method:** Place the attribute directly above a public, non-static method.
+*   **On an Invokable Class:** Place the attribute directly above a class definition that contains a public `__invoke` method. The `__invoke` method will be treated as the resource handler.
 
 The attribute accepts the following parameters:
 
 *   `uri` (required): The unique URI for this resource instance (e.g., `config://app/settings`, `file:///data/status.txt`). Must conform to [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986).
-*   `name` (optional): Human-readable name. Defaults inferred from method name.
-*   `description` (optional): Description. Defaults to DocBlock summary.
+*   `name` (optional): Human-readable name. Defaults inferred from method name or class short name.
+*   `description` (optional): Description. Defaults to DocBlock summary of the method or `__invoke`.
 *   `mimeType` (optional): The resource's MIME type (e.g., `text/plain`, `application/json`).
 *   `size` (optional): Resource size in bytes, if known and static.
 *   `annotations` (optional): Array of MCP annotations (e.g., `['audience' => ['user']]`).
 
-The method should return the content of the resource.
+The target method (or `__invoke`) should return the content of the resource.
 
 **Return Value Formatting**
 
@@ -215,18 +251,33 @@ public function getSystemLoad(): string
 {
     return file_get_contents('/proc/loadavg');
 }
+
+/**
+ * An invokable class providing system load resource.
+ */
+#[McpResource(uri: 'status://system/load/invokable', mimeType: 'text/plain')]
+class SystemLoadResource {
+    public function __invoke(): string {
+        return file_get_contents('/proc/loadavg');
+    }
+}
 ```
 
-### `#[McpResourceTemplate]`
+#### `#[McpResourceTemplate]`
 
-Marks a method that can generate resource instances based on a template URI. This is useful for resources whose URI contains variable parts (like user IDs or document IDs). The method will be called when a client performs a `resources/read` matching the template.
+Marks a method **or an invokable class** that can generate resource instances based on a template URI. This is useful for resources whose URI contains variable parts (like user IDs or document IDs). The target method (or `__invoke`) will be called when a client performs a `resources/read` matching the template.
+
+**Usage:**
+
+*   **On a Method:** Place the attribute directly above a public, non-static method.
+*   **On an Invokable Class:** Place the attribute directly above a class definition that contains a public `__invoke` method.
 
 The attribute accepts the following parameters:
 
 *   `uriTemplate` (required): The URI template string, conforming to [RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) (e.g., `user://{userId}/profile`, `document://{docId}?format={fmt}`).
-*   `name`, `description`, `mimeType`, `annotations` (optional): Similar to `#[McpResource]`, but describe the template itself.
+*   `name`, `description`, `mimeType`, `annotations` (optional): Similar to `#[McpResource]`, but describe the template itself. Defaults inferred from method/class name and DocBlocks.
 
-The method parameters *must* match the variables defined in the `uriTemplate`. The method should return the content for the resolved resource instance.
+The parameters of the target method (or `__invoke`) *must* match the variables defined in the `uriTemplate`. The method should return the content for the resolved resource instance.
 
 **Return Value Formatting**
 
@@ -245,18 +296,39 @@ public function getUserProfile(string $userId): array
     // Fetch user profile for $userId
     return ['id' => $userId, /* ... */ ];
 }
+
+/**
+ * An invokable class providing user profiles via template.
+ */
+#[McpResourceTemplate(uriTemplate: 'user://{userId}/profile/invokable', name: 'user_profile_invokable', mimeType: 'application/json')]
+class UserProfileTemplate {
+    /**
+     * Gets a user's profile data.
+     * @param string $userId The user ID from the URI.
+     * @return array The user profile.
+     */
+    public function __invoke(string $userId): array {
+        // Fetch user profile for $userId
+        return ['id' => $userId, 'source' => 'invokable', /* ... */ ];
+    }
+}
 ```
 
-### `#[McpPrompt]`
+#### `#[McpPrompt]`
 
-Marks a method as an MCP Prompt generator. Prompts are pre-defined templates or functions that generate conversational messages (like user or assistant turns) based on input parameters.
+Marks a method **or an invokable class** as an MCP Prompt generator. Prompts are pre-defined templates or functions that generate conversational messages (like user or assistant turns) based on input parameters.
+
+**Usage:**
+
+*   **On a Method:** Place the attribute directly above a public, non-static method.
+*   **On an Invokable Class:** Place the attribute directly above a class definition that contains a public `__invoke` method.
 
 The attribute accepts the following parameters:
 
-*   `name` (optional): The prompt name. Defaults to method name.
-*   `description` (optional): Description. Defaults to DocBlock summary.
+*   `name` (optional): The prompt name. Defaults to method name or class short name.
+*   `description` (optional): Description. Defaults to DocBlock summary of the method or `__invoke`.
 
-Method parameters define the prompt's input arguments. The method should return the prompt content, typically an array conforming to the MCP message structure.
+Method parameters (or `__invoke` parameters) define the prompt's input arguments. The method should return the prompt content, typically an array conforming to the MCP message structure.
 
 **Return Value Formatting**
 
@@ -286,42 +358,83 @@ public function generateSummaryPrompt(string $textToSummarize): array
         ['role' => 'user', 'content' => "Summarize the following text:\n\n{$textToSummarize}"],
     ];
 }
+
+/**
+ * An invokable class generating a summary prompt.
+ */
+#[McpPrompt(name: 'summarize_invokable')]
+class SummarizePrompt {
+     /**
+     * Generates a prompt to summarize text.
+     * @param string $textToSummarize The text to summarize.
+     * @return array The prompt messages.
+     */
+    public function __invoke(string $textToSummarize): array {
+        return [
+            ['role' => 'user', 'content' => "[Invokable] Summarize:
+
+{$textToSummarize}"],
+        ];
+    }
+}
 ```
 
 ### The `Server` Fluent Interface
 
-The `PhpMcp\Server\Server` class is the main entry point for configuring and running your MCP server. It provides a fluent interface (method chaining) to set up dependencies and parameters.
+The `PhpMcp\Server\Server` class is the main entry point for configuring and running your MCP server. It provides a fluent interface (method chaining) to set up dependencies, parameters, and manually register elements.
 
-*   **`Server::make(): self`**: Static factory method to create a new server instance.
-*   **`->withLogger(LoggerInterface $logger): self`**: Provide a PSR-3 compliant logger implementation. Defaults to a basic `StreamLogger` writing to `STDERR` at `LogLevel::INFO`.
-*   **`->withCache(CacheInterface $cache): self`**: Provide a PSR-16 compliant cache implementation. Used for caching discovered MCP elements and potentially transport state. Defaults to a simple in-memory `ArrayCache`.
-*   **`->withContainer(ContainerInterface $container): self`**: Provide a PSR-11 compliant DI container. This container will be used to instantiate the classes containing your `#[Mcp*]` attributed methods when they need to be called. Defaults to a very basic `BasicContainer` that can only resolve explicitly set services.
-*   **`->withConfig(ConfigurationRepositoryInterface $config): self`**: Provide a custom configuration repository. This allows overriding all default settings, including enabled capabilities, protocol versions, cache keys/TTL, etc. Defaults to `ArrayConfigurationRepository` with predefined defaults.
-*   **`->withBasePath(string $path): self`**: Set the absolute base path for directory scanning during discovery. Defaults to the current working directory (`getcwd()`).
-*   **`->withScanDirectories(array $dirs): self`**: Specify an array of directory paths *relative* to the `basePath` where the server should look for annotated methods. Defaults to `['.']` (the base path itself).
-*   **`->discover(bool $clearCacheFirst = true): self`**: Initiates the discovery process. Scans the configured directories for attributes, builds the internal registry of MCP elements, and caches them using the provided cache implementation. Set `$clearCacheFirst` to `false` to attempt loading from cache without re-scanning.
-*   **`->run(?string $transport = null): int`**: Starts the server's main processing loop using the specified transport. 
+*   **`Server::make(): self`**: Static factory method to create a new server instance. It initializes the server with default implementations for core services (Logger, Cache, Config, Container).
+*   **`->withLogger(LoggerInterface $logger): self`**: Provide a PSR-3 compliant logger implementation.
+    *   **If using the default `BasicContainer`:** This method replaces the default `StreamLogger` instance and updates the registration within the `BasicContainer`.
+    *   **If using a custom container:** This method *only* sets an internal property on the `Server` instance. It **does not** affect the custom container. You should register your desired `LoggerInterface` directly within your container setup.
+*   **`->withCache(CacheInterface $cache): self`**: Provide a PSR-16 compliant cache implementation.
+    *   **If using the default `BasicContainer`:** This method replaces the default `FileCache` instance and updates the registration within the `BasicContainer`.
+    *   **If using a custom container:** This method *only* sets an internal property on the `Server` instance. It **does not** affect the custom container. You should register your desired `CacheInterface` directly within your container setup.
+*   **`->withContainer(ContainerInterface $container): self`**: Provide a PSR-11 compliant DI container.
+    *   When called, the server will **use this container** for all dependency resolution, including its internal needs and instantiating your handler classes.
+    *   **Crucially, you MUST ensure this container is configured to provide implementations for `LoggerInterface`, `CacheInterface`, and `ConfigurationRepositoryInterface`**, as the server relies on these.
+    *   If not called, the server uses its internal `BasicContainer` with built-in defaults.
+*   **`->withConfig(ConfigurationRepositoryInterface $config): self`**: Provide a custom configuration repository.
+    *   **If using the default `BasicContainer`:** This method replaces the default `ArrayConfigurationRepository` instance and updates the registration within the `BasicContainer`.
+    *   **If using a custom container:** This method *only* sets an internal property on the `Server` instance. It **does not** affect the custom container. You should register your desired `ConfigurationRepositoryInterface` directly within your container setup.
+*   **`->withBasePath(string $path): self`**: Set the absolute base path for directory scanning during discovery. Defaults to the parent directory of `vendor/php-mcp/server`.
+*   **`->withScanDirectories(array $dirs): self`**: Specify an array of directory paths *relative* to the `basePath` where the server should look for annotated classes/methods during discovery. Defaults to `['.', 'src/MCP']`.
+*   **`->withExcludeDirectories(array $dirs): self`**: Specify an array of directory paths *relative* to the `basePath` to *exclude* from scanning during discovery. Defaults to common directories like `['vendor', 'tests', 'storage', 'cache', 'node_modules']`. Added directories are merged with defaults.
+*   **`->withTool(array|string $handler, ?string $name = null, ?string $description = null): self`**: Manually registers a tool.
+*   **`->withResource(array|string $handler, string $uri, ?string $name = null, ...): self`**: Manually registers a resource.
+*   **`->withPrompt(array|string $handler, ?string $name = null, ?string $description = null): self`**: Manually registers a prompt.
+*   **`->withResourceTemplate(array|string $handler, ?string $name = null, ..., string $uriTemplate, ...): self`**: Manually registers a resource template.
+*   **`->discover(bool $cache = true): self`**: Initiates the discovery process. Scans the configured directories for attributes, builds the internal registry of MCP elements, and caches them using the provided cache implementation (unless `$cache` is false). **Note:** Manually registered elements are always added to the registry, regardless of discovery or caching.
+*   **`->run(?string $transport = null): int`**: Starts the server's main processing loop using the specified transport.
     *   If `$transport` is `'stdio'` (or `null` when running in CLI), it uses the `StdioTransportHandler` to communicate over standard input/output.
-    *   If `$transport` is `'http'`, it throws an exception, as the HTTP transport needs to be integrated into an existing HTTP server loop (see Transports section). 
+    *   If `$transport` is `'http'` or `'reactphp'`, it throws an exception, as these transports needs to be integrated into an existing HTTP server loop (see Transports section).
     *   Returns the exit code (relevant for `stdio`).
-
-### Discovery
-
-When you call `->discover()`, the server locates all files within the directories specified by `->withScanDirectories()` (relative to the `->withBasePath()`) and for each file, it attempts to parse the class definiton, reflect on the public, non-static methods of that class and check them for `#[McpTool]`, `#[McpResource]`, `#[McpPrompt]`, or `#[McpResourceTemplate]` attributes
-
-If an attribute it found, it extract the metadata from the attribute instance, the method signature (name, parameters, type hints), and the method's DocBlock. It then creates  a corresponding `Definition` object (e.g., `ToolDefinition`, `ResourceDefinition`) and registers them in the Registry. Finally, the collected definitions are serialized and stored in the cache provided via `->withCache()` (using the configured cache key and TTL) to speed up subsequent server starts.
 
 ### Dependency Injection
 
-When an MCP client calls a tool or reads a resource/prompt that maps to one of your attributed methods:
+The `Server` relies on a PSR-11 `ContainerInterface` for two main purposes:
 
-1.  The `Processor` identifies the target class and method from the `Registry`.
-2.  It uses the PSR-11 container provided via `->withContainer()` to retrieve an instance of the target class (e.g., `$container->get(MyMcpStuff::class)`).
-3.  This means your class constructors can inject any dependencies (database connections, services, etc.) that are configured in your container.
-4.  The processor then prepares the arguments based on the client request and the method signature.
-5.  Finally, it calls the target method on the retrieved class instance.
+1.  **Resolving Server Dependencies:** The server itself needs instances of `LoggerInterface`, `CacheInterface`, and `ConfigurationRepositoryInterface` to function (e.g., for logging internal operations, caching discovered elements, reading configuration values).
+2.  **Resolving Handler Dependencies:** When an MCP client calls a tool or reads a resource/prompt that maps to one of your attributed methods or a manually registered handler, the server uses the container to get an instance of the handler's class (e.g., `$container->get(MyHandlerClass::class)`). This allows your handler classes to use constructor injection for their own dependencies (like database connections, application services, etc.).
 
-*Using the default `BasicContainer` is only suitable for very simple cases where your attributed methods are in classes with no constructor dependencies. For any real application, you should provide your own PSR-11 container instance.* `->withContainer(MyFrameworkContainer::getInstance())`
+**Default Behavior (No `withContainer` Call):**
+
+If you *do not* call `->withContainer()`, the server uses its internal `PhpMcp\Server\Defaults\BasicContainer`. This basic container comes pre-configured with default implementations:
+*   `LoggerInterface` -> `PhpMcp\Server\Defaults\StreamLogger` (writes to `STDERR`)
+*   `CacheInterface` -> `PhpMcp\Server\Defaults\FileCache` (writes to `../cache/mcp_cache` relative to the package directory)
+*   `ConfigurationRepositoryInterface` -> `PhpMcp\Server\Defaults\ArrayConfigurationRepository` (uses built-in default configuration values)
+
+In this default mode, you *can* use the `->withLogger()`, `->withCache()`, and `->withConfig()` methods to replace these defaults. These methods will update the instance used by the server and also update the registration within the internal `BasicContainer`.
+
+**Using a Custom Container (`->withContainer(MyContainer $c)`):**
+
+If you provide your own PSR-11 container instance using `->withContainer()`, the responsibility shifts entirely to you:
+
+*   **You MUST ensure your container is configured to provide implementations for `LoggerInterface`, `CacheInterface`, and `ConfigurationRepositoryInterface`.** The server will attempt to fetch these using `$container->get(...)` and will fail if they are not available.
+*   Your container will also be used to instantiate your handler classes, so ensure all their dependencies are also properly configured within your container.
+*   When using a custom container, the `->withLogger()`, `->withCache()`, and `->withConfig()` methods on the `Server` instance become largely ineffective for modifying the dependencies the server *actually uses* during request processing, as the server will always defer to retrieving these services from *your provided container*. Configure these services directly in your container's setup.
+
+Using the default `BasicContainer` is suitable for simple cases. For most applications, providing your own pre-configured PSR-11 container (from your framework or a library like PHP-DI) via `->withContainer()` is the recommended approach for proper dependency management.
 
 ### Configuration
 
@@ -340,8 +453,6 @@ Key configuration values (using dot notation) include:
 *   `mcp.capabilities.logging.enabled`: (bool) Enable/disable the `logging/setLevel` method.
 *   `mcp.cache.ttl`: (int) Cache time-to-live in seconds.
 *   `mcp.cache.prefix`: (string) Prefix for cache related to mcp.
-*   `mcp.discovery.base_path`: (string) Base path for discovery (overridden by `withBasePath`).
-*   `mcp.discovery.directories`: (array) Directories to scan (overridden by `withScanDirectories`).
 *   `mcp.runtime.log_level`: (string) Default log level (used by default logger).
 
 You can create your own implementation of the interface or pass an instance of `ArrayConfigurationRepository` populated with your overrides to `->withConfig()`. If a capability flag (e.g., `mcp.capabilities.tools.enabled`) is set to `false`, attempts by a client to use methods related to that capability (e.g., `tools/list`, `tools/call`) will result in a "Method not found" error.
@@ -377,23 +488,25 @@ Additionally, ensure your web server and PHP-FPM (if used) configurations allow 
     6.  Pass this explicit `clientId` to `$httpHandler->handleInput(...)`.
 
 **Integration Steps (General):**
-1.  **SSE Endpoint:** Create an endpoint (e.g., `/mcp/sse`) for GET requests. Set `Content-Type: text/event-stream` and keep the connection open.
-2.  **POST Endpoint:** Create an endpoint (e.g., `/mcp/message`) for POST requests with `Content-Type: application/json`.
-3.  **SSE Handler Logic:** Determine the `clientId`, instantiate/inject `HttpTransportHandler`, generate the POST URI *with* the `clientId` query parameter, call `$httpHandler->handleSseConnection(...)` (or a similar method like `streamSseMessages` if available in your integration), and ensure `$httpHandler->cleanupClient(...)` is called when the connection closes.
-4.  **POST Handler Logic:** Retrieve the `clientId` from the query parameter, get the raw JSON request body, instantiate/inject `HttpTransportHandler`, call `$httpHandler->handleInput(...)` with the body and `clientId`, and return an appropriate HTTP response (e.g., 202 Accepted).
+1.  **Configure Server:** Create and configure your `PhpMcp\Server\Server` instance (e.g., `$server = Server::make()->withLogger(...)->discover();`).
+2.  **Instantiate Handler:** Get an instance of `HttpTransportHandler`, passing the configured `$server` instance to its constructor: `$httpHandler = new HttpTransportHandler($server);` (or use dependency injection configured to do this).
+3.  **SSE Endpoint:** Create an endpoint (e.g., `/mcp/sse`) for GET requests. Set `Content-Type: text/event-stream` and keep the connection open.
+4.  **POST Endpoint:** Create an endpoint (e.g., `/mcp/message`) for POST requests with `Content-Type: application/json`.
+5.  **SSE Handler Logic:** Determine the `clientId`, use the `$httpHandler`, generate the POST URI *with* the `clientId` query parameter, call `$httpHandler->handleSseConnection(...)`, and ensure `$httpHandler->cleanupClient(...)` is called when the connection closes.
+6.  **POST Handler Logic:** Retrieve the `clientId` from the query parameter, get the raw JSON request body, use the `$httpHandler`, call `$httpHandler->handleInput(...)` with the body and `clientId`, and return an appropriate HTTP response (e.g., 202 Accepted).
 
 #### ReactPHP HTTP Transport (`reactphp`)
 
-This package includes `PhpMcp\Server\Transports\ReactPhpHttpTransportHandler`, a concrete transport handler that integrates the core MCP HTTP+SSE logic with the ReactPHP ecosystem. It replaces potentially synchronous or blocking loops (often found in basic integrations of `HttpTransportHandler`) with ReactPHP's fully asynchronous, non-blocking event loop and stream primitives. This enables efficient handling of concurrent SSE connections within a ReactPHP-based application server. See the `samples/reactphp_http/server.php` example for a practical implementation.
+This package includes `PhpMcp\Server\Transports\ReactPhpHttpTransportHandler`, a concrete transport handler that integrates the core MCP HTTP+SSE logic with the ReactPHP ecosystem. It replaces potentially synchronous or blocking loops (often found in basic integrations of `HttpTransportHandler`) with ReactPHP's fully asynchronous, non-blocking event loop and stream primitives. Instantiate it by passing your configured `Server` instance: `$reactHandler = new ReactPhpHttpTransportHandler($server);`. This enables efficient handling of concurrent SSE connections within a ReactPHP-based application server. See the `samples/reactphp_http/server.php` example for a practical implementation.
 
 #### Custom Transports
 
 You can create your own transport handlers if `stdio` or `http` don't fit your specific needs (e.g., WebSockets, custom RPC mechanisms). Two main approaches exist:
 
 1.  **Implement the Interface:** Create a class that implements `PhpMcp\Server\Contracts\TransportHandlerInterface`. This gives you complete control over the communication lifecycle.
-2.  **Extend Existing Handlers:** Inherit from `PhpMcp\Server\Transports\StdioTransportHandler` or `PhpMcp\Server\Transports\HttpTransportHandler`. Override specific methods to adapt the behavior (e.g., `sendResponse`, connection lifecycle methods like `handleSseConnection`, client cleanup like `cleanupClient`). The `ReactPhpHttpTransportHandler` serves as a good example of extending `HttpTransportHandler`.
+2.  **Extend Existing Handlers:** Inherit from `PhpMcp\Server\Transports\StdioTransportHandler`, `PhpMcp\Server\Transports\HttpTransportHandler`, or `PhpMcp\Server\Transports\ReactPhpHttpTransportHandler`. Override specific methods to adapt the behavior (e.g., `sendResponse`, `handleSseConnection`, `cleanupClient`). Remember to call the parent constructor correctly if extending HTTP handlers: `parent::__construct($server)`. The `ReactPhpHttpTransportHandler` serves as a good example of extending `HttpTransportHandler`.
 
-Examine the source code of the provided handlers (`StdioTransportHandler`, `HttpTransportHandler`, `ReactPhpHttpTransportHandler`) to understand the interaction with the `Processor` and how to manage the request/response flow and client state.
+Examine the source code of the provided handlers to understand the interaction with the `Processor` and how to manage the request/response flow and client state.
 
 ## Advanced Usage & Recipes
 
@@ -480,6 +593,12 @@ Here are some examples of how to integrate `php-mcp/server` with common librarie
 
     class McpController extends AbstractController
     {
+        private readonly HttpTransportHandler $mcpHandler;
+        private readonly LoggerInterface $logger;
+
+        // Inject HttpTransportHandler directly.
+        // The Symfony service definition for HttpTransportHandler MUST be configured
+        // to receive the fully configured PhpMcp\Server\Server instance as an argument.
         public function __construct(
             private readonly HttpTransportHandler $mcpHandler,
             private readonly LoggerInterface $logger
@@ -488,6 +607,12 @@ Here are some examples of how to integrate `php-mcp/server` with common librarie
         #[Route('/mcp', name: 'mcp_post', methods: ['POST'])]
         public function handlePost(Request $request): Response
         {
+            $clientId = $request->query('clientId'); 
+             if (! $clientId) { 
+                 // Or: $session = $request->getSession(); $session->start(); $clientId = $session->getId();
+                 return new Response('Missing clientId', 400);
+             }
+
             if (! $request->isJson()) {
                 return new Response('Content-Type must be application/json', 415);
             }
@@ -515,45 +640,36 @@ Here are some examples of how to integrate `php-mcp/server` with common librarie
         #[Route('/mcp/sse', name: 'mcp_sse', methods: ['GET'])]
         public function handleSse(Request $request): StreamedResponse
         {
-            $session = $request->getSession();
-            $session->start();
+            // Retrieve/generate clientId (e.g., from session or generate new one)
+            $session = $request->getSession(); 
+            $session->start(); 
             $clientId = $session->getId();
+            // Or: $clientId = 'client_'.bin2hex(random_bytes(16));
+            
             $this->logger->info('MCP SSE connection opening', ['client_id' => $clientId]);
 
             $response = new StreamedResponse(function () use ($clientId, $request) {
-                $sendEventCallback = function (string $event, string $data, ?string $id = null) use ($clientId): void {
-                    try {
-                        echo "event: {$event}\n";
-                        if ($id !== null) echo "id: {$id}\n";
-                        echo "data: {$data}\n\n";
-                        flush();
-                    } catch (\Throwable $e) {
-                        $this->logger->error('SSE send error', ['exception' => $e, 'clientId' => $clientId]);
-                        throw new RuntimeException('SSE send error', 0, $e);
-                    }
-                };
-
                 try {
-                    $postEndpointUri = $this->generateUrl('mcp_post', ['client_id' => $clientId], \Symfony\Component\Routing\Generator\UrlGeneratorInterface::RELATIVE_URL);
-                    $this->mcpHandler->streamSseMessages(
-                        $sendEventCallback,
-                        $clientId,
-                        $postEndpointUri
-                    );
+                    $postEndpointUri = $this->generateUrl('mcp_post', ['clientId' => $clientId], \Symfony\Component\Routing\Generator\UrlGeneratorInterface::ABSOLUTE_URL);
+                    
+                    // Use the handler's method to manage the SSE loop
+                    $this->mcpHandler->handleSseConnection($clientId, $postEndpointUri);
                 } catch (\Throwable $e) {
                         if (! ($e instanceof RuntimeException && str_contains($e->getMessage(), 'disconnected'))) {
-                            $this->logger->error('SSE stream loop terminated', ['exception' => $e, 'clientId' => $clientId]);
+                            $this->logger->error('SSE stream loop terminated unexpectedly', ['exception' => $e, 'clientId' => $clientId]);
                         }
                 } finally {
+                    // Ensure cleanup happens when the loop exits
                     $this->mcpHandler->cleanupClient($clientId);
                     $this->logger->info('SSE connection closed', ['client_id' => $clientId]);
                 }
             });
 
+            // Set headers for SSE
             $response->headers->set('Content-Type', 'text/event-stream');
             $response->headers->set('Cache-Control', 'no-cache');
             $response->headers->set('Connection', 'keep-alive');
-            $response->headers->set('X-Accel-Buffering', 'no');
+            $response->headers->set('X-Accel-Buffering', 'no'); // Important for Nginx
             return $response;
         }
     }

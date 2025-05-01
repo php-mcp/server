@@ -2,18 +2,26 @@
 
 namespace PhpMcp\Server\Tests\Support;
 
-use PhpMcp\Server\Support\DocBlockParser;
-use PhpMcp\Server\Tests\Mocks\SupportStubs\DocBlockTestStub;
-use ReflectionMethod;
+use Mockery;
+use phpDocumentor\Reflection\DocBlock;
+use phpDocumentor\Reflection\DocBlock\Tags\Deprecated;
 use phpDocumentor\Reflection\DocBlock\Tags\Param;
 use phpDocumentor\Reflection\DocBlock\Tags\Return_;
-use phpDocumentor\Reflection\DocBlock\Tags\Throws;
-use phpDocumentor\Reflection\DocBlock\Tags\Deprecated;
 use phpDocumentor\Reflection\DocBlock\Tags\See;
-use phpDocumentor\Reflection\DocBlock;
+use phpDocumentor\Reflection\DocBlock\Tags\Throws;
+use PhpMcp\Server\Support\DocBlockParser;
+use PhpMcp\Server\Tests\Mocks\SupportStubs\DocBlockTestStub;
+use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
+use ReflectionMethod;
 
 beforeEach(function () {
-    $this->parser = new DocBlockParser();
+    $this->containerMock = Mockery::mock(ContainerInterface::class);
+    $this->loggerMock = Mockery::mock(LoggerInterface::class);
+
+    $this->containerMock->shouldReceive('get')->with(LoggerInterface::class)->andReturn($this->loggerMock);
+
+    $this->parser = new DocBlockParser($this->containerMock);
 });
 
 // Helper function to get reflection method

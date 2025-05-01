@@ -6,8 +6,8 @@ use phpDocumentor\Reflection\DocBlock;
 use phpDocumentor\Reflection\DocBlock\Tags\Param;
 use phpDocumentor\Reflection\DocBlock\Tags\Return_;
 use phpDocumentor\Reflection\DocBlockFactory;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
-use Psr\Log\NullLogger;
 use Throwable;
 
 /**
@@ -19,10 +19,10 @@ class DocBlockParser
 
     private LoggerInterface $logger;
 
-    public function __construct(?LoggerInterface $logger = null)
+    public function __construct(ContainerInterface $container)
     {
         $this->docBlockFactory = DocBlockFactory::createInstance();
-        $this->logger = $logger ?? new NullLogger();
+        $this->logger = $container->get(LoggerInterface::class);
     }
 
     /**

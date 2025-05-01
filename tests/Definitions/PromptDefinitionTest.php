@@ -2,15 +2,15 @@
 
 namespace Tests\Definitions;
 
-use PhpMcp\Server\Definitions\PromptDefinition;
-use PhpMcp\Server\Definitions\PromptArgumentDefinition;
-use PhpMcp\Server\Attributes\McpPrompt;
-use PhpMcp\Server\Support\DocBlockParser;
 use Mockery;
-use ReflectionMethod;
-use ReflectionParameter;
+use PhpMcp\Server\Attributes\McpPrompt;
+use PhpMcp\Server\Definitions\PromptArgumentDefinition;
+use PhpMcp\Server\Definitions\PromptDefinition;
+use PhpMcp\Server\Support\DocBlockParser;
 use PhpMcp\Server\Tests\Mocks\DiscoveryStubs\AllElementsStub;
 use PhpMcp\Server\Tests\Mocks\DiscoveryStubs\ToolOnlyStub;
+use ReflectionMethod;
+use ReflectionParameter;
 
 // --- Constructor Validation Tests ---
 
@@ -54,7 +54,12 @@ test('fromReflection creates definition with explicit name and description', fun
     $this->docBlockParser->shouldReceive('getParamTags')->once()->with(null)->andReturn([]);
 
     // Act
-    $definition = PromptDefinition::fromReflection($reflectionMethod, $attribute, $this->docBlockParser);
+    $definition = PromptDefinition::fromReflection(
+        $reflectionMethod,
+        $attribute->name,
+        $attribute->description,
+        $this->docBlockParser
+    );
 
     // Assert
     expect($definition->getName())->toBe('explicit-prompt-name');
@@ -69,11 +74,11 @@ test('fromReflection creates definition with explicit name and description', fun
 test('fromReflection uses method name and docblock summary as defaults', function () {
     // Arrange
     $reflectionMethod = new ReflectionMethod(AllElementsStub::class, 'templateMethod');
-    $attribute = new McpPrompt();
+    $attribute = new McpPrompt;
     $docComment = $reflectionMethod->getDocComment() ?: null;
 
     // Read the actual summary from the stub file
-    $stubContent = file_get_contents(__DIR__ . '/../Mocks/DiscoveryStubs/AllElementsStub.php');
+    $stubContent = file_get_contents(__DIR__.'/../Mocks/DiscoveryStubs/AllElementsStub.php');
     preg_match('/\/\*\*(.*?)\*\/\s+public function templateMethod/s', $stubContent, $matches);
     $actualDocComment = isset($matches[1]) ? trim(preg_replace('/^\s*\*\s?/?m', '', $matches[1])) : '';
     $expectedSummary = explode("\n", $actualDocComment)[0] ?? null;
@@ -84,7 +89,12 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     $this->docBlockParser->shouldReceive('getParamTags')->once()->with(null)->andReturn([]);
 
     // Act
-    $definition = PromptDefinition::fromReflection($reflectionMethod, $attribute, $this->docBlockParser);
+    $definition = PromptDefinition::fromReflection(
+        $reflectionMethod,
+        $attribute->name,
+        $attribute->description,
+        $this->docBlockParser
+    );
 
     // Assert
     expect($definition->getName())->toBe('templateMethod'); // Default to method name
@@ -97,7 +107,7 @@ test('fromReflection uses method name and docblock summary as defaults', functio
 test('fromReflection handles missing docblock summary', function () {
     // Arrange
     $reflectionMethod = new ReflectionMethod(ToolOnlyStub::class, 'tool1');
-    $attribute = new McpPrompt();
+    $attribute = new McpPrompt;
     $docComment = $reflectionMethod->getDocComment() ?: null;
 
     // Mock parser
@@ -106,7 +116,12 @@ test('fromReflection handles missing docblock summary', function () {
     $this->docBlockParser->shouldReceive('getParamTags')->once()->with(null)->andReturn([]);
 
     // Act
-    $definition = PromptDefinition::fromReflection($reflectionMethod, $attribute, $this->docBlockParser);
+    $definition = PromptDefinition::fromReflection(
+        $reflectionMethod,
+        $attribute->name,
+        $attribute->description,
+        $this->docBlockParser
+    );
 
     // Assert
     expect($definition->getName())->toBe('tool1');
@@ -179,11 +194,11 @@ test('toArray produces correct MCP format', function () {
         'name' => 'mcp-prompt',
         'description' => 'MCP Description',
         'arguments' => [
-            ['name' => 'id', 'required' => true]
-        ]
+            ['name' => 'id', 'required' => true],
+        ],
     ]);
     expect($arrayMinimal)->toBe([
-        'name' => 'mcp-minimal'
+        'name' => 'mcp-minimal',
     ]);
     expect($arrayMinimal)->not->toHaveKeys(['description', 'arguments']);
 });

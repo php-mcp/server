@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PhpMcp\Server;
 
 use ArrayObject;
+use PhpMcp\Server\Contracts\ConfigurationRepositoryInterface as ConfigRepository;
 use PhpMcp\Server\Definitions\PromptDefinition;
 use PhpMcp\Server\Definitions\ResourceDefinition;
 use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
@@ -12,12 +13,19 @@ use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\JsonRpc\Notification;
 use PhpMcp\Server\State\TransportState;
 use PhpMcp\Server\Support\UriTemplateMatcher;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use Throwable;
 
 class Registry
 {
+    private CacheInterface $cache;
+
+    private LoggerInterface $logger;
+
+    private TransportState $transportState;
+
     /** @var ArrayObject<string, ToolDefinition> */
     private ArrayObject $tools;
 
@@ -41,28 +49,33 @@ class Registry
 
     /** @var callable|null */
     private $notifyPromptsChanged = null;
-    // Add others like templates if needed
 
-    private string $cacheKey = '';
+    private string $cacheKey;
 
     public function __construct(
-        private readonly CacheInterface $cache,
-        private readonly LoggerInterface $logger,
-        private readonly TransportState $transportState,
-        private readonly ?string $cachePrefix = 'mcp_'
+        private readonly ContainerInterface $container,
+        ?TransportState $transportState = null,
     ) {
-        $this->initializeEmptyCollections();
+        $this->cache = $this->container->get(CacheInterface::class);
+        $this->logger = $this->container->get(LoggerInterface::class);
+        $config = $this->container->get(ConfigRepository::class);
+
+        $this->initializeCollections();
         $this->initializeDefaultNotifiers();
 
-        $this->cacheKey = $cachePrefix.'elements';
+        $this->transportState = $transportState ?? new TransportState($this->container);
+
+        $this->cacheKey = $config->get('mcp.cache.prefix', 'mcp_').'elements';
+
+        $this->loadElementsFromCache();
     }
 
-    private function initializeEmptyCollections(): void
+    private function initializeCollections(): void
     {
-        $this->tools = new ArrayObject();
-        $this->resources = new ArrayObject();
-        $this->prompts = new ArrayObject();
-        $this->resourceTemplates = new ArrayObject();
+        $this->tools = new ArrayObject;
+        $this->resources = new ArrayObject;
+        $this->prompts = new ArrayObject;
+        $this->resourceTemplates = new ArrayObject;
     }
 
     private function initializeDefaultNotifiers(): void
@@ -99,26 +112,6 @@ class Registry
         $this->notifyPromptsChanged = $notifier;
     }
 
-    public function loadElements(): void
-    {
-        if ($this->isLoaded) {
-            return;
-        }
-
-        $cached = $this->cache->get($this->cacheKey);
-
-        if (is_array($cached) && isset($cached['tools'])) {
-            $this->logger->debug('MCP: Loading elements from cache.', ['key' => $this->cacheKey]);
-            $this->setElementsFromArray($cached);
-            $this->isLoaded = true;
-        }
-
-        if (! $this->isLoaded) {
-            $this->initializeEmptyCollections();
-            $this->isLoaded = true;
-        }
-    }
-
     public function isLoaded(): bool
     {
         return $this->isLoaded;
@@ -126,7 +119,6 @@ class Registry
 
     public function registerTool(ToolDefinition $tool): void
     {
-        $this->loadElements();
         $toolName = $tool->getName();
         $alreadyExists = $this->tools->offsetExists($toolName);
         if ($alreadyExists) {
@@ -141,7 +133,6 @@ class Registry
 
     public function registerResource(ResourceDefinition $resource): void
     {
-        $this->loadElements();
         $uri = $resource->getUri();
         $alreadyExists = $this->resources->offsetExists($uri);
         if ($alreadyExists) {
@@ -156,7 +147,6 @@ class Registry
 
     public function registerResourceTemplate(ResourceTemplateDefinition $template): void
     {
-        $this->loadElements();
         $uriTemplate = $template->getUriTemplate();
         $alreadyExists = $this->resourceTemplates->offsetExists($uriTemplate);
         if ($alreadyExists) {
@@ -167,7 +157,6 @@ class Registry
 
     public function registerPrompt(PromptDefinition $prompt): void
     {
-        $this->loadElements();
         $promptName = $prompt->getName();
         $alreadyExists = $this->prompts->offsetExists($promptName);
         if ($alreadyExists) {
@@ -180,7 +169,42 @@ class Registry
         }
     }
 
-    public function cacheElements(): bool
+    public function loadElementsFromCache(bool $force = false): void
+    {
+        if ($this->isLoaded && ! $force) {
+            return;
+        }
+
+        $cached = $this->cache->get($this->cacheKey);
+
+        if (is_array($cached) && isset($cached['tools'])) {
+            $this->logger->debug('MCP: Loading elements from cache.', ['key' => $this->cacheKey]);
+
+            foreach ($cached['tools'] ?? [] as $tool) {
+                $toolDefinition = ToolDefinition::fromArray($tool);
+                $this->registerTool($toolDefinition);
+            }
+
+            foreach ($cached['resources'] ?? [] as $resource) {
+                $resourceDefinition = ResourceDefinition::fromArray($resource);
+                $this->registerResource($resourceDefinition);
+            }
+
+            foreach ($cached['prompts'] ?? [] as $prompt) {
+                $promptDefinition = PromptDefinition::fromArray($prompt);
+                $this->registerPrompt($promptDefinition);
+            }
+
+            foreach ($cached['resourceTemplates'] ?? [] as $template) {
+                $resourceTemplateDefinition = ResourceTemplateDefinition::fromArray($template);
+                $this->registerResourceTemplate($resourceTemplateDefinition);
+            }
+        }
+
+        $this->isLoaded = true;
+    }
+
+    public function saveElementsToCache(): bool
     {
         $data = [
             'tools' => $this->tools->getArrayCopy(),
@@ -204,7 +228,7 @@ class Registry
     {
         try {
             $this->cache->delete($this->cacheKey);
-            $this->initializeEmptyCollections();
+            $this->initializeCollections();
             $this->isLoaded = false;
             $this->logger->debug('MCP: Element cache cleared.');
 
@@ -223,13 +247,7 @@ class Registry
         }
     }
 
-    private function setElementsFromArray(array $data): void
-    {
-        $this->tools = new ArrayObject($data['tools'] ?? []);
-        $this->resources = new ArrayObject($data['resources'] ?? []);
-        $this->prompts = new ArrayObject($data['prompts'] ?? []);
-        $this->resourceTemplates = new ArrayObject($data['resourceTemplates'] ?? []);
-    }
+    private function setElementsFromArray(array $data): void {}
 
     public function findTool(string $name): ?ToolDefinition
     {

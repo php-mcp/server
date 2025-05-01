@@ -2,7 +2,9 @@
 
 namespace PhpMcp\Server\State;
 
+use PhpMcp\Server\Contracts\ConfigurationRepositoryInterface as ConfigRepository;
 use PhpMcp\Server\JsonRpc\Message;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 
@@ -11,23 +13,22 @@ use Psr\SimpleCache\CacheInterface;
  */
 class TransportState
 {
-    private string $cachePrefix = 'mcp:';
+    private CacheInterface $cache;
 
-    private int $cacheTtl = 3600; // Default TTL
+    private LoggerInterface $logger;
 
-    public function __construct(
-        private CacheInterface $cache,
-        private LoggerInterface $logger,
-        ?string $cachePrefix = null,
-        ?int $ttl = null
-    ) {
-        if ($cachePrefix !== null) {
-            $cleanPrefix = preg_replace('/[^a-zA-Z0-9_.-]/', '', $cachePrefix); // Allow PSR-6 safe chars
-            $this->cachePrefix = ! empty($cleanPrefix) ? rtrim($cleanPrefix, '_').'_' : '';
-        }
-        if ($ttl !== null) {
-            $this->cacheTtl = $ttl;
-        }
+    private string $cachePrefix;
+
+    private int $cacheTtl;
+
+    public function __construct(private ContainerInterface $container)
+    {
+        $this->cache = $this->container->get(CacheInterface::class);
+        $this->logger = $this->container->get(LoggerInterface::class);
+        $config = $this->container->get(ConfigRepository::class);
+
+        $this->cachePrefix = $config->get('mcp.cache.prefix', 'mcp_');
+        $this->cacheTtl = $config->get('mcp.cache.ttl', 3600);
     }
 
     private function getCacheKey(string $key, ?string $clientId = null): string

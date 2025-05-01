@@ -3,8 +3,14 @@
 namespace Tests\Discovery; // Adjust namespace if needed based on your structure
 
 use Mockery;
+use PhpMcp\Server\Contracts\ConfigurationRepositoryInterface;
+use PhpMcp\Server\Definitions\PromptDefinition;
+use PhpMcp\Server\Definitions\ResourceDefinition;
+use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
+use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\Registry;
 use PhpMcp\Server\State\TransportState;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use Throwable;
@@ -14,20 +20,22 @@ const EXPECTED_CACHE_KEY = REGISTRY_CACHE_PREFIX.'elements';
 
 // Mocks and SUT instance
 beforeEach(function () {
-    /** @var CacheInterface|Mockery\MockInterface */
+    $this->containerMock = Mockery::mock(ContainerInterface::class);
     $this->cache = Mockery::mock(CacheInterface::class);
-    /** @var LoggerInterface|Mockery\MockInterface */
     $this->logger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
-    /** @var TransportState|Mockery\MockInterface */
+    $this->config = Mockery::mock(ConfigurationRepositoryInterface::class);
     $this->transportState = Mockery::mock(TransportState::class)->shouldIgnoreMissing();
 
-    // Instantiate Registry, providing the mocked dependencies and prefix
-    $this->registry = new Registry(
-        $this->cache,
-        $this->logger,
-        $this->transportState,
-        REGISTRY_CACHE_PREFIX // Pass the prefix
-    );
+    $this->config->allows('get')->with('mcp.cache.prefix', Mockery::type('string'))->andReturn(REGISTRY_CACHE_PREFIX);
+    $this->config->allows('get')->with('mcp.cache.ttl', Mockery::type('int'))->andReturn(3600);
+
+    $this->cache->allows('get')->with(EXPECTED_CACHE_KEY)->andReturn(null)->byDefault();
+
+    $this->containerMock->shouldReceive('get')->with(CacheInterface::class)->andReturn($this->cache);
+    $this->containerMock->shouldReceive('get')->with(LoggerInterface::class)->andReturn($this->logger);
+    $this->containerMock->shouldReceive('get')->with(ConfigurationRepositoryInterface::class)->andReturn($this->config);
+
+    $this->registry = new Registry($this->containerMock, $this->transportState);
 });
 
 // --- Registration and Basic Retrieval Tests ---
@@ -35,8 +43,6 @@ beforeEach(function () {
 test('can register and find a tool', function () {
     // Arrange
     $tool = createTestTool('my-tool');
-    // Expect initial cache check
-    $this->cache->shouldReceive('get')->once()->with(EXPECTED_CACHE_KEY)->andReturn(null);
 
     // Act
     $this->registry->registerTool($tool);
@@ -51,7 +57,6 @@ test('can register and find a tool', function () {
 test('can register and find a resource by URI', function () {
     // Arrange
     $resource = createTestResource('file:///exact/match.txt');
-    $this->cache->shouldReceive('get')->once()->with(EXPECTED_CACHE_KEY)->andReturn(null);
 
     // Act
     $this->registry->registerResource($resource);
@@ -66,7 +71,6 @@ test('can register and find a resource by URI', function () {
 test('can register and find a prompt', function () {
     // Arrange
     $prompt = createTestPrompt('my-prompt');
-    $this->cache->shouldReceive('get')->once()->with(EXPECTED_CACHE_KEY)->andReturn(null);
 
     // Act
     $this->registry->registerPrompt($prompt);
@@ -81,7 +85,6 @@ test('can register and find a prompt', function () {
 test('can register and find a resource template by URI', function () {
     // Arrange
     $template = createTestTemplate('user://{userId}/profile');
-    $this->cache->shouldReceive('get')->once()->with(EXPECTED_CACHE_KEY)->andReturn(null);
 
     // Act
     $this->registry->registerResourceTemplate($template);
@@ -99,8 +102,6 @@ test('can register and find a resource template by URI', function () {
 
 test('can retrieve all registered elements of each type', function () {
     // Arrange
-    $this->cache->shouldReceive('get')->once()->with(EXPECTED_CACHE_KEY)->andReturn(null);
-
     $tool1 = createTestTool('t1');
     $tool2 = createTestTool('t2');
     $resource1 = createTestResource('file:///valid/r1');
@@ -130,9 +131,6 @@ test('can retrieve all registered elements of each type', function () {
 
 test('can cache registered elements', function () {
     // Arrange
-    // Expect initial cache check on first registration
-    $this->cache->shouldReceive('get')->once()->with(EXPECTED_CACHE_KEY)->andReturn(null);
-
     $tool = createTestTool('cache-tool');
     $resource = createTestResource('cache://res');
     $prompt = createTestPrompt('cache-prompt');
@@ -167,7 +165,7 @@ test('can cache registered elements', function () {
         ->andReturn(true);
 
     // Act
-    $result = $this->registry->cacheElements();
+    $result = $this->registry->saveElementsToCache();
 
     // Assert
     expect($result)->toBeTrue();
@@ -181,10 +179,10 @@ test('can load elements from cache', function () {
     $template = createTestTemplate('cached://tmpl/{id}');
 
     $cachedData = [
-        'tools' => [$tool->getName() => $tool],
-        'resources' => [$resource->getUri() => $resource],
-        'prompts' => [$prompt->getName() => $prompt],
-        'resourceTemplates' => [$template->getUriTemplate() => $template],
+        'tools' => [$tool->getName() => json_decode(json_encode($tool), true)],
+        'resources' => [$resource->getUri() => json_decode(json_encode($resource), true)],
+        'prompts' => [$prompt->getName() => json_decode(json_encode($prompt), true)],
+        'resourceTemplates' => [$template->getUriTemplate() => json_decode(json_encode($template), true)],
     ];
 
     $this->cache->shouldReceive('get')->once()
@@ -192,7 +190,7 @@ test('can load elements from cache', function () {
         ->andReturn($cachedData);
 
     // Act
-    $this->registry->loadElements();
+    $this->registry->loadElementsFromCache(true);
 
     // Assert that loading occurred and elements are present
     $foundTool = $this->registry->findTool('cached-tool');
@@ -200,24 +198,27 @@ test('can load elements from cache', function () {
     $foundPrompt = $this->registry->findPrompt('cached-prompt');
     $foundTemplateMatch = $this->registry->findResourceTemplateByUri('cached://tmpl/123');
 
-    expect($foundTool)->toBe($tool);
-    expect($foundResource)->toBe($resource);
-    expect($foundPrompt)->toBe($prompt);
+    expect($foundTool)->toBeInstanceOf(ToolDefinition::class)
+        ->and($foundTool->getName())->toBe($tool->getName())
+        ->and($foundTool->getDescription())->toBe($tool->getDescription())
+        ->and($foundTool->getInputSchema())->toBe($tool->getInputSchema());
+    expect($foundResource)->toBeInstanceOf(ResourceDefinition::class)
+        ->and($foundResource->getUri())->toBe($resource->getUri())
+        ->and($foundResource->getDescription())->toBe($resource->getDescription())
+        ->and($foundResource->getMimeType())->toBe($resource->getMimeType());
+    expect($foundPrompt)->toBeInstanceOf(PromptDefinition::class)
+        ->and($foundPrompt->getName())->toBe($prompt->getName())
+        ->and($foundPrompt->getDescription())->toBe($prompt->getDescription());
     expect($foundTemplateMatch)->toBeArray()
-        ->and($foundTemplateMatch['definition'])->toBe($template)
+        ->and($foundTemplateMatch['definition'])->toBeInstanceOf(ResourceTemplateDefinition::class)
         ->and($foundTemplateMatch['variables'])->toBe(['id' => '123']);
 
     expect($this->registry->isLoaded())->toBeTrue();
 });
 
 test('load elements ignores cache and initializes empty if cache is empty or invalid', function ($cacheReturnValue) {
-    // Arrange
-    $this->cache->shouldReceive('get')->once()
-        ->with(EXPECTED_CACHE_KEY)
-        ->andReturn($cacheReturnValue);
-
     // Act
-    $this->registry->loadElements(); // loadElements returns void
+    $this->registry->loadElementsFromCache(); // loadElements returns void
 
     // Assert registry is empty and loaded flag is set
     expect($this->registry->allTools()->count())->toBe(0);
@@ -267,9 +268,6 @@ test('can set and trigger notifiers', function () {
         $promptNotifierCalled = true;
     });
 
-    // Need initial cache load expectation for the FIRST register call
-    $this->cache->shouldReceive('get')->once()->with(EXPECTED_CACHE_KEY)->andReturn(null);
-
     // Act - Register elements to trigger notifiers
     $this->registry->registerTool(createTestTool());
     $this->registry->registerResource(createTestResource());
@@ -287,9 +285,6 @@ test('notifiers are not called if not set', function () {
     $this->registry->setToolsChangedNotifier(null);
     $this->registry->setResourcesChangedNotifier(null);
     $this->registry->setPromptsChangedNotifier(null);
-
-    // Need initial cache load expectation for the FIRST register call
-    $this->cache->shouldReceive('get')->once()->with(EXPECTED_CACHE_KEY)->andReturn(null);
 
     // Act & Assert - Expect no exceptions when registering (which calls notify methods)
     expect(fn () => $this->registry->registerTool(createTestTool()))->not->toThrow(Throwable::class);

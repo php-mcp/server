@@ -40,6 +40,12 @@ class Processor
      */
     protected array $supportedProtocolVersions = ['2024-11-05'];
 
+    protected ConfigurationRepositoryInterface $config;
+
+    protected TransportState $transportState;
+
+    protected LoggerInterface $logger;
+
     protected SchemaValidator $schemaValidator;
 
     protected ArgumentPreparer $argumentPreparer;
@@ -49,15 +55,15 @@ class Processor
      */
     public function __construct(
         protected ContainerInterface $container,
-        protected ConfigurationRepositoryInterface $config,
         protected Registry $registry,
-        protected TransportState $transportState,
-        protected LoggerInterface $logger,
+        ?TransportState $transportState = null,
         ?SchemaValidator $schemaValidator = null,
         ?ArgumentPreparer $argumentPreparer = null
     ) {
-        $this->supportedProtocolVersions = $this->config->get('mcp.protocol_versions', ['2024-11-05']);
-        $this->registry->loadElements();
+        $this->config = $this->container->get(ConfigurationRepositoryInterface::class);
+        $this->logger = $this->container->get(LoggerInterface::class);
+
+        $this->transportState = $transportState ?? new TransportState($this->container);
         $this->schemaValidator = $schemaValidator ?? new SchemaValidator($this->logger);
         $this->argumentPreparer = $argumentPreparer ?? new ArgumentPreparer($this->logger);
     }
@@ -250,7 +256,7 @@ class Processor
             $capabilities['prompts'] = ['listChanged' => $this->config->get('mcp.capabilities.prompts.listChanged', false)];
         }
         if ($this->config->get('mcp.capabilities.logging.enabled', false)) {
-            $capabilities['logging'] = new \stdClass();
+            $capabilities['logging'] = new \stdClass;
         }
 
         $instructions = $this->config->get('mcp.instructions');
@@ -261,7 +267,7 @@ class Processor
     private function handlePing(string $clientId): EmptyResult
     {
         // Ping response has no specific content, just acknowledges
-        return new EmptyResult();
+        return new EmptyResult;
     }
 
     // --- Notification Handlers ---
@@ -270,7 +276,7 @@ class Processor
     {
         $this->transportState->markInitialized($clientId);
 
-        return new EmptyResult();
+        return new EmptyResult;
     }
 
     // --- Tool Handlers ---
@@ -302,7 +308,7 @@ class Processor
         }
 
         if (empty($argumentsRaw)) {
-            $argumentsRaw = new stdClass();
+            $argumentsRaw = new stdClass;
         }
 
         $definition = $this->registry->findTool($toolName);
@@ -443,7 +449,7 @@ class Processor
 
         $this->transportState->addResourceSubscription($clientId, $uri);
 
-        return new EmptyResult();
+        return new EmptyResult;
     }
 
     private function handleResourceUnsubscribe(array $params, string $clientId): EmptyResult
@@ -455,7 +461,7 @@ class Processor
 
         $this->transportState->removeResourceSubscription($clientId, $uri);
 
-        return new EmptyResult();
+        return new EmptyResult;
     }
 
     // --- Prompt Handlers ---
@@ -545,7 +551,7 @@ class Processor
         $this->logger->info('MCP logging level set request: '.$level);
         $this->config->set('mcp.runtime.log_level', strtolower($level)); // Example: Store in runtime config
 
-        return new EmptyResult(); // Success is empty result
+        return new EmptyResult; // Success is empty result
     }
 
     // --- Pagination Helpers ---

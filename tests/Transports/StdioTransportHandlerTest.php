@@ -11,9 +11,10 @@ use PhpMcp\Server\JsonRpc\Request;
 use PhpMcp\Server\JsonRpc\Response;
 use PhpMcp\Server\JsonRpc\Results\EmptyResult;
 use PhpMcp\Server\Processor;
+use PhpMcp\Server\Server;
 use PhpMcp\Server\State\TransportState;
-use PhpMcp\Server\Tests\Mocks\StdioTransportHandlerMock;
 use PhpMcp\Server\Transports\StdioTransportHandler;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use React\EventLoop\LoopInterface;
 use React\Stream\ReadableStreamInterface;
@@ -22,28 +23,29 @@ use ReflectionClass;
 use RuntimeException;
 
 beforeEach(function () {
-    // Mock dependencies
+    $this->container = Mockery::mock(ContainerInterface::class);
+    $this->server = Mockery::mock(Server::class);
     $this->processor = Mockery::mock(Processor::class);
     $this->transportState = Mockery::mock(TransportState::class);
-    /** @var MockInterface&LoggerInterface */
     $this->logger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
 
-    // Mock React components using interfaces
     $this->loop = Mockery::mock(LoopInterface::class);
     $this->inputStream = Mockery::mock(ReadableStreamInterface::class);
     $this->outputStream = Mockery::mock(WritableStreamInterface::class);
 
-    // Create our test handler with mocked dependencies
-    $this->handler = new StdioTransportHandlerMock(
-        $this->processor,
+    $this->server->shouldReceive('getContainer')->andReturn($this->container);
+    $this->server->shouldReceive('getProcessor')->andReturn($this->processor);
+
+    $this->container->shouldReceive('get')->with(LoggerInterface::class)->andReturn($this->logger);
+
+    $this->handler = new StdioTransportHandler(
+        $this->server,
         $this->transportState,
-        $this->logger,
         $this->inputStream,
         $this->outputStream,
-        $this->loop
+        $this->loop,
     );
 
-    // Define test client ID
     $this->clientId = 'stdio_client';
 });
 
@@ -70,11 +72,10 @@ test('handle adds to buffer and processes complete lines', function () {
     $input = '{"jsonrpc":"2.0","method":"test"}'."\n".'{"jsonrpc":"2.0","id":1,"method":"ping"}'."\n";
 
     // Create a spy to track handleInput calls
-    /** @var MockInterface&StdioTransportHandlerMock */
-    $handlerSpy = Mockery::mock(StdioTransportHandlerMock::class.'[handleInput]', [
-        $this->processor,
+    /** @var MockInterface&StdioTransportHandler */
+    $handlerSpy = Mockery::mock(StdioTransportHandler::class.'[handleInput]', [
+        $this->server,
         $this->transportState,
-        $this->logger,
         $this->inputStream,
         $this->outputStream,
         $this->loop,
@@ -92,11 +93,10 @@ test('handle adds to buffer and processes complete lines', function () {
 test('handle ignores empty lines', function () {
     $input = "\n\n\n";
 
-    /** @var MockInterface&StdioTransportHandlerMock */
-    $handlerSpy = Mockery::mock(StdioTransportHandlerMock::class.'[handleInput]', [
-        $this->processor,
+    /** @var MockInterface&StdioTransportHandler */
+    $handlerSpy = Mockery::mock(StdioTransportHandler::class.'[handleInput]', [
+        $this->server,
         $this->transportState,
-        $this->logger,
         $this->inputStream,
         $this->outputStream,
         $this->loop,

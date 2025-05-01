@@ -5,37 +5,38 @@ namespace PhpMcp\Server\Tests\Transports;
 use JsonException;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
-use Mockery\MockInterface;
 use PhpMcp\Server\Exceptions\McpException;
 use PhpMcp\Server\JsonRpc\Notification;
 use PhpMcp\Server\JsonRpc\Request;
 use PhpMcp\Server\JsonRpc\Response;
 use PhpMcp\Server\JsonRpc\Results\EmptyResult;
 use PhpMcp\Server\Processor;
+use PhpMcp\Server\Server;
 use PhpMcp\Server\State\TransportState;
 use PhpMcp\Server\Transports\HttpTransportHandler;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 
 uses(MockeryPHPUnitIntegration::class);
 
 beforeEach(function () {
-    // Mock dependencies
+    $this->container = Mockery::mock(ContainerInterface::class);
+    $this->server = Mockery::mock(Server::class);
     $this->processor = Mockery::mock(Processor::class);
     $this->transportState = Mockery::mock(TransportState::class);
-    /** @var MockInterface&LoggerInterface */
     $this->logger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
 
-    // Create handler with mocked dependencies
-    // Use partial mock to allow testing protected methods like sendSseEvent if needed,
-    // but primarily focus on interactions with dependencies.
+    $this->server->shouldReceive('getContainer')->andReturn($this->container);
+    $this->server->shouldReceive('getProcessor')->andReturn($this->processor);
+
+    $this->container->shouldReceive('get')->with(LoggerInterface::class)->andReturn($this->logger);
+
     $this->handler = Mockery::mock(HttpTransportHandler::class, [
-        $this->processor,
+        $this->server,
         $this->transportState,
-        $this->logger,
     ])->makePartial()->shouldAllowMockingProtectedMethods();
 
-    // Define test client ID
     $this->clientId = 'test_client_id';
 });
 
@@ -43,11 +44,7 @@ beforeEach(function () {
 
 test('constructs with dependencies', function () {
     // Re-create without mock for this specific test
-    $handler = new HttpTransportHandler(
-        $this->processor,
-        $this->transportState,
-        $this->logger
-    );
+    $handler = new HttpTransportHandler($this->server, $this->transportState);
 
     expect($handler)->toBeInstanceOf(HttpTransportHandler::class);
 });
@@ -356,7 +353,7 @@ test('cleanupClient removes client from transport state', function () {
     $this->logger->shouldReceive('info')->never(); // cleanupClient no longer logs directly
 
     // Need to use the non-mocked handler for this test
-    $handler = new HttpTransportHandler($this->processor, $this->transportState, $this->logger);
+    $handler = new HttpTransportHandler($this->server, $this->transportState);
     $handler->cleanupClient($this->clientId);
 });
 
@@ -365,7 +362,7 @@ test('cleanupClient removes client from transport state', function () {
 test('handleError converts JsonException to parse error', function () {
     $exception = new JsonException('Invalid JSON');
     // Use the real handler instance for this utility method test
-    $handler = new HttpTransportHandler($this->processor, $this->transportState, $this->logger);
+    $handler = new HttpTransportHandler($this->server, $this->transportState);
 
     $result = $handler->handleError($exception);
 
@@ -375,7 +372,7 @@ test('handleError converts JsonException to parse error', function () {
 
 test('handleError preserves McpException error codes', function () {
     $exception = McpException::methodNotFound('Method not found');
-    $handler = new HttpTransportHandler($this->processor, $this->transportState, $this->logger);
+    $handler = new HttpTransportHandler($this->server, $this->transportState);
 
     $result = $handler->handleError($exception);
 
@@ -385,7 +382,7 @@ test('handleError preserves McpException error codes', function () {
 
 test('handleError converts generic exceptions to internal error', function () {
     $exception = new RuntimeException('Unexpected error');
-    $handler = new HttpTransportHandler($this->processor, $this->transportState, $this->logger);
+    $handler = new HttpTransportHandler($this->server, $this->transportState);
 
     $result = $handler->handleError($exception);
 

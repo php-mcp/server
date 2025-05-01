@@ -9,6 +9,7 @@ use PhpMcp\Server\JsonRpc\Notification;
 use PhpMcp\Server\JsonRpc\Request;
 use PhpMcp\Server\JsonRpc\Response;
 use PhpMcp\Server\Processor;
+use PhpMcp\Server\Server;
 use PhpMcp\Server\State\TransportState;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -19,15 +20,23 @@ use Throwable;
  */
 class HttpTransportHandler implements TransportHandlerInterface
 {
-    public function __construct(
-        private readonly Processor $processor,
-        private readonly TransportState $transportState,
-        private readonly LoggerInterface $logger
-    ) {}
+    protected Processor $processor;
+
+    protected TransportState $transportState;
+
+    protected LoggerInterface $logger;
+
+    public function __construct(protected readonly Server $server, ?TransportState $transportState = null)
+    {
+        $container = $server->getContainer();
+        $this->processor = $server->getProcessor();
+
+        $this->transportState = $transportState ?? new TransportState($container);
+        $this->logger = $container->get(LoggerInterface::class);
+    }
 
     public function start(): int
     {
-        // throw an exception, this should never be called
         throw new \Exception('This method should never be called');
     }
 

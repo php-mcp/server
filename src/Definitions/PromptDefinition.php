@@ -2,7 +2,6 @@
 
 namespace PhpMcp\Server\Definitions;
 
-use PhpMcp\Server\Attributes\McpPrompt;
 use PhpMcp\Server\Support\DocBlockParser;
 
 /**
@@ -136,13 +135,14 @@ class PromptDefinition
      */
     public static function fromReflection(
         \ReflectionMethod $method,
-        McpPrompt $attribute,
+        ?string $overrideName,
+        ?string $overrideDescription,
         DocBlockParser $docBlockParser
     ): self {
         $className = $method->getDeclaringClass()->getName();
         $methodName = $method->getName();
         $docBlock = $docBlockParser->parseDocBlock($method->getDocComment() ?: null);
-        $description = $attribute->description ?? $docBlockParser->getSummary($docBlock) ?? null;
+        $description = $overrideDescription ?? $docBlockParser->getSummary($docBlock) ?? null;
 
         $arguments = [];
         $paramTags = $docBlockParser->getParamTags($docBlock); // Get all param tags first
@@ -162,7 +162,7 @@ class PromptDefinition
         return new self(
             className: $className,
             methodName: $methodName,
-            promptName: $attribute->name ?? $methodName,
+            promptName: $overrideName ?? $methodName,
             description: $description,
             arguments: $arguments
         );

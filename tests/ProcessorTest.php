@@ -31,9 +31,6 @@ use PhpMcp\Server\Registry;
 use PhpMcp\Server\State\TransportState;
 use PhpMcp\Server\Support\ArgumentPreparer;
 use PhpMcp\Server\Support\SchemaValidator;
-use PhpMcp\Server\Tests\TestDoubles\DummyPromptClass;
-use PhpMcp\Server\Tests\TestDoubles\DummyResourceClass;
-use PhpMcp\Server\Tests\TestDoubles\DummyToolClass;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use stdClass;
@@ -48,8 +45,7 @@ beforeEach(function () {
     $this->configMock = Mockery::mock(ConfigurationRepositoryInterface::class);
     $this->registryMock = Mockery::mock(Registry::class);
     $this->transportStateMock = Mockery::mock(TransportState::class);
-    /** @var MockInterface&LoggerInterface */
-    $this->loggerMock = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing(); // Ignore general logging
+    $this->loggerMock = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
     $this->schemaValidatorMock = Mockery::mock(SchemaValidator::class);
     $this->argumentPreparerMock = Mockery::mock(ArgumentPreparer::class);
 
@@ -74,17 +70,17 @@ beforeEach(function () {
     $this->registryMock->allows('allResources')->withNoArgs()->andReturn(new \ArrayObject)->byDefault();
     $this->registryMock->allows('allResourceTemplates')->withNoArgs()->andReturn(new \ArrayObject)->byDefault();
     $this->registryMock->allows('allPrompts')->withNoArgs()->andReturn(new \ArrayObject)->byDefault();
-    $this->registryMock->shouldReceive('loadElements')->once()->byDefault();
 
     // Default transport state (not initialized)
     $this->transportStateMock->allows('isInitialized')->with(CLIENT_ID)->andReturn(false)->byDefault();
 
+    $this->containerMock->allows('get')->with(ConfigurationRepositoryInterface::class)->andReturn($this->configMock);
+    $this->containerMock->allows('get')->with(LoggerInterface::class)->andReturn($this->loggerMock);
+
     $this->processor = new Processor(
         $this->containerMock,
-        $this->configMock,
         $this->registryMock,
         $this->transportStateMock,
-        $this->loggerMock,
         $this->schemaValidatorMock,
         $this->argumentPreparerMock
     );
@@ -308,8 +304,8 @@ test('handleToolList returns empty list when no tools', function () {
 });
 
 test('handleToolList returns tools without pagination', function () {
-    $tool1 = new ToolDefinition(DummyToolClass::class, 'methodA', 'tool1', 'desc1', []);
-    $tool2 = new ToolDefinition(DummyToolClass::class, 'methodB', 'tool2', 'desc2', []);
+    $tool1 = new ToolDefinition('DummyToolClass', 'methodA', 'tool1', 'desc1', []);
+    $tool2 = new ToolDefinition('DummyToolClass', 'methodB', 'tool2', 'desc2', []);
 
     $this->transportStateMock->allows('isInitialized')->with(CLIENT_ID)->andReturn(true);
     $this->registryMock->allows('allTools')->andReturn(new \ArrayObject([$tool1, $tool2]));
@@ -327,8 +323,8 @@ test('handleToolList handles pagination correctly', function () {
     $this->transportStateMock->allows('isInitialized')->with(CLIENT_ID)->andReturn(true);
     $this->configMock->allows('get')->with('mcp.pagination_limit', Mockery::any())->andReturn(1);
 
-    $tool1 = new ToolDefinition(DummyToolClass::class, 'methodA', 'tool1', 'desc1', []);
-    $tool2 = new ToolDefinition(DummyToolClass::class, 'methodB', 'tool2', 'desc2', []);
+    $tool1 = new ToolDefinition('DummyToolClass', 'methodA', 'tool1', 'desc1', []);
+    $tool2 = new ToolDefinition('DummyToolClass', 'methodB', 'tool2', 'desc2', []);
     $this->registryMock->allows('allTools')->andReturn(new \ArrayObject([$tool1, $tool2]));
 
     // First page
@@ -362,16 +358,15 @@ test('handleToolCall succeeds', function () {
     $formattedResult = [new TextContent(json_encode($toolResult))]; // Assume formatter JSON encodes
 
     $definition = Mockery::mock(ToolDefinition::class);
-    $definition->allows('getClassName')->andReturn(DummyToolClass::class);
+    $definition->allows('getClassName')->andReturn('DummyToolClass');
     $definition->allows('getMethodName')->andReturn('execute');
     $definition->allows('getInputSchema')->andReturn($inputSchema);
 
-    $toolInstance = Mockery::mock(DummyToolClass::class);
+    $toolInstance = Mockery::mock('DummyToolClass');
 
-    $this->registryMock->shouldReceive('loadElements')->once();
     $this->registryMock->shouldReceive('findTool')->once()->with($toolName)->andReturn($definition);
     $this->schemaValidatorMock->shouldReceive('validateAgainstJsonSchema')->once()->with($rawArgs, $inputSchema)->andReturn([]); // No errors
-    $this->containerMock->shouldReceive('get')->once()->with(DummyToolClass::class)->andReturn($toolInstance);
+    $this->containerMock->shouldReceive('get')->once()->with('DummyToolClass')->andReturn($toolInstance);
     $this->argumentPreparerMock->shouldReceive('prepareMethodArguments')
         ->once()
         ->with($toolInstance, 'execute', $rawArgs, $inputSchema)
@@ -382,10 +377,8 @@ test('handleToolCall succeeds', function () {
     /** @var MockInterface&Processor */
     $processorSpy = Mockery::mock(Processor::class, [
         $this->containerMock,
-        $this->configMock,
         $this->registryMock,
         $this->transportStateMock,
-        $this->loggerMock,
         $this->schemaValidatorMock,
         $this->argumentPreparerMock,
     ])->makePartial();
@@ -451,16 +444,15 @@ test('handleToolCall handles tool execution exception', function () {
     $errorContent = [new TextContent('Tool execution failed: '.$exceptionMessage.' (Type: RuntimeException)')];
 
     $definition = Mockery::mock(ToolDefinition::class);
-    $definition->allows('getClassName')->andReturn(DummyToolClass::class);
+    $definition->allows('getClassName')->andReturn('DummyToolClass');
     $definition->allows('getMethodName')->andReturn('execute');
     $definition->allows('getInputSchema')->andReturn($inputSchema);
 
-    $toolInstance = Mockery::mock(DummyToolClass::class);
+    $toolInstance = Mockery::mock('DummyToolClass');
 
-    $this->registryMock->shouldReceive('loadElements')->once();
     $this->registryMock->shouldReceive('findTool')->once()->with($toolName)->andReturn($definition);
     $this->schemaValidatorMock->shouldReceive('validateAgainstJsonSchema')->once()->with($rawArgs, $inputSchema)->andReturn([]);
-    $this->containerMock->shouldReceive('get')->once()->with(DummyToolClass::class)->andReturn($toolInstance);
+    $this->containerMock->shouldReceive('get')->once()->with('DummyToolClass')->andReturn($toolInstance);
     $this->argumentPreparerMock->shouldReceive('prepareMethodArguments')
         ->once()
         ->with($toolInstance, 'execute', $rawArgs, $inputSchema)
@@ -472,10 +464,8 @@ test('handleToolCall handles tool execution exception', function () {
     /** @var MockInterface&Processor */
     $processorSpy = Mockery::mock(Processor::class, [
         $this->containerMock,
-        $this->configMock,
         $this->registryMock,
         $this->transportStateMock,
-        $this->loggerMock,
         $this->schemaValidatorMock,
         $this->argumentPreparerMock,
     ])->makePartial();
@@ -655,15 +645,14 @@ test('handleResourceRead returns resource contents directly for exact URI match'
     $formattedContents = [new TextContent($contents)];
 
     $resourceDef = Mockery::mock(ResourceDefinition::class);
-    $resourceDef->allows('getClassName')->andReturn(DummyResourceClass::class);
+    $resourceDef->allows('getClassName')->andReturn('DummyResourceClass');
     $resourceDef->allows('getMethodName')->andReturn('getResource');
     $resourceDef->allows('getMimeType')->andReturn($mimeType);
 
-    $resourceInstance = Mockery::mock(DummyResourceClass::class);
+    $resourceInstance = Mockery::mock('DummyResourceClass');
 
-    $this->registryMock->shouldReceive('loadElements')->once();
     $this->registryMock->shouldReceive('findResourceByUri')->once()->with($uri)->andReturn($resourceDef);
-    $this->containerMock->shouldReceive('get')->once()->with(DummyResourceClass::class)->andReturn($resourceInstance);
+    $this->containerMock->shouldReceive('get')->once()->with('DummyResourceClass')->andReturn($resourceInstance);
     $this->argumentPreparerMock->shouldReceive('prepareMethodArguments')
         ->once()
         ->with($resourceInstance, 'getResource', ['uri' => $uri], [])
@@ -676,10 +665,8 @@ test('handleResourceRead returns resource contents directly for exact URI match'
     /** @var MockInterface&Processor */
     $processorSpy = Mockery::mock(Processor::class, [
         $this->containerMock,
-        $this->configMock,
         $this->registryMock,
         $this->transportStateMock,
-        $this->loggerMock,
         $this->schemaValidatorMock,
         $this->argumentPreparerMock,
     ])->makePartial();
@@ -706,16 +693,15 @@ test('handleResourceRead passes template parameters to handler method', function
     $formattedContents = [new TextContent($contents)];
 
     $templateDef = Mockery::mock(ResourceTemplateDefinition::class);
-    $templateDef->allows('getClassName')->andReturn(DummyResourceClass::class);
+    $templateDef->allows('getClassName')->andReturn('DummyResourceClass');
     $templateDef->allows('getMethodName')->andReturn('getTemplate');
     $templateDef->allows('getMimeType')->andReturn($mimeType);
 
-    $resourceInstance = Mockery::mock(DummyResourceClass::class);
+    $resourceInstance = Mockery::mock('DummyResourceClass');
 
-    $this->registryMock->shouldReceive('loadElements')->once();
     $this->registryMock->shouldReceive('findResourceByUri')->once()->with($requestedUri)->andReturn(null);
     $this->registryMock->shouldReceive('findResourceTemplateByUri')->once()->with($requestedUri)->andReturn(['definition' => $templateDef, 'variables' => $templateParams]);
-    $this->containerMock->shouldReceive('get')->once()->with(DummyResourceClass::class)->andReturn($resourceInstance);
+    $this->containerMock->shouldReceive('get')->once()->with('DummyResourceClass')->andReturn($resourceInstance);
     $this->argumentPreparerMock->shouldReceive('prepareMethodArguments')
         ->once()
         ->with($resourceInstance, 'getTemplate', array_merge($templateParams, ['uri' => $requestedUri]), [])
@@ -728,10 +714,8 @@ test('handleResourceRead passes template parameters to handler method', function
     /** @var MockInterface&Processor */
     $processorSpy = Mockery::mock(Processor::class, [
         $this->containerMock,
-        $this->configMock,
         $this->registryMock,
         $this->transportStateMock,
-        $this->loggerMock,
         $this->schemaValidatorMock,
         $this->argumentPreparerMock,
     ])->makePartial();
@@ -780,15 +764,15 @@ test('handleResourceRead handles handler execution exception', function () {
     $exception = new \RuntimeException($exceptionMessage);
 
     $definition = Mockery::mock(\PhpMcp\Server\Definitions\ResourceDefinition::class);
-    $definition->allows('getClassName')->andReturn(DummyResourceClass::class);
+    $definition->allows('getClassName')->andReturn('DummyResourceClass');
     $definition->allows('getMethodName')->andReturn('getResource');
     $definition->allows('getMimeType')->andReturn($mimeType);
 
-    $handlerInstance = Mockery::mock(DummyResourceClass::class);
+    $handlerInstance = Mockery::mock('DummyResourceClass');
 
     $this->registryMock->shouldReceive('findResourceByUri')->once()->with($uri)->andReturn($definition);
 
-    $this->containerMock->shouldReceive('get')->once()->with(DummyResourceClass::class)->andReturn($handlerInstance);
+    $this->containerMock->shouldReceive('get')->once()->with('DummyResourceClass')->andReturn($handlerInstance);
     $this->argumentPreparerMock->shouldReceive('prepareMethodArguments')
         ->once()
         ->with($handlerInstance, 'getResource', ['uri' => $uri], [])
@@ -809,7 +793,7 @@ test('handleResourceSubscribe subscribes to resource', function () {
     $this->configMock->allows('get')->with('mcp.capabilities.resources.subscribe', Mockery::any())->andReturn(true);
 
     $uri = 'file://subscribable';
-    $resource = new ResourceDefinition(DummyResourceClass::class, 'getResource', $uri, 'testResource', null, 'text/plain', 1024);
+    $resource = new ResourceDefinition('DummyResourceClass', 'getResource', $uri, 'testResource', null, 'text/plain', 1024);
 
     $this->transportStateMock->shouldReceive('addResourceSubscription')->once()->with(CLIENT_ID, $uri)->andReturn(true);
 
@@ -824,7 +808,7 @@ test('handleResourceUnsubscribe unsubscribes from resource', function () {
     $this->transportStateMock->allows('isInitialized')->with(CLIENT_ID)->andReturn(true);
 
     $uri = 'file://subscribable';
-    $resource = new ResourceDefinition(DummyResourceClass::class, 'getResource', $uri, 'testResource', null, 'text/plain', 1024);
+    $resource = new ResourceDefinition('DummyResourceClass', 'getResource', $uri, 'testResource', null, 'text/plain', 1024);
 
     $this->transportStateMock->shouldReceive('removeResourceSubscription')->once()->with(CLIENT_ID, $uri)->andReturn(true);
 
@@ -918,16 +902,15 @@ test('handlePromptGet returns formatted prompt messages', function () {
     $formattedMessages = array_map(fn ($message) => new PromptMessage($message['role'], new TextContent($message['content'])), $rawResult);
 
     $promptDef = Mockery::mock(PromptDefinition::class);
-    $promptDef->allows('getClassName')->andReturn(DummyPromptClass::class);
+    $promptDef->allows('getClassName')->andReturn('DummyPromptClass');
     $promptDef->allows('getMethodName')->andReturn('getGreetingPrompt');
     $promptDef->allows('getArguments')->andReturn([]);
     $promptDef->allows('getDescription')->andReturn($promptDescription);
 
-    $promptInstance = Mockery::mock(DummyPromptClass::class);
+    $promptInstance = Mockery::mock('DummyPromptClass');
 
-    $this->registryMock->shouldReceive('loadElements')->once();
     $this->registryMock->shouldReceive('findPrompt')->once()->with($promptName)->andReturn($promptDef);
-    $this->containerMock->shouldReceive('get')->once()->with(DummyPromptClass::class)->andReturn($promptInstance);
+    $this->containerMock->shouldReceive('get')->once()->with('DummyPromptClass')->andReturn($promptInstance);
     $this->argumentPreparerMock->shouldReceive('prepareMethodArguments')
         ->once()
         ->with($promptInstance, 'getGreetingPrompt', $promptArgs, [])
@@ -939,10 +922,8 @@ test('handlePromptGet returns formatted prompt messages', function () {
     /** @var MockInterface&Processor */
     $processorSpy = Mockery::mock(Processor::class, [
         $this->containerMock,
-        $this->configMock,
         $this->registryMock,
         $this->transportStateMock,
-        $this->loggerMock,
         $this->schemaValidatorMock,
         $this->argumentPreparerMock,
     ])->makePartial();
@@ -1026,14 +1007,14 @@ test('handlePromptGet handles execution exception', function () {
     $exception = new \RuntimeException($exceptionMessage);
 
     $promptDef = Mockery::mock(PromptDefinition::class);
-    $promptDef->allows('getClassName')->andReturn(DummyPromptClass::class);
+    $promptDef->allows('getClassName')->andReturn('DummyPromptClass');
     $promptDef->allows('getMethodName')->andReturn('getErrorPrompt');
     $promptDef->allows('getArguments')->andReturn([]);
 
-    $promptInstance = Mockery::mock(DummyPromptClass::class);
+    $promptInstance = Mockery::mock('DummyPromptClass');
 
     $this->registryMock->shouldReceive('findPrompt')->once()->with($promptName)->andReturn($promptDef);
-    $this->containerMock->shouldReceive('get')->once()->with(DummyPromptClass::class)->andReturn($promptInstance);
+    $this->containerMock->shouldReceive('get')->once()->with('DummyPromptClass')->andReturn($promptInstance);
     $this->argumentPreparerMock->shouldReceive('prepareMethodArguments')
         ->once()
         ->with($promptInstance, 'getErrorPrompt', $promptArgs, [])
