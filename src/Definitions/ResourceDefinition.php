@@ -167,21 +167,26 @@ class ResourceDefinition
      */
     public static function fromReflection(
         ReflectionMethod $method,
-        McpResource $attribute,
+        ?string $overrideName,
+        ?string $overrideDescription,
+        string $uri,
+        ?string $mimeType,
+        ?int $size,
+        ?array $annotations,
         DocBlockParser $docBlockParser
     ): self {
         $docBlock = $docBlockParser->parseDocBlock($method->getDocComment() ?: null);
-        $description = $attribute->description ?? $docBlockParser->getSummary($docBlock) ?? null;
+        $description = $overrideDescription ?? $docBlockParser->getSummary($docBlock) ?? null;
 
         return new self(
             className: $method->getDeclaringClass()->getName(),
             methodName: $method->getName(),
-            uri: $attribute->uri,
-            name: $attribute->name ?? $method->getName(),
+            uri: $uri,
+            name: $overrideName ?? $method->getName(),
             description: $description,
-            mimeType: $attribute->mimeType,
-            size: $attribute->size,
-            annotations: $attribute->annotations ?? []
+            mimeType: $mimeType,
+            size: $size,
+            annotations: $annotations
         );
     }
 }

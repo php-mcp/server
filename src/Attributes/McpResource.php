@@ -8,7 +8,7 @@ use Attribute;
  * Marks a PHP class as representing or handling a specific MCP Resource instance.
  * Used primarily for the 'resources/list' discovery.
  */
-#[Attribute(Attribute::TARGET_METHOD)]
+#[Attribute(Attribute::TARGET_METHOD | Attribute::TARGET_CLASS)]
 final class McpResource
 {
     /**
@@ -17,7 +17,7 @@ final class McpResource
      * @param  ?string  $description  An optional description of the resource. Defaults to class DocBlock summary.
      * @param  ?string  $mimeType  The MIME type, if known and constant for this resource.
      * @param  ?int  $size  The size in bytes, if known and constant.
-     * @param  ?array<string, mixed>  $annotations  Optional annotations following the MCP spec (e.g., ['audience' => ['user'], 'priority' => 0.5]).
+     * @param  array<string, mixed>  $annotations  Optional annotations following the MCP spec (e.g., ['audience' => ['user'], 'priority' => 0.5]).
      */
     public function __construct(
         public string $uri,
@@ -25,7 +25,6 @@ final class McpResource
         public ?string $description = null,
         public ?string $mimeType = null,
         public ?int $size = null,
-        public ?array $annotations = null,
-    ) {
-    }
+        public array $annotations = [],
+    ) {}
 }

@@ -2,13 +2,13 @@
 
 namespace Tests\Definitions;
 
-use PhpMcp\Server\Definitions\ResourceDefinition;
-use PhpMcp\Server\Attributes\McpResource;
-use PhpMcp\Server\Support\DocBlockParser;
 use Mockery;
-use ReflectionMethod;
+use PhpMcp\Server\Attributes\McpResource;
+use PhpMcp\Server\Definitions\ResourceDefinition;
+use PhpMcp\Server\Support\DocBlockParser;
 use PhpMcp\Server\Tests\Mocks\DiscoveryStubs\AllElementsStub;
 use PhpMcp\Server\Tests\Mocks\DiscoveryStubs\ResourceOnlyStub;
+use ReflectionMethod;
 
 // --- Constructor Validation Tests ---
 
@@ -88,7 +88,16 @@ test('fromReflection creates definition with explicit values from attribute', fu
     $this->docBlockParser->shouldReceive('parseDocBlock')->once()->with($docComment)->andReturn(null);
 
     // Act
-    $definition = ResourceDefinition::fromReflection($reflectionMethod, $attribute, $this->docBlockParser);
+    $definition = ResourceDefinition::fromReflection(
+        $reflectionMethod,
+        $attribute->name,
+        $attribute->description,
+        $attribute->uri,
+        $attribute->mimeType,
+        $attribute->size,
+        $attribute->annotations,
+        $this->docBlockParser
+    );
 
     // Assert
     expect($definition->getUri())->toBe('test://explicit/uri');
@@ -108,7 +117,7 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     $docComment = $reflectionMethod->getDocComment() ?: null;
 
     // Read the actual summary from the stub file
-    $stubContent = file_get_contents(__DIR__ . '/../Mocks/DiscoveryStubs/AllElementsStub.php');
+    $stubContent = file_get_contents(__DIR__.'/../Mocks/DiscoveryStubs/AllElementsStub.php');
     preg_match('/\/\*\*(.*?)\*\/\s+public function resourceMethod/s', $stubContent, $matches);
     $actualDocComment = isset($matches[1]) ? trim(preg_replace('/^\s*\*\s?/?m', '', $matches[1])) : '';
     $expectedSummary = explode("\n", $actualDocComment)[0] ?? null;
@@ -117,7 +126,16 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     $this->docBlockParser->shouldReceive('getSummary')->once()->with(null)->andReturn($expectedSummary);
 
     // Act
-    $definition = ResourceDefinition::fromReflection($reflectionMethod, $attribute, $this->docBlockParser);
+    $definition = ResourceDefinition::fromReflection(
+        $reflectionMethod,
+        $attribute->name,
+        $attribute->description,
+        $attribute->uri,
+        $attribute->mimeType,
+        $attribute->size,
+        $attribute->annotations,
+        $this->docBlockParser
+    );
 
     // Assert
     expect($definition->getUri())->toBe('test://default/uri');
@@ -140,7 +158,16 @@ test('fromReflection handles missing docblock summary', function () {
     $this->docBlockParser->shouldReceive('getSummary')->once()->with(null)->andReturn(null);
 
     // Act
-    $definition = ResourceDefinition::fromReflection($reflectionMethod, $attribute, $this->docBlockParser);
+    $definition = ResourceDefinition::fromReflection(
+        $reflectionMethod,
+        $attribute->name,
+        $attribute->description,
+        $attribute->uri,
+        $attribute->mimeType,
+        $attribute->size,
+        $attribute->annotations,
+        $this->docBlockParser
+    );
 
     // Assert
     expect($definition->getName())->toBe('resource2');
@@ -218,11 +245,11 @@ test('toArray produces correct MCP format', function () {
         'description' => 'MCP Description',
         'mimeType' => 'text/markdown',
         'size' => 555,
-        'annotations' => ['a' => 'b']
+        'annotations' => ['a' => 'b'],
     ]);
     expect($arrayMinimal)->toBe([
         'uri' => 'mcp://minimal',
-        'name' => 'mcp-minimal'
+        'name' => 'mcp-minimal',
     ]);
     expect($arrayMinimal)->not->toHaveKeys(['description', 'mimeType', 'size', 'annotations']);
 });

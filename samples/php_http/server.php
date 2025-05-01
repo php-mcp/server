@@ -19,10 +19,12 @@ require_once __DIR__.'/SampleMcpElements.php';
 
 // --- MCP Server Setup ---
 $logger = new StreamLogger(__DIR__.'/vanilla_server.log', 'debug');
-$server = Server::make()->withLogger($logger)->withBasePath(__DIR__)->discover();
-$processor = $server->getProcessor();
-$state = $server->getStateManager();
-$httpHandler = new HttpTransportHandler($processor, $state, $logger);
+$server = Server::make()
+    ->withLogger($logger)
+    ->withBasePath(__DIR__)
+    ->discover();
+
+$httpHandler = new HttpTransportHandler($server);
 
 // --- Basic Routing & Client ID ---
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';

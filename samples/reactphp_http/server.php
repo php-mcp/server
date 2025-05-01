@@ -7,7 +7,6 @@ use PhpMcp\Server\Server;
 use PhpMcp\Server\Transports\ReactPhpHttpTransportHandler;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use React\EventLoop\Loop;
 use React\Http\HttpServer;
 use React\Http\Message\Response;
 use React\Promise\Promise;
@@ -34,10 +33,7 @@ $server = Server::make()
     ->withBasePath(__DIR__)
     ->discover();
 
-$processor = $server->getProcessor();
-$state = $server->getStateManager();
-
-$transportHandler = new ReactPhpHttpTransportHandler($processor, $state, $logger, Loop::get());
+$transportHandler = new ReactPhpHttpTransportHandler($server);
 
 // --- ReactPHP HTTP Server Setup ---
 $postEndpoint = '/mcp/message';

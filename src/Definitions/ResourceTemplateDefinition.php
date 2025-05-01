@@ -150,25 +150,33 @@ class ResourceTemplateDefinition
      * Create a ResourceTemplateDefinition from reflection data.
      *
      * @param  ReflectionMethod  $method  The reflection method marked with McpResourceTemplate.
-     * @param  McpResourceTemplate  $attribute  The attribute instance.
+     * @param  string|null  $overrideName  The name for the resource.
+     * @param  string|null  $overrideDescription  The description for the resource.
+     * @param  string  $uriTemplate  The URI template for the resource.
+     * @param  string|null  $mimeType  The MIME type for the resource.
+     * @param  array<string, mixed>|null  $annotations  The annotations for the resource.
      * @param  DocBlockParser  $docBlockParser  Utility to parse docblocks.
      */
     public static function fromReflection(
         ReflectionMethod $method,
-        McpResourceTemplate $attribute,
+        ?string $overrideName,
+        ?string $overrideDescription,
+        string $uriTemplate,
+        ?string $mimeType,
+        ?array $annotations,
         DocBlockParser $docBlockParser
     ): self {
         $docBlock = $docBlockParser->parseDocBlock($method->getDocComment() ?: null);
-        $description = $attribute->description ?? $docBlockParser->getSummary($docBlock) ?? null;
+        $description = $overrideDescription ?? $docBlockParser->getSummary($docBlock) ?? null;
 
         return new self(
             className: $method->getDeclaringClass()->getName(),
             methodName: $method->getName(),
-            uriTemplate: $attribute->uriTemplate,
-            name: $attribute->name ?? $method->getName(),
+            uriTemplate: $uriTemplate,
+            name: $overrideName ?? $method->getName(),
             description: $description,
-            mimeType: $attribute->mimeType,
-            annotations: $attribute->annotations ?? []
+            mimeType: $mimeType,
+            annotations: $annotations
         );
     }
 }

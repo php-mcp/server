@@ -36,7 +36,7 @@ test('constructor handles null values for McpResourceTemplate', function () {
         name: null,
         description: null,
         mimeType: null,
-        annotations: null // Assuming constructor allows null for array
+        annotations: []
     );
 
     // Assert
@@ -44,7 +44,7 @@ test('constructor handles null values for McpResourceTemplate', function () {
     expect($attribute->name)->toBeNull();
     expect($attribute->description)->toBeNull();
     expect($attribute->mimeType)->toBeNull();
-    expect($attribute->annotations)->toBeNull(); // Or maybe defaults to []?
+    expect($attribute->annotations)->toBe([]);
 });
 
 test('constructor handles missing optional arguments for McpResourceTemplate', function () {
@@ -58,5 +58,5 @@ test('constructor handles missing optional arguments for McpResourceTemplate', f
     expect($attribute->name)->toBeNull();
     expect($attribute->description)->toBeNull();
     expect($attribute->mimeType)->toBeNull();
-    expect($attribute->annotations)->toBeNull();
+    expect($attribute->annotations)->toBe([]);
 });

@@ -128,18 +128,19 @@ class ToolDefinition
      */
     public static function fromReflection(
         ReflectionMethod $method,
-        McpTool $attribute,
+        ?string $overrideName,
+        ?string $overrideDescription,
         DocBlockParser $docBlockParser,
         SchemaGenerator $schemaGenerator
     ): self {
         $docBlock = $docBlockParser->parseDocBlock($method->getDocComment() ?? null);
-        $description = $attribute->description ?? $docBlockParser->getSummary($docBlock) ?? null;
+        $description = $overrideDescription ?? $docBlockParser->getSummary($docBlock) ?? null;
         $inputSchema = $schemaGenerator->fromMethodParameters($method);
 
         return new self(
             className: $method->getDeclaringClass()->getName(),
             methodName: $method->getName(),
-            toolName: $attribute->name ?? $method->getName(),
+            toolName: $overrideName ?? $method->getName(),
             description: $description,
             inputSchema: $inputSchema,
         );

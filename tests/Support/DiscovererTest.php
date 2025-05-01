@@ -3,7 +3,6 @@
 namespace Tests\Discovery;
 
 use Mockery;
-use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PhpMcp\Server\Definitions\PromptDefinition;
 use PhpMcp\Server\Definitions\ResourceDefinition;
 use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
@@ -13,26 +12,27 @@ use PhpMcp\Server\Support\AttributeFinder;
 use PhpMcp\Server\Support\Discoverer;
 use PhpMcp\Server\Support\DocBlockParser;
 use PhpMcp\Server\Support\SchemaGenerator;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
-
-uses(MockeryPHPUnitIntegration::class);
 
 beforeEach(function () {
     setupTempDir();
+    $this->container = Mockery::mock(ContainerInterface::class);
     $this->registry = Mockery::mock(Registry::class);
-    /** @var LoggerInterface $logger */
     $this->logger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
 
-    $attributeFinder = new AttributeFinder();
-    $docBlockParser = new DocBlockParser();
+    $this->container->shouldReceive('get')->with(LoggerInterface::class)->andReturn($this->logger);
+
+    $attributeFinder = new AttributeFinder;
+    $docBlockParser = new DocBlockParser($this->container);
     $schemaGenerator = new SchemaGenerator($docBlockParser, $attributeFinder);
 
     $this->discoverer = new Discoverer(
+        $this->container,
         $this->registry,
-        $this->logger,
-        $attributeFinder,
         $docBlockParser,
-        $schemaGenerator
+        $schemaGenerator,
+        $attributeFinder,
     );
 });
 
@@ -107,7 +107,7 @@ test('handles non-existent directory gracefully', function () {
     $this->registry->shouldNotReceive('registerResourceTemplate');
 
     // Assert logging
-    $this->logger->shouldReceive('warning')->with('No valid discovery directories found.', Mockery::any())->twice();
+    $this->logger->shouldReceive('warning')->with('No valid discovery directories found to scan.', Mockery::any())->twice();
 
     // Act
     $this->discoverer->discover($nonExistentDir, ['.']); // Base path doesn't exist
@@ -189,3 +189,30 @@ test('handles file read error gracefully', function () {
     // Cleanup permissions
     chmod($invalidFile, 0644);
 });
+
+test('discovers attributes placed directly on invokable classes', function (string $stubName, string $registryMethod, string $expectedNameOrUri) {
+    // Arrange
+    createDiscoveryTestFile($stubName);
+
+    // Assert registry interactions
+    $this->registry->shouldReceive($registryMethod)
+        ->once()
+        ->with(Mockery::on(function ($arg) use ($expectedNameOrUri, $stubName) {
+            // Check if it's the correct definition type and name/uri
+            return ($arg instanceof ToolDefinition && $arg->getName() === $expectedNameOrUri)
+                || ($arg instanceof ResourceDefinition && $arg->getUri() === $expectedNameOrUri)
+                || ($arg instanceof PromptDefinition && $arg->getName() === $expectedNameOrUri)
+                || ($arg instanceof ResourceTemplateDefinition && $arg->getUriTemplate() === $expectedNameOrUri)
+                // Verify the definition points to the __invoke method
+                && $arg->getMethodName() === '__invoke'
+                && str_ends_with($arg->getClassName(), $stubName);
+        }));
+
+    // Act
+    $this->discoverer->discover(TEST_DISCOVERY_DIR, ['.']);
+})->with([
+    'Invokable Tool' => ['InvokableToolStub', 'registerTool', 'invokable-tool'],
+    'Invokable Resource' => ['InvokableResourceStub', 'registerResource', 'invokable://resource'],
+    'Invokable Prompt' => ['InvokablePromptStub', 'registerPrompt', 'invokable-prompt'],
+    'Invokable Template' => ['InvokableTemplateStub', 'registerResourceTemplate', 'invokable://template/{id}'],
+]);

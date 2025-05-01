@@ -2,9 +2,8 @@
 
 namespace PhpMcp\Server\Transports;
 
-use PhpMcp\Server\Processor;
-use PhpMcp\Server\State\TransportState;
-use Psr\Log\LoggerInterface;
+use PhpMcp\Server\Server;
+use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
 use React\Stream\WritableStreamInterface;
 use Throwable;
@@ -15,6 +14,8 @@ use Throwable;
  */
 class ReactPhpHttpTransportHandler extends HttpTransportHandler
 {
+    protected LoopInterface $loop;
+
     /**
      * Client timeout in seconds (5 minutes)
      */
@@ -37,13 +38,11 @@ class ReactPhpHttpTransportHandler extends HttpTransportHandler
      */
     private array $clientSseStreams = [];
 
-    public function __construct(
-        private readonly Processor $processor,
-        private readonly TransportState $transportState,
-        private readonly LoggerInterface $logger,
-        private readonly LoopInterface $loop,
-    ) {
-        parent::__construct($processor, $transportState, $logger);
+    public function __construct(Server $server)
+    {
+        parent::__construct($server);
+
+        $this->loop = Loop::get();
 
         $this->startGlobalCleanupTimer();
     }

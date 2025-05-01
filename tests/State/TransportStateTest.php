@@ -1,12 +1,12 @@
 <?php
 
-use Mockery; // Use ArrayCache for simple testing
 use Mockery\MockInterface;
-use PhpMcp\Server\Defaults\ArrayCache;
+use PhpMcp\Server\Contracts\ConfigurationRepositoryInterface;
 use PhpMcp\Server\JsonRpc\Notification;
 use PhpMcp\Server\JsonRpc\Response;
 use PhpMcp\Server\JsonRpc\Results\EmptyResult;
 use PhpMcp\Server\State\TransportState;
+use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface; // Import Mockery
 use Psr\SimpleCache\CacheInterface; // Import MockInterface for type hinting if needed
 
@@ -16,22 +16,22 @@ const TEST_URI_2 = 'config://app';
 const CACHE_PREFIX = 'mcp_test_';
 const CACHE_TTL = 600; // Example TTL
 
-// Mocks and SUT instance
 beforeEach(function () {
-    // Use Mockery explicitly
+    $this->container = Mockery::mock(ContainerInterface::class);
+    $this->config = Mockery::mock(ConfigurationRepositoryInterface::class);
     $this->cache = Mockery::mock(CacheInterface::class);
-    /** @var MockInterface&LoggerInterface */
-    $this->logger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing(); // Ignore log calls unless specified
+    $this->logger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
 
-    $this->transportState = new TransportState(
-        $this->cache,
-        $this->logger,
-        CACHE_PREFIX,
-        CACHE_TTL
-    );
+    $this->config->allows('get')->with('mcp.cache.prefix', Mockery::type('string'))->andReturn(CACHE_PREFIX);
+    $this->config->allows('get')->with('mcp.cache.ttl', Mockery::type('int'))->andReturn(CACHE_TTL);
+
+    $this->container->shouldReceive('get')->with(CacheInterface::class)->andReturn($this->cache);
+    $this->container->shouldReceive('get')->with(LoggerInterface::class)->andReturn($this->logger);
+    $this->container->shouldReceive('get')->with(ConfigurationRepositoryInterface::class)->andReturn($this->config);
+
+    $this->transportState = new TransportState($this->container);
 });
 
-// Add Mockery close after each test to verify expectations and clean up
 afterEach(function () {
     Mockery::close();
 });
@@ -378,7 +378,7 @@ test('can get active clients filtering inactive ones', function () {
         getCacheKey('messages', $inactiveClient),
         getCacheKey('client_subscriptions', $inactiveClient),
     ])->andReturn(true);
-    
+
     $activeClientsLowThreshold = $this->transportState->getActiveClients(50); // Use custom threshold
 
     // Assert

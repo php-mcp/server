@@ -8,7 +8,7 @@ use Attribute;
  * Marks a PHP method as an MCP Prompt generator.
  * The method should return the prompt messages, potentially using arguments for templating.
  */
-#[Attribute(Attribute::TARGET_METHOD)]
+#[Attribute(Attribute::TARGET_METHOD | Attribute::TARGET_CLASS)]
 final class McpPrompt
 {
     /**
@@ -18,6 +18,5 @@ final class McpPrompt
     public function __construct(
         public ?string $name = null,
         public ?string $description = null,
-    ) {
-    }
+    ) {}
 }

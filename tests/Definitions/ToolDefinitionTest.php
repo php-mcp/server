@@ -2,14 +2,14 @@
 
 namespace Tests\Definitions;
 
-use PhpMcp\Server\Definitions\ToolDefinition;
+use Mockery;
 use PhpMcp\Server\Attributes\McpTool;
+use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\Support\DocBlockParser;
 use PhpMcp\Server\Support\SchemaGenerator;
-use Mockery;
-use ReflectionMethod;
 use PhpMcp\Server\Tests\Mocks\DiscoveryStubs\AllElementsStub;
 use PhpMcp\Server\Tests\Mocks\DiscoveryStubs\ToolOnlyStub;
+use ReflectionMethod;
 
 // --- Constructor Validation Tests ---
 
@@ -54,7 +54,13 @@ test('fromReflection creates definition with explicit name and description', fun
     $this->schemaGenerator->shouldReceive('fromMethodParameters')->once()->with($reflectionMethod)->andReturn($expectedSchema);
 
     // Act
-    $definition = ToolDefinition::fromReflection($reflectionMethod, $attribute, $this->docBlockParser, $this->schemaGenerator);
+    $definition = ToolDefinition::fromReflection(
+        $reflectionMethod,
+        $attribute->name,
+        $attribute->description,
+        $this->docBlockParser,
+        $this->schemaGenerator
+    );
 
     // Assert
     expect($definition->getName())->toBe('explicit-tool-name');
@@ -67,13 +73,13 @@ test('fromReflection creates definition with explicit name and description', fun
 test('fromReflection uses method name and docblock summary as defaults', function () {
     // Arrange
     $reflectionMethod = new ReflectionMethod(AllElementsStub::class, 'templateMethod');
-    $attribute = new McpTool();
+    $attribute = new McpTool;
 
     $expectedSchema = ['type' => 'object', 'properties' => ['id' => ['type' => 'string']]];
     $docComment = $reflectionMethod->getDocComment() ?: null;
 
     // Read the actual summary from the stub file to make the test robust
-    $stubContent = file_get_contents(__DIR__ . '/../Mocks/DiscoveryStubs/AllElementsStub.php');
+    $stubContent = file_get_contents(__DIR__.'/../Mocks/DiscoveryStubs/AllElementsStub.php');
     preg_match('/\/\*\*(.*?)\*\/\s+public function templateMethod/s', $stubContent, $matches);
     $actualDocComment = isset($matches[1]) ? trim(preg_replace('/^\s*\*\s?/?m', '', $matches[1])) : '';
     $expectedSummary = explode("\n", $actualDocComment)[0] ?? null; // First line is summary
@@ -83,7 +89,13 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     $this->schemaGenerator->shouldReceive('fromMethodParameters')->once()->with($reflectionMethod)->andReturn($expectedSchema);
 
     // Act
-    $definition = ToolDefinition::fromReflection($reflectionMethod, $attribute, $this->docBlockParser, $this->schemaGenerator);
+    $definition = ToolDefinition::fromReflection(
+        $reflectionMethod,
+        $attribute->name,
+        $attribute->description,
+        $this->docBlockParser,
+        $this->schemaGenerator
+    );
 
     // Assert
     expect($definition->getName())->toBe('templateMethod'); // Default to method name
@@ -96,7 +108,7 @@ test('fromReflection uses method name and docblock summary as defaults', functio
 test('fromReflection handles missing docblock summary', function () {
     // Arrange
     $reflectionMethod = new ReflectionMethod(ToolOnlyStub::class, 'tool1');
-    $attribute = new McpTool();
+    $attribute = new McpTool;
     $expectedSchema = ['type' => 'object', 'properties' => []]; // tool1 has no params
     $docComment = $reflectionMethod->getDocComment() ?: null; // Will be null/empty
 
@@ -105,7 +117,13 @@ test('fromReflection handles missing docblock summary', function () {
     $this->schemaGenerator->shouldReceive('fromMethodParameters')->once()->with($reflectionMethod)->andReturn($expectedSchema);
 
     // Act
-    $definition = ToolDefinition::fromReflection($reflectionMethod, $attribute, $this->docBlockParser, $this->schemaGenerator);
+    $definition = ToolDefinition::fromReflection(
+        $reflectionMethod,
+        $attribute->name,
+        $attribute->description,
+        $this->docBlockParser,
+        $this->schemaGenerator
+    );
 
     // Assert
     expect($definition->getName())->toBe('tool1');
@@ -168,11 +186,11 @@ test('toArray produces correct MCP format', function () {
     expect($array)->toBe([
         'name' => 'mcp-tool',
         'description' => 'MCP Description',
-        'inputSchema' => ['type' => 'object', 'properties' => ['id' => ['type' => 'string']]]
+        'inputSchema' => ['type' => 'object', 'properties' => ['id' => ['type' => 'string']]],
     ]);
     expect($arrayNoDesc)->toBe([
         'name' => 'mcp-tool-no-desc',
-        'inputSchema' => ['type' => 'object']
+        'inputSchema' => ['type' => 'object'],
     ]);
     expect($arrayNoDesc)->not->toHaveKey('description');
 });
