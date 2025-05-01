@@ -41,7 +41,7 @@ You can install the package via Composer:
 composer require php-mcp/server
 ```
 
-> **Note:** For Laravel applications, consider using the dedicated [`php-mcp/laravel-server`](https://github.com/php-mcp/laravel-server) package. It builds upon this core library, providing helpful integrations, configuration options, and Artisan commands specifically tailored for the Laravel framework.
+> **Note:** For Laravel applications, consider using the dedicated [`php-mcp/laravel-server`](https://github.com/php-mcp/laravel) package. It builds upon this core library, providing helpful integrations, configuration options, and Artisan commands specifically tailored for the Laravel framework.
 
 ## Getting Started: A Simple `stdio` Server
 
