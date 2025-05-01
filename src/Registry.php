@@ -181,22 +181,22 @@ class Registry
             $this->logger->debug('MCP: Loading elements from cache.', ['key' => $this->cacheKey]);
 
             foreach ($cached['tools'] ?? [] as $tool) {
-                $toolDefinition = ToolDefinition::fromArray($tool);
+                $toolDefinition = $tool instanceof ToolDefinition ? $tool : ToolDefinition::fromArray($tool);
                 $this->registerTool($toolDefinition);
             }
 
             foreach ($cached['resources'] ?? [] as $resource) {
-                $resourceDefinition = ResourceDefinition::fromArray($resource);
+                $resourceDefinition = $resource instanceof ResourceDefinition ? $resource : ResourceDefinition::fromArray($resource);
                 $this->registerResource($resourceDefinition);
             }
 
             foreach ($cached['prompts'] ?? [] as $prompt) {
-                $promptDefinition = PromptDefinition::fromArray($prompt);
+                $promptDefinition = $prompt instanceof PromptDefinition ? $prompt : PromptDefinition::fromArray($prompt);
                 $this->registerPrompt($promptDefinition);
             }
 
             foreach ($cached['resourceTemplates'] ?? [] as $template) {
-                $resourceTemplateDefinition = ResourceTemplateDefinition::fromArray($template);
+                $resourceTemplateDefinition = $template instanceof ResourceTemplateDefinition ? $template : ResourceTemplateDefinition::fromArray($template);
                 $this->registerResourceTemplate($resourceTemplateDefinition);
             }
         }
@@ -246,8 +246,6 @@ class Registry
             $this->logger->error('MCP: Failed to clear element cache.', ['exception' => $e]);
         }
     }
-
-    private function setElementsFromArray(array $data): void {}
 
     public function findTool(string $name): ?ToolDefinition
     {
