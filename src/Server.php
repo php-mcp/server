@@ -10,7 +10,6 @@ use PhpMcp\Server\Contracts\ConfigurationRepositoryInterface;
 use PhpMcp\Server\Defaults\ArrayConfigurationRepository;
 use PhpMcp\Server\Defaults\BasicContainer;
 use PhpMcp\Server\Defaults\FileCache;
-use PhpMcp\Server\Defaults\StreamLogger;
 use PhpMcp\Server\Definitions\PromptDefinition;
 use PhpMcp\Server\Definitions\ResourceDefinition;
 use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
@@ -21,6 +20,7 @@ use PhpMcp\Server\Support\SchemaGenerator;
 use PhpMcp\Server\Transports\StdioTransportHandler;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Psr\SimpleCache\CacheInterface;
 use ReflectionClass;
 use ReflectionMethod;
@@ -47,7 +47,7 @@ class Server
         $container = new BasicContainer;
 
         $config = new ArrayConfigurationRepository($this->getDefaultConfigValues());
-        $logger = new StreamLogger(STDERR, 'debug');
+        $logger = new NullLogger;
         $cache = new FileCache(__DIR__.'/../cache/mcp_cache');
 
         $container->set(ConfigurationRepositoryInterface::class, $config);

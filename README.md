@@ -42,7 +42,7 @@ You can install the package via Composer:
 composer require php-mcp/server
 ```
 
-> **Note:** For Laravel applications, consider using the dedicated [`php-mcp/laravel-server`](https://github.com/php-mcp/laravel) package. It builds upon this core library, providing helpful integrations, configuration options, and Artisan commands specifically tailored for the Laravel framework.
+> **Note:** For Laravel applications, consider using the dedicated [`php-mcp/laravel`](https://github.com/php-mcp/laravel) package. It builds upon this core library, providing helpful integrations, configuration options, and Artisan commands specifically tailored for the Laravel framework.
 
 ## Getting Started: A Simple `stdio` Server
 
@@ -384,9 +384,9 @@ class SummarizePrompt {
 The `PhpMcp\Server\Server` class is the main entry point for configuring and running your MCP server. It provides a fluent interface (method chaining) to set up dependencies, parameters, and manually register elements.
 
 *   **`Server::make(): self`**: Static factory method to create a new server instance. It initializes the server with default implementations for core services (Logger, Cache, Config, Container).
-*   **`->withLogger(LoggerInterface $logger): self`**: Provide a PSR-3 compliant logger implementation.
-    *   **If using the default `BasicContainer`:** This method replaces the default `StreamLogger` instance and updates the registration within the `BasicContainer`.
-    *   **If using a custom container:** This method *only* sets an internal property on the `Server` instance. It **does not** affect the custom container. You should register your desired `LoggerInterface` directly within your container setup.
+*   **`->withLogger(LoggerInterface $logger): self`**: Provide a PSR-3 compliant logger implementation. By default, logging is disabled unless a logger is explicitly provided here (when using the default container) or registered in a custom container.
+    *   **If using the default `BasicContainer`:** This method replaces the default no-op logger and updates the registration within the `BasicContainer`, enabling logging.
+    *   **If using a custom container:** This method *only* sets an internal property on the `Server` instance. It **does not** affect the custom container. You should register your desired `LoggerInterface` directly within your container setup to enable logging.
 *   **`->withCache(CacheInterface $cache): self`**: Provide a PSR-16 compliant cache implementation.
     *   **If using the default `BasicContainer`:** This method replaces the default `FileCache` instance and updates the registration within the `BasicContainer`.
     *   **If using a custom container:** This method *only* sets an internal property on the `Server` instance. It **does not** affect the custom container. You should register your desired `CacheInterface` directly within your container setup.
@@ -420,17 +420,17 @@ The `Server` relies on a PSR-11 `ContainerInterface` for two main purposes:
 **Default Behavior (No `withContainer` Call):**
 
 If you *do not* call `->withContainer()`, the server uses its internal `PhpMcp\Server\Defaults\BasicContainer`. This basic container comes pre-configured with default implementations:
-*   `LoggerInterface` -> `PhpMcp\Server\Defaults\StreamLogger` (writes to `STDERR`)
+*   `LoggerInterface` -> `Psr\Log\NullLogger` (Logging is effectively disabled)
 *   `CacheInterface` -> `PhpMcp\Server\Defaults\FileCache` (writes to `../cache/mcp_cache` relative to the package directory)
 *   `ConfigurationRepositoryInterface` -> `PhpMcp\Server\Defaults\ArrayConfigurationRepository` (uses built-in default configuration values)
 
-In this default mode, you *can* use the `->withLogger()`, `->withCache()`, and `->withConfig()` methods to replace these defaults. These methods will update the instance used by the server and also update the registration within the internal `BasicContainer`.
+In this default mode, you *can* use the `->withLogger()`, `->withCache()`, and `->withConfig()` methods to replace these defaults. These methods update the instance used by the server and also update the registration within the internal `BasicContainer`.
 
 **Using a Custom Container (`->withContainer(MyContainer $c)`):**
 
 If you provide your own PSR-11 container instance using `->withContainer()`, the responsibility shifts entirely to you:
 
-*   **You MUST ensure your container is configured to provide implementations for `LoggerInterface`, `CacheInterface`, and `ConfigurationRepositoryInterface`.** The server will attempt to fetch these using `$container->get(...)` and will fail if they are not available.
+*   **You MUST ensure your container is configured to provide implementations for `LoggerInterface`, `CacheInterface`, and `ConfigurationRepositoryInterface`.** The server will attempt to fetch these using `$container->get(...)` and will fail if they are not available. Providing a `NullLogger` for `LoggerInterface` will keep logging disabled.
 *   Your container will also be used to instantiate your handler classes, so ensure all their dependencies are also properly configured within your container.
 *   When using a custom container, the `->withLogger()`, `->withCache()`, and `->withConfig()` methods on the `Server` instance become largely ineffective for modifying the dependencies the server *actually uses* during request processing, as the server will always defer to retrieving these services from *your provided container*. Configure these services directly in your container's setup.
 
