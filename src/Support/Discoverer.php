@@ -14,7 +14,6 @@ use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
 use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\Exceptions\McpException;
 use PhpMcp\Server\Registry;
-use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use ReflectionAttribute;
 use ReflectionClass;
@@ -26,10 +25,6 @@ use Throwable;
 
 class Discoverer
 {
-    private Registry $registry;
-
-    private LoggerInterface $logger;
-
     private AttributeFinder $attributeFinder;
 
     private DocBlockParser $docBlockParser;
@@ -37,16 +32,14 @@ class Discoverer
     private SchemaGenerator $schemaGenerator;
 
     public function __construct(
-        private ContainerInterface $container,
-        Registry $registry,
+        private Registry $registry,
+        private LoggerInterface $logger,
         ?DocBlockParser $docBlockParser = null,
         ?SchemaGenerator $schemaGenerator = null,
         ?AttributeFinder $attributeFinder = null
     ) {
-        $this->registry = $registry;
-        $this->logger = $this->container->get(LoggerInterface::class);
-        $this->attributeFinder = $attributeFinder ?? new AttributeFinder;
-        $this->docBlockParser = $docBlockParser ?? new DocBlockParser($this->container);
+        $this->attributeFinder = $attributeFinder ?? new AttributeFinder();
+        $this->docBlockParser = $docBlockParser ?? new DocBlockParser($this->logger);
         $this->schemaGenerator = $schemaGenerator ?? new SchemaGenerator($this->docBlockParser);
     }
 
@@ -59,7 +52,6 @@ class Discoverer
      */
     public function discover(string $basePath, array $directories, array $excludeDirs = []): void
     {
-        $this->logger->debug('MCP: Starting attribute discovery.', ['basePath' => $basePath, 'paths' => $directories]);
         $startTime = microtime(true);
         $discoveredCount = [
             'tools' => 0,
@@ -69,7 +61,7 @@ class Discoverer
         ];
 
         try {
-            $finder = new Finder;
+            $finder = new Finder();
             $absolutePaths = [];
             foreach ($directories as $dir) {
                 $path = rtrim($basePath, '/').'/'.ltrim($dir, '/');

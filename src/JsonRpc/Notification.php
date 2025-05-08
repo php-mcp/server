@@ -2,7 +2,7 @@
 
 namespace PhpMcp\Server\JsonRpc;
 
-use PhpMcp\Server\Exceptions\McpException;
+use PhpMcp\Server\Exception\ProtocolException;
 
 class Notification extends Message
 {
@@ -40,12 +40,17 @@ class Notification extends Message
     {
         // Validate JSON-RPC 2.0
         if (! isset($data['jsonrpc']) || $data['jsonrpc'] !== '2.0') {
-            throw McpException::invalidRequest('Invalid or missing "jsonrpc" version. Must be "2.0".');
+            throw ProtocolException::invalidRequest('Invalid or missing "jsonrpc" version. Must be "2.0".');
         }
 
         // Validate method name
         if (! isset($data['method']) || ! is_string($data['method'])) {
-            throw McpException::invalidRequest('Invalid or missing "method" field.');
+            throw ProtocolException::invalidRequest('Invalid or missing "method" field.');
+        }
+
+        // Validate params is an array (if set)
+        if (isset($data['params']) && ! is_array($data['params'])) {
+            throw ProtocolException::invalidRequest('Invalid or missing "params" field.');
         }
 
         return new self(
@@ -54,7 +59,6 @@ class Notification extends Message
             params: $data['params'] ?? [],
         );
     }
-
 
     public function toArray(): array
     {

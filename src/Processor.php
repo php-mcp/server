@@ -1,10 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace PhpMcp\Server;
 
 use JsonException;
-use PhpMcp\Server\Contracts\ConfigurationRepositoryInterface;
-use PhpMcp\Server\Exceptions\McpException;
+use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\JsonRpc\Contents\TextContent;
 use PhpMcp\Server\JsonRpc\Notification;
 use PhpMcp\Server\JsonRpc\Request;
@@ -19,7 +20,6 @@ use PhpMcp\Server\JsonRpc\Results\ListResourcesResult;
 use PhpMcp\Server\JsonRpc\Results\ListResourceTemplatesResult;
 use PhpMcp\Server\JsonRpc\Results\ListToolsResult;
 use PhpMcp\Server\JsonRpc\Results\ReadResourceResult;
-use PhpMcp\Server\State\TransportState;
 use PhpMcp\Server\Support\ArgumentPreparer;
 use PhpMcp\Server\Support\SchemaValidator;
 use PhpMcp\Server\Traits\ResponseFormatter;
@@ -33,48 +33,42 @@ use Throwable;
  */
 class Processor
 {
-    use ResponseFormatter;
+    use ResponseFormatter; // Keep the trait
 
-    /**
-     * Supported protocol versions
-     */
-    protected array $supportedProtocolVersions = ['2024-11-05'];
+    protected const SUPPORTED_PROTOCOL_VERSIONS = ['2024-11-05'];
 
-    protected ConfigurationRepositoryInterface $config;
+    protected Configuration $configuration;
 
-    protected TransportState $transportState;
+    protected Registry $registry;
+
+    protected ClientStateManager $clientStateManager;
 
     protected LoggerInterface $logger;
+
+    protected ContainerInterface $container;
 
     protected SchemaValidator $schemaValidator;
 
     protected ArgumentPreparer $argumentPreparer;
 
-    /**
-     * Create a new MCP processor.
-     */
     public function __construct(
-        protected ContainerInterface $container,
-        protected Registry $registry,
-        ?TransportState $transportState = null,
+        Configuration $configuration,
+        Registry $registry,
+        ClientStateManager $clientStateManager,
+        ContainerInterface $container,
         ?SchemaValidator $schemaValidator = null,
         ?ArgumentPreparer $argumentPreparer = null
     ) {
-        $this->config = $this->container->get(ConfigurationRepositoryInterface::class);
-        $this->logger = $this->container->get(LoggerInterface::class);
+        $this->configuration = $configuration;
+        $this->registry = $registry;
+        $this->clientStateManager = $clientStateManager;
+        $this->container = $container;
+        $this->logger = $configuration->logger;
 
-        $this->transportState = $transportState ?? new TransportState($this->container);
-        $this->schemaValidator = $schemaValidator ?? new SchemaValidator($this->logger);
-        $this->argumentPreparer = $argumentPreparer ?? new ArgumentPreparer($this->logger);
+        $this->schemaValidator = $schemaValidator ?? new SchemaValidator($this->configuration->logger);
+        $this->argumentPreparer = $argumentPreparer ?? new ArgumentPreparer($this->configuration->logger);
     }
 
-    /**
-     * Process a JSON-RPC request.
-     *
-     * @param  Request|Notification  $request  The JSON-RPC request to process
-     * @param  string  $clientId  The client ID associated with this request
-     * @return Response|null The JSON-RPC response or null if the request is a notification
-     */
     public function process(Request|Notification $message, string $clientId): ?Response
     {
         $method = $message->method;
@@ -92,18 +86,17 @@ class Processor
             } elseif ($method === 'notifications/initialized') {
                 $this->handleNotificationInitialized($params, $clientId);
 
-                return null; // Explicitly return null for notifications
+                return null;
             } else {
-                // All other methods require initialization
                 $this->validateClientInitialized($clientId);
                 [$type, $action] = $this->parseMethod($method);
-                $this->validateCapabilityEnabled($type); // Check if capability is enabled
+                $this->validateCapabilityEnabled($type);
 
                 $result = match ($type) {
                     'tools' => match ($action) {
                         'list' => $this->handleToolList($params),
                         'call' => $this->handleToolCall($params),
-                        default => throw McpException::methodNotFound($method),
+                        default => throw McpServerException::methodNotFound($method),
                     },
                     'resources' => match ($action) {
                         'list' => $this->handleResourcesList($params),
@@ -111,46 +104,40 @@ class Processor
                         'subscribe' => $this->handleResourceSubscribe($params, $clientId),
                         'unsubscribe' => $this->handleResourceUnsubscribe($params, $clientId),
                         'templates/list' => $this->handleResourceTemplateList($params),
-                        default => throw McpException::methodNotFound($method),
+                        default => throw McpServerException::methodNotFound($method),
                     },
                     'prompts' => match ($action) {
                         'list' => $this->handlePromptsList($params),
                         'get' => $this->handlePromptGet($params),
-                        default => throw McpException::methodNotFound($method),
+                        default => throw McpServerException::methodNotFound($method),
                     },
                     'logging' => match ($action) {
                         'setLevel' => $this->handleLoggingSetLevel($params),
-                        default => throw McpException::methodNotFound($method),
+                        default => throw McpServerException::methodNotFound($method),
                     },
-                    default => throw McpException::methodNotFound($method),
+                    default => throw McpServerException::methodNotFound($method),
                 };
             }
 
-            // Only create a response if there's an ID (i.e., it was a Request)
-            // Ensure $result is not null for requests that should have results
             if (isset($id) && $result === null && $method !== 'notifications/initialized') {
                 $this->logger->error('MCP Processor resulted in null for a request requiring a response', ['method' => $method]);
-                throw McpException::internalError("Processing method '{$method}' failed to return a result.");
+                throw McpServerException::internalError("Processing method '{$method}' failed to return a result.");
             }
 
             return isset($id) ? Response::success($result, id: $id) : null;
 
-        } catch (McpException $e) {
-            $this->logger->debug('MCP Processor caught McpError', ['method' => $method, 'code' => $e->getCode(), 'message' => $e->getMessage(), 'data' => $e->getData()]);
+        } catch (McpServerException $e) {
+            $this->logger->debug('MCP Processor caught McpServerException', ['method' => $method, 'code' => $e->getCode(), 'message' => $e->getMessage(), 'data' => $e->getData()]);
 
             return isset($id) ? Response::error($e->toJsonRpcError(), id: $id) : null;
         } catch (Throwable $e) {
-            $this->logger->error('MCP Processor caught unexpected error', ['method' => $method, 'exception' => $e->getMessage()]);
-
-            $mcpError = McpException::methodExecutionFailed($method, $e);
+            $this->logger->error('MCP Processor caught unexpected error', ['method' => $method, 'exception' => $e]);
+            $mcpError = McpServerException::internalError("Internal error processing method '{$method}'", $e); // Use internalError factory
 
             return isset($id) ? Response::error($mcpError->toJsonRpcError(), id: $id) : null;
         }
     }
 
-    /**
-     * Parse method string like "type/action" or "type/nested/action"
-     */
     private function parseMethod(string $method): array
     {
         if (str_contains($method, '/')) {
@@ -163,136 +150,135 @@ class Processor
         return [$method, ''];
     }
 
-    /**
-     * Validate if the client is initialized.
-     *
-     * @param  string  $clientId  The client ID
-     *
-     * @throws McpError If the client is not initialized
-     */
     private function validateClientInitialized(string $clientId): void
     {
-        if (! $this->transportState->isInitialized($clientId)) {
-            throw McpException::invalidRequest('Client not initialized. Please send an initialized notification first.');
+        if (! $this->clientStateManager->isInitialized($clientId)) {
+            throw McpServerException::invalidRequest('Client not initialized.');
         }
     }
 
-    /**
-     * Check if a capability type is enabled in the config.
-     *
-     * @param  string  $type  The capability type (tools, resources, prompts)
-     *
-     * @throws McpError If the capability is disabled
-     */
     private function validateCapabilityEnabled(string $type): void
     {
-        $configKey = match ($type) {
-            'tools' => 'mcp.capabilities.tools.enabled',
-            'resources' => 'mcp.capabilities.resources.enabled',
-            'prompts' => 'mcp.capabilities.prompts.enabled',
-            'logging' => 'mcp.capabilities.logging.enabled',
-            default => null,
+        $caps = $this->configuration->capabilities;
+
+        $enabled = match ($type) {
+            'tools' => $caps->toolsEnabled,
+            'resources', 'resources/templates' => $caps->resourcesEnabled,
+            'resources/subscribe', 'resources/unsubscribe' => $caps->resourcesEnabled && $caps->resourcesSubscribe,
+            'prompts' => $caps->promptsEnabled,
+            'logging' => $caps->loggingEnabled,
+            default => false,
         };
 
-        if ($configKey === null) {
-            return;
-        } // Unknown capability type, assume enabled or let method fail
-
-        if (! $this->config->get($configKey, false)) { // Default to false if not specified
-            throw McpException::methodNotFound("MCP capability '{$type}' is not enabled on this server.");
+        if (! $enabled) {
+            $methodSegment = explode('/', $type)[0];
+            throw McpServerException::methodNotFound("MCP capability '{$methodSegment}' is not enabled on this server.");
         }
     }
 
-    // --- Handler Implementations ---
+    // --- Handler Implementations (Updated to use $this->configuration) ---
 
     private function handleInitialize(array $params, string $clientId): InitializeResult
     {
         $clientProtocolVersion = $params['protocolVersion'] ?? null;
         if (! $clientProtocolVersion) {
-            throw McpException::invalidParams("Missing 'protocolVersion' parameter for initialize request.");
+            throw McpServerException::invalidParams("Missing 'protocolVersion' parameter.");
         }
 
-        if (! in_array($clientProtocolVersion, $this->supportedProtocolVersions)) {
+        if (! in_array($clientProtocolVersion, self::SUPPORTED_PROTOCOL_VERSIONS)) {
             $this->logger->warning("Client requested unsupported protocol version: {$clientProtocolVersion}", [
-                'supportedVersions' => $this->supportedProtocolVersions,
+                'supportedVersions' => self::SUPPORTED_PROTOCOL_VERSIONS,
             ]);
-            // Continue with our preferred version, client should disconnect if it can't support it
         }
 
-        $serverProtocolVersion = $this->config->get(
-            'mcp.protocol_version',
-            $this->supportedProtocolVersions[count($this->supportedProtocolVersions) - 1]
-        );
+        $serverProtocolVersion = self::SUPPORTED_PROTOCOL_VERSIONS[count(self::SUPPORTED_PROTOCOL_VERSIONS) - 1];
 
         $clientInfo = $params['clientInfo'] ?? null;
         if (! is_array($clientInfo)) {
-            throw McpException::invalidParams("Missing or invalid 'clientInfo' parameter for initialize request.");
+            throw McpServerException::invalidParams("Missing or invalid 'clientInfo' parameter.");
         }
 
-        $this->transportState->storeClientInfo($clientInfo, $serverProtocolVersion, $clientId);
+        $this->clientStateManager->storeClientInfo($clientInfo, $serverProtocolVersion, $clientId);
 
         $serverInfo = [
-            'name' => $this->config->get('mcp.server.name', 'PHP MCP Server'),
-            'version' => $this->config->get('mcp.server.version', '1.0.0'),
+            'name' => $this->configuration->serverName,
+            'version' => $this->configuration->serverVersion,
         ];
 
-        $capabilities = [];
-        if ($this->config->get('mcp.capabilities.tools.enabled', false) && $this->registry->allTools()->count() > 0) {
-            $capabilities['tools'] = ['listChanged' => $this->config->get('mcp.capabilities.tools.listChanged', false)];
-        }
-        if ($this->config->get('mcp.capabilities.resources.enabled', false) && ($this->registry->allResources()->count() > 0 || $this->registry->allResourceTemplates()->count() > 0)) {
-            $cap = [];
-            if ($this->config->get('mcp.capabilities.resources.subscribe', false)) {
-                $cap['subscribe'] = true;
-            }
-            if ($this->config->get('mcp.capabilities.resources.listChanged', false)) {
-                $cap['listChanged'] = true;
-            }
-            if (! empty($cap)) {
-                $capabilities['resources'] = $cap;
-            }
-        }
-        if ($this->config->get('mcp.capabilities.prompts.enabled', false) && $this->registry->allPrompts()->count() > 0) {
-            $capabilities['prompts'] = ['listChanged' => $this->config->get('mcp.capabilities.prompts.listChanged', false)];
-        }
-        if ($this->config->get('mcp.capabilities.logging.enabled', false)) {
-            $capabilities['logging'] = new \stdClass;
-        }
+        $serverCapabilities = $this->configuration->capabilities;
+        $responseCapabilities = $serverCapabilities->toInitializeResponseArray();
 
-        $instructions = $this->config->get('mcp.instructions');
+        $instructions = $serverCapabilities->instructions;
 
-        return new InitializeResult($serverInfo, $serverProtocolVersion, $capabilities, $instructions);
+        return new InitializeResult($serverInfo, $serverProtocolVersion, $responseCapabilities, $instructions);
     }
 
+    // handlePing remains the same
     private function handlePing(string $clientId): EmptyResult
     {
-        // Ping response has no specific content, just acknowledges
-        return new EmptyResult;
+        return new EmptyResult();
     }
 
-    // --- Notification Handlers ---
-
+    // handleNotificationInitialized remains the same (uses ClientStateManager)
     private function handleNotificationInitialized(array $params, string $clientId): EmptyResult
     {
-        $this->transportState->markInitialized($clientId);
+        $this->clientStateManager->markInitialized($clientId);
 
-        return new EmptyResult;
+        return new EmptyResult(); // Return EmptyResult, Response is handled by caller
     }
 
-    // --- Tool Handlers ---
+    // --- List Handlers (Updated pagination limit source) ---
 
     private function handleToolList(array $params): ListToolsResult
     {
         $cursor = $params['cursor'] ?? null;
-        $limit = $this->config->get('mcp.pagination_limit', 50);
+        // Use a fixed limit or add to Configuration
+        $limit = 50; // $this->configuration->paginationLimit ?? 50;
         $offset = $this->decodeCursor($cursor);
+        $allItems = $this->registry->allTools()->getArrayCopy(); // Get as array
+        $pagedItems = array_slice($allItems, $offset, $limit);
+        $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
 
-        $allToolsArray = $this->registry->allTools()->getArrayCopy();
-        $pagedTools = array_slice($allToolsArray, $offset, $limit);
-        $nextCursor = $this->encodeNextCursor($offset, count($pagedTools), count($allToolsArray), $limit);
-
-        return new ListToolsResult(array_values($pagedTools), $nextCursor);
+        return new ListToolsResult(array_values($pagedItems), $nextCursor);
     }
+
+    private function handleResourcesList(array $params): ListResourcesResult
+    {
+        $cursor = $params['cursor'] ?? null;
+        $limit = 50; // $this->configuration->paginationLimit ?? 50;
+        $offset = $this->decodeCursor($cursor);
+        $allItems = $this->registry->allResources()->getArrayCopy();
+        $pagedItems = array_slice($allItems, $offset, $limit);
+        $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
+
+        return new ListResourcesResult(array_values($pagedItems), $nextCursor);
+    }
+
+    private function handleResourceTemplateList(array $params): ListResourceTemplatesResult
+    {
+        $cursor = $params['cursor'] ?? null;
+        $limit = 50; // $this->configuration->paginationLimit ?? 50;
+        $offset = $this->decodeCursor($cursor);
+        $allItems = $this->registry->allResourceTemplates()->getArrayCopy();
+        $pagedItems = array_slice($allItems, $offset, $limit);
+        $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
+
+        return new ListResourceTemplatesResult(array_values($pagedItems), $nextCursor);
+    }
+
+    private function handlePromptsList(array $params): ListPromptsResult
+    {
+        $cursor = $params['cursor'] ?? null;
+        $limit = 50; // $this->configuration->paginationLimit ?? 50;
+        $offset = $this->decodeCursor($cursor);
+        $allItems = $this->registry->allPrompts()->getArrayCopy();
+        $pagedItems = array_slice($allItems, $offset, $limit);
+        $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
+
+        return new ListPromptsResult(array_values($pagedItems), $nextCursor);
+    }
+
+    // --- Action Handlers  ---
 
     private function handleToolCall(array $params): CallToolResult
     {
@@ -300,32 +286,29 @@ class Processor
         $argumentsRaw = $params['arguments'] ?? null;
 
         if (! is_string($toolName) || empty($toolName)) {
-            throw McpException::invalidParams("Missing or invalid 'name' parameter for tools/call.");
+            throw McpServerException::invalidParams("Missing or invalid 'name' parameter for tools/call.");
         }
 
-        if ($argumentsRaw !== null && ! is_array($argumentsRaw)) {
-            throw McpException::invalidParams("Parameter 'arguments' must be an object or null for tools/call.");
-        }
-
-        if (empty($argumentsRaw)) {
-            $argumentsRaw = new stdClass;
+        if ($argumentsRaw === null) {
+            $argumentsRaw = new stdClass();
+        } elseif (! is_array($argumentsRaw) && ! $argumentsRaw instanceof stdClass) {
+            throw McpServerException::invalidParams("Parameter 'arguments' must be an object/array for tools/call.");
         }
 
         $definition = $this->registry->findTool($toolName);
         if (! $definition) {
-            throw McpException::methodNotFound("Tool '{$toolName}' not found.");
+            throw McpServerException::methodNotFound("Tool '{$toolName}' not found."); // Method not found seems appropriate
         }
 
         $inputSchema = $definition->getInputSchema();
+        $argumentsForValidation = is_object($argumentsRaw) ? (array) $argumentsRaw : $argumentsRaw;
 
-        $argumentsForValidation = $argumentsRaw;
         $validationErrors = $this->schemaValidator->validateAgainstJsonSchema($argumentsForValidation, $inputSchema);
-
         if (! empty($validationErrors)) {
-            throw McpException::invalidParams(data: ['validation_errors' => $validationErrors]);
+            throw McpServerException::invalidParams(data: ['validation_errors' => $validationErrors]);
         }
 
-        $argumentsForPhpCall = (array) ($argumentsRaw ?? []);
+        $argumentsForPhpCall = (array) $argumentsRaw; // Need array for ArgumentPreparer
 
         try {
             $instance = $this->container->get($definition->getClassName());
@@ -339,167 +322,44 @@ class Processor
             );
 
             $toolExecutionResult = $instance->{$methodName}(...$args);
-
             $formattedResult = $this->formatToolResult($toolExecutionResult);
 
             return new CallToolResult($formattedResult, false);
+
         } catch (JsonException $e) {
-            $this->logger->warning('MCP SDK: Failed to JSON encode tool result.', ['exception' => $e]);
+            $this->logger->warning('MCP SDK: Failed to JSON encode tool result.', ['tool' => $toolName, 'exception' => $e]);
             $errorMessage = "Failed to serialize tool result: {$e->getMessage()}";
 
             return new CallToolResult([new TextContent($errorMessage)], true);
         } catch (Throwable $toolError) {
-            $this->logger->error('MCP SDK: Tool execution failed.', ['exception' => $toolError->getMessage()]);
+            $this->logger->error('MCP SDK: Tool execution failed.', ['tool' => $toolName, 'exception' => $toolError]);
             $errorContent = $this->formatToolErrorResult($toolError);
 
             return new CallToolResult($errorContent, true);
         }
     }
 
-    // --- Resource Handlers ---
-
-    private function handleResourcesList(array $params): ListResourcesResult
-    {
-        $cursor = $params['cursor'] ?? null;
-        $limit = $this->config->get('mcp.pagination_limit', 50);
-        $offset = $this->decodeCursor($cursor);
-
-        $allResourcesArray = $this->registry->allResources()->getArrayCopy();
-        $pagedResources = array_slice($allResourcesArray, $offset, $limit);
-        $nextCursor = $this->encodeNextCursor($offset, count($pagedResources), count($allResourcesArray), $limit);
-
-        return new ListResourcesResult(array_values($pagedResources), $nextCursor);
-    }
-
-    private function handleResourceTemplateList(array $params): ListResourceTemplatesResult
-    {
-        $cursor = $params['cursor'] ?? null;
-        $limit = $this->config->get('mcp.pagination_limit', 50);
-        $offset = $this->decodeCursor($cursor);
-
-        $allTemplatesArray = $this->registry->allResourceTemplates()->getArrayCopy();
-        $pagedTemplates = array_slice($allTemplatesArray, $offset, $limit);
-        $nextCursor = $this->encodeNextCursor($offset, count($pagedTemplates), count($allTemplatesArray), $limit);
-
-        return new ListResourceTemplatesResult(array_values($pagedTemplates), $nextCursor);
-    }
-
     private function handleResourceRead(array $params): ReadResourceResult
     {
         $uri = $params['uri'] ?? null;
         if (! is_string($uri) || empty($uri)) {
-            throw McpException::invalidParams("Missing or invalid 'uri' parameter for resources/read.");
+            throw McpServerException::invalidParams("Missing or invalid 'uri' parameter for resources/read.");
         }
 
-        // First try exact resource match
-        $definition = $this->registry->findResourceByUri($uri);
+        $definition = null;
         $uriVariables = [];
+
+        // Try exact match first
+        $definition = $this->registry->findResourceByUri($uri);
 
         // If no exact match, try template matching
         if (! $definition) {
             $templateResult = $this->registry->findResourceTemplateByUri($uri);
-            if (! $templateResult) {
-                throw McpException::invalidParams("Resource URI '{$uri}' not found or no handler available.");
-            }
-
-            $definition = $templateResult['definition'];
-            $uriVariables = $templateResult['variables'];
-        }
-
-        try {
-            $instance = $this->container->get($definition->getClassName());
-
-            $methodParams = array_merge($uriVariables, ['uri' => $uri]);
-
-            $args = $this->argumentPreparer->prepareMethodArguments(
-                $instance,
-                $definition->getMethodName(),
-                $methodParams,
-                []
-            );
-
-            $readResult = $instance->{$definition->getMethodName()}(...$args);
-
-            $contents = $this->formatResourceContents($readResult, $uri, $definition->getMimeType());
-
-            return new ReadResourceResult($contents);
-        } catch (JsonException $e) {
-            $this->logger->warning('MCP SDK: Failed to JSON encode resource content.', ['exception' => $e, 'uri' => $uri]);
-
-            throw McpException::internalError("Failed to serialize resource content for '{$uri}': {$e->getMessage()}", $e);
-        } catch (McpException $e) {
-            throw $e;
-        } catch (Throwable $e) {
-            $this->logger->error('MCP SDK: Resource read failed.', ['exception' => $e->getMessage()]);
-
-            throw McpException::internalError("Failed to read resource '{$uri}': {$e->getMessage()}", $e);
-        }
-    }
-
-    private function handleResourceSubscribe(array $params, string $clientId): EmptyResult
-    {
-        $uri = $params['uri'] ?? null;
-
-        if (! is_string($uri) || empty($uri)) {
-            throw McpException::invalidParams("Missing or invalid 'uri' parameter for resources/subscribe.");
-        }
-        if (! $this->config->get('mcp.capabilities.resources.subscribe', false)) {
-            throw McpException::methodNotFound('Resource subscription is not supported by this server.');
-        }
-
-        $this->transportState->addResourceSubscription($clientId, $uri);
-
-        return new EmptyResult;
-    }
-
-    private function handleResourceUnsubscribe(array $params, string $clientId): EmptyResult
-    {
-        $uri = $params['uri'] ?? null;
-        if (! is_string($uri) || empty($uri)) {
-            throw McpException::invalidParams("Missing or invalid 'uri' parameter for resources/unsubscribe.");
-        }
-
-        $this->transportState->removeResourceSubscription($clientId, $uri);
-
-        return new EmptyResult;
-    }
-
-    // --- Prompt Handlers ---
-
-    private function handlePromptsList(array $params): ListPromptsResult
-    {
-        $cursor = $params['cursor'] ?? null;
-        $limit = $this->config->get('mcp.pagination_limit', 50);
-        $offset = $this->decodeCursor($cursor);
-
-        $allPromptsArray = $this->registry->allPrompts()->getArrayCopy();
-        $pagedPrompts = array_slice($allPromptsArray, $offset, $limit);
-        $nextCursor = $this->encodeNextCursor($offset, count($pagedPrompts), count($allPromptsArray), $limit);
-
-        return new ListPromptsResult(array_values($pagedPrompts), $nextCursor);
-    }
-
-    private function handlePromptGet(array $params): GetPromptResult
-    {
-        $promptName = $params['name'] ?? null;
-        $arguments = $params['arguments'] ?? []; // Arguments for templating
-
-        if (! is_string($promptName) || empty($promptName)) {
-            throw McpException::invalidParams("Missing or invalid 'name' parameter for prompts/get.");
-        }
-        if (! is_array($arguments)) {
-            throw McpException::invalidParams("Parameter 'arguments' must be an object for prompts/get.");
-        }
-
-        $definition = $this->registry->findPrompt($promptName);
-        if (! $definition) {
-            throw McpException::invalidParams("Prompt '{$promptName}' not found.");
-        }
-
-        // Validate provided arguments against PromptDefinition arguments (required check)
-        foreach ($definition->getArguments() as $argDef) {
-            if ($argDef->isRequired() && ! array_key_exists($argDef->getName(), $arguments)) {
-                throw McpException::invalidParams("Missing required argument '{$argDef->getName()}' for prompt '{$promptName}'.");
+            if ($templateResult) {
+                $definition = $templateResult['definition'];
+                $uriVariables = $templateResult['variables'];
+            } else {
+                throw McpServerException::invalidParams("Resource URI '{$uri}' not found or no handler available.");
             }
         }
 
@@ -507,56 +367,134 @@ class Processor
             $instance = $this->container->get($definition->getClassName());
             $methodName = $definition->getMethodName();
 
-            // Prepare arguments for the prompt generator method (likely just the template vars)
+            $methodParams = array_merge($uriVariables, ['uri' => $uri]);
+
             $args = $this->argumentPreparer->prepareMethodArguments(
                 $instance,
                 $methodName,
-                $arguments, // Pass template arguments
-                [] // Schema not directly applicable here? Or parse args into schema? Pass empty for now.
+                $methodParams,
+                []
             );
 
-            // Execute the prompt generator method
-            $promptGenerationResult = $instance->{$methodName}(...$args);
+            $readResult = $instance->{$methodName}(...$args);
+            $contents = $this->formatResourceContents($readResult, $uri, $definition->getMimeType());
 
-            $messages = $this->formatPromptMessages($promptGenerationResult);
+            return new ReadResourceResult($contents);
 
-            return new GetPromptResult(
-                $messages,
-                $definition->getDescription()
-            );
         } catch (JsonException $e) {
-            $this->logger->warning('MCP SDK: Failed to JSON encode prompt messages.', ['exception' => $e, 'promptName' => $promptName]);
-
-            throw McpException::internalError("Failed to serialize prompt messages for '{$promptName}': {$e->getMessage()}", $e);
-        } catch (McpException $e) {
-            throw $e;
+            $this->logger->warning('MCP SDK: Failed to JSON encode resource content.', ['exception' => $e, 'uri' => $uri]);
+            throw McpServerException::internalError("Failed to serialize resource content for '{$uri}'.", $e);
+        } catch (McpServerException $e) {
+            throw $e; // Re-throw known MCP errors
         } catch (Throwable $e) {
-            $this->logger->error('MCP SDK: Prompt generation failed.', ['exception' => $e->getMessage()]);
-
-            throw McpException::internalError("Failed to generate prompt '{$promptName}': {$e->getMessage()}", $e);
+            $this->logger->error('MCP SDK: Resource read failed.', ['uri' => $uri, 'exception' => $e]);
+            throw McpServerException::resourceReadFailed($uri, $e); // Use specific factory
         }
     }
 
-    // --- Logging Handlers ---
+    private function handleResourceSubscribe(array $params, string $clientId): EmptyResult
+    {
+        $uri = $params['uri'] ?? null;
+        if (! is_string($uri) || empty($uri)) {
+            throw McpServerException::invalidParams("Missing or invalid 'uri' parameter for resources/subscribe.");
+        }
+
+        $this->validateCapabilityEnabled('resources/subscribe');
+
+        $this->clientStateManager->addResourceSubscription($clientId, $uri);
+
+        return new EmptyResult();
+    }
+
+    private function handleResourceUnsubscribe(array $params, string $clientId): EmptyResult
+    {
+        $uri = $params['uri'] ?? null;
+        if (! is_string($uri) || empty($uri)) {
+            throw McpServerException::invalidParams("Missing or invalid 'uri' parameter for resources/unsubscribe.");
+        }
+
+        $this->validateCapabilityEnabled('resources/unsubscribe');
+
+        $this->clientStateManager->removeResourceSubscription($clientId, $uri);
+
+        return new EmptyResult();
+    }
+
+    private function handlePromptGet(array $params): GetPromptResult
+    {
+        $promptName = $params['name'] ?? null;
+        $arguments = $params['arguments'] ?? [];
+
+        if (! is_string($promptName) || empty($promptName)) {
+            throw McpServerException::invalidParams("Missing or invalid 'name' parameter for prompts/get.");
+        }
+        if (! is_array($arguments) && ! $arguments instanceof stdClass) {
+            throw McpServerException::invalidParams("Parameter 'arguments' must be an object/array for prompts/get.");
+        }
+
+        $definition = $this->registry->findPrompt($promptName);
+        if (! $definition) {
+            throw McpServerException::invalidParams("Prompt '{$promptName}' not found.");
+        }
+
+        $arguments = (array) $arguments;
+
+        foreach ($definition->getArguments() as $argDef) {
+            if ($argDef->isRequired() && ! array_key_exists($argDef->getName(), $arguments)) {
+                throw McpServerException::invalidParams("Missing required argument '{$argDef->getName()}' for prompt '{$promptName}'.");
+            }
+        }
+
+        try {
+            $instance = $this->container->get($definition->getClassName());
+            $methodName = $definition->getMethodName();
+
+            // Prepare arguments for the prompt generator method
+            $args = $this->argumentPreparer->prepareMethodArguments(
+                $instance,
+                $methodName,
+                $arguments,
+                [] // No input schema for prompts
+            );
+
+            $promptGenerationResult = $instance->{$methodName}(...$args);
+            $messages = $this->formatPromptMessages($promptGenerationResult);
+
+            return new GetPromptResult($messages, $definition->getDescription());
+
+        } catch (JsonException $e) {
+            $this->logger->warning('MCP SDK: Failed to JSON encode prompt messages.', ['exception' => $e, 'promptName' => $promptName]);
+            throw McpServerException::internalError("Failed to serialize prompt messages for '{$promptName}'.", $e);
+        } catch (McpServerException $e) {
+            throw $e; // Re-throw known MCP errors
+        } catch (Throwable $e) {
+            $this->logger->error('MCP SDK: Prompt generation failed.', ['promptName' => $promptName, 'exception' => $e]);
+            throw McpServerException::promptGenerationFailed($promptName, $e); // Use specific factory
+        }
+    }
+
+    // handleLoggingSetLevel needs a way to persist the setting.
+    // Using ClientStateManager might be okay, or a dedicated config service.
+    // For Phase 1, let's just log it.
     private function handleLoggingSetLevel(array $params): EmptyResult
     {
         $level = $params['level'] ?? null;
         $validLevels = ['emergency', 'alert', 'critical', 'error', 'warning', 'notice', 'info', 'debug'];
         if (! is_string($level) || ! in_array(strtolower($level), $validLevels)) {
-            throw McpException::invalidParams("Invalid or missing 'level' parameter. Must be one of: ".implode(', ', $validLevels));
+            throw McpServerException::invalidParams("Invalid or missing 'level'. Must be one of: ".implode(', ', $validLevels));
         }
 
-        // Store the requested log level (e.g., in session, config, or state manager)
-        // This level should then be checked by the logging notification sender.
-        $this->logger->info('MCP logging level set request: '.$level);
-        $this->config->set('mcp.runtime.log_level', strtolower($level)); // Example: Store in runtime config
+        $this->validateCapabilityEnabled('logging');
 
-        return new EmptyResult; // Success is empty result
+        $this->logger->info('MCP logging level set request received', ['level' => $level]);
+        // In a real implementation, update the logger's minimum level or store this preference.
+        // $this->clientStateManager->setClientLogLevel($clientId, strtolower($level)); // Example state storage
+
+        return new EmptyResult();
     }
 
-    // --- Pagination Helpers ---
+    // --- Pagination Helpers (Unchanged) ---
 
-    /** Decodes the opaque cursor string into an offset */
     private function decodeCursor(?string $cursor): int
     {
         if ($cursor === null) {
@@ -566,18 +504,16 @@ class Processor
         if ($decoded === false) {
             $this->logger->warning('Received invalid pagination cursor (not base64)', ['cursor' => $cursor]);
 
-            return 0; // Treat invalid cursor as start
+            return 0;
         }
-        // Expect format "offset=N"
         if (preg_match('/^offset=(\d+)$/', $decoded, $matches)) {
             return (int) $matches[1];
         }
         $this->logger->warning('Received invalid pagination cursor format', ['cursor' => $decoded]);
 
-        return 0; // Treat invalid format as start
+        return 0;
     }
 
-    /** Encodes the next cursor string if more items exist */
     private function encodeNextCursor(int $currentOffset, int $returnedCount, int $totalCount, int $limit): ?string
     {
         $nextOffset = $currentOffset + $returnedCount;
@@ -585,6 +521,6 @@ class Processor
             return base64_encode("offset={$nextOffset}");
         }
 
-        return null; // No more items
+        return null;
     }
 }

@@ -2,7 +2,7 @@
 
 namespace PhpMcp\Server\JsonRpc;
 
-use PhpMcp\Server\Exceptions\McpException;
+use PhpMcp\Server\Exception\ProtocolException;
 
 class Batch
 {
@@ -35,14 +35,14 @@ class Batch
     public static function fromArray(array $data): self
     {
         if (empty($data)) {
-            throw McpException::invalidRequest('A batch must contain at least one request.');
+            throw ProtocolException::invalidRequest('A batch must contain at least one request.');
         }
 
         $batch = new self();
 
         foreach ($data as $item) {
             if (! is_array($item)) {
-                throw McpException::invalidRequest('Each item in a batch must be a valid JSON-RPC object.');
+                throw ProtocolException::invalidRequest('Each item in a batch must be a valid JSON-RPC object.');
             }
 
             // Determine if the item is a notification (no id) or a request

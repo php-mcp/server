@@ -2,11 +2,13 @@
 
 namespace PhpMcp\Server\JsonRpc;
 
-use PhpMcp\Server\Exceptions\McpException;
 use JsonSerializable;
+use PhpMcp\Server\Exception\ProtocolException;
 
 /**
  * Represents a JSON-RPC response message.
+ *
+ * @template T
  */
 class Response extends Message implements JsonSerializable
 {
@@ -14,21 +16,33 @@ class Response extends Message implements JsonSerializable
      * Create a new JSON-RPC 2.0 response.
      *
      * @param  string  $jsonrpc  JSON-RPC version (always "2.0")
-     * @param  string|int  $id  Request ID this response is for (must match the request)
-     * @param  Result  $result  Method result (for success) - can be a Result object or array
+     * @param  string|int|null  $id  Request ID this response is for (must match the request)
+     * @param  T|null  $result  Method result (for success) - can be a Result object or array
      * @param  Error|null  $error  Error object (for failure)
      */
     public function __construct(
         public readonly string $jsonrpc,
-        public readonly string|int $id,
-        public readonly ?Result $result = null,
+        public readonly string|int|null $id,
+        public readonly mixed $result = null,
         public readonly ?Error $error = null,
     ) {
-        // Responses must have either result or error, not both
-        if ($this->result !== null && $this->error !== null) {
-            throw new \InvalidArgumentException(
-                'A JSON-RPC response cannot have both result and error.'
-            );
+        // Responses must have either result or error, not both, UNLESS ID is null (error response)
+        if ($this->id !== null && $this->result !== null && $this->error !== null) {
+            throw new \InvalidArgumentException('A JSON-RPC response with an ID cannot have both result and error.');
+        }
+
+        // A response with an ID MUST have either result or error
+        if ($this->id !== null && $this->result === null && $this->error === null) {
+            throw new \InvalidArgumentException('A JSON-RPC response with an ID must have either result or error.');
+        }
+
+        // A response with null ID MUST have an error and MUST NOT have result
+        if ($this->id === null && $this->error === null) {
+            throw new \InvalidArgumentException('A JSON-RPC response with null ID must have an error object.');
+        }
+
+        if ($this->id === null && $this->result !== null) {
+            throw new \InvalidArgumentException('A JSON-RPC response with null ID cannot have a result field.');
         }
     }
 
@@ -37,46 +51,64 @@ class Response extends Message implements JsonSerializable
      *
      * @param  array  $data  Raw decoded JSON-RPC response data
      *
-     * @throws McpError If the data doesn't conform to JSON-RPC 2.0 structure
+     * @throws ProtocolException If the data doesn't conform to JSON-RPC 2.0 structure
      */
     public static function fromArray(array $data): self
     {
-        // Validate JSON-RPC 2.0
         if (! isset($data['jsonrpc']) || $data['jsonrpc'] !== '2.0') {
-            throw McpException::invalidRequest('Invalid or missing "jsonrpc" version. Must be "2.0".');
+            throw new ProtocolException('Invalid or missing "jsonrpc" version. Must be "2.0".');
         }
 
-        // Validate contains either result or error
-        if (! isset($data['result']) && ! isset($data['error'])) {
-            throw McpException::invalidRequest('Response must contain either "result" or "error".');
+        // ID must exist for valid responses, but can be null for specific error cases
+        // We rely on the constructor validation logic for the result/error/id combinations
+        $id = $data['id'] ?? null; // Default to null if missing
+        if (! (is_string($id) || is_int($id) || $id === null)) {
+            throw new ProtocolException('Invalid "id" field type in response.');
         }
 
-        // Validate ID
-        if (! isset($data['id'])) {
-            throw McpException::invalidRequest('Invalid or missing "id" field.');
+        $hasResult = array_key_exists('result', $data);
+        $hasError = array_key_exists('error', $data);
+
+        if ($id !== null) { // If ID is present, standard validation applies
+            if ($hasResult && $hasError) {
+                throw new ProtocolException('Invalid response: contains both "result" and "error".');
+            }
+            if (! $hasResult && ! $hasError) {
+                throw new ProtocolException('Invalid response: must contain either "result" or "error" when ID is present.');
+            }
+        } else { // If ID is null, error MUST be present, result MUST NOT
+            if (! $hasError) {
+                throw new ProtocolException('Invalid response: must contain "error" when ID is null.');
+            }
+            if ($hasResult) {
+                throw new ProtocolException('Invalid response: must not contain "result" when ID is null.');
+            }
         }
 
-        // Handle error if present
         $error = null;
-        if (isset($data['error'])) {
-            if (! is_array($data['error'])) {
-                throw McpException::invalidRequest('The "error" field must be an object.');
-            }
+        $result = null; // Keep result structure flexible (any JSON type)
 
-            if (! isset($data['error']['code']) || ! isset($data['error']['message'])) {
-                throw McpException::invalidRequest('Error object must contain "code" and "message" fields.');
+        if ($hasError) {
+            if (! is_array($data['error'])) { // Error MUST be an object
+                throw new ProtocolException('Invalid "error" field in response: must be an object.');
             }
-
-            $error = Error::fromArray($data['error']);
+            try {
+                $error = Error::fromArray($data['error']);
+            } catch (ProtocolException $e) {
+                // Wrap error from Error::fromArray for context
+                throw new ProtocolException('Invalid "error" object structure in response: '.$e->getMessage(), 0, $e);
+            }
+        } elseif ($hasResult) {
+            $result = $data['result']; // Result can be anything
         }
 
-
-        return new self(
-            $data['jsonrpc'],
-            $data['id'],
-            $data['result'] ?? null,
-            $error,
-        );
+        try {
+            // The constructor now handles the final validation of id/result/error combinations
+            return new self('2.0', $id, $result, $error);
+        } catch (\InvalidArgumentException $e) {
+            // Convert constructor validation error to ProtocolException
+            throw new ProtocolException('Invalid response structure: '.$e->getMessage());
+        }
     }
 
     /**
@@ -87,26 +119,18 @@ class Response extends Message implements JsonSerializable
      */
     public static function success(Result $result, mixed $id): self
     {
-        return new self(
-            jsonrpc: '2.0',
-            result: $result,
-            id: $id,
-        );
+        return new self(jsonrpc: '2.0', result: $result, id: $id);
     }
 
     /**
      * Create an error response.
      *
      * @param  Error  $error  Error object
-     * @param  mixed  $id  Request ID (can be null for parse errors)
+     * @param  string|int|null  $id  Request ID (can be null for parse errors)
      */
-    public static function error(Error $error, mixed $id): self
+    public static function error(Error $error, string|int|null $id): self
     {
-        return new self(
-            jsonrpc: '2.0',
-            error: $error,
-            id: $id,
-        );
+        return new self(jsonrpc: '2.0', error: $error, id: $id);
     }
 
     /**
@@ -136,7 +160,7 @@ class Response extends Message implements JsonSerializable
         ];
 
         if ($this->isSuccess()) {
-            $result['result'] = $this->result->toArray();
+            $result['result'] = is_array($this->result) ? $this->result : $this->result->toArray();
         } else {
             $result['error'] = $this->error->toArray();
         }

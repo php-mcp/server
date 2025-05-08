@@ -12,7 +12,7 @@ All notable changes to `php-mcp/server` will be documented in this file.
 
 ### Changed
 
-* **Dependency Injection:** Refactored internal dependency management. Core server components (`Processor`, `Registry`, `TransportState`, etc.) now resolve `LoggerInterface`, `CacheInterface`, and `ConfigurationRepositoryInterface` Just-In-Time from the provided PSR-11 container. See **Breaking Changes** for implications.
+* **Dependency Injection:** Refactored internal dependency management. Core server components (`Processor`, `Registry`, `ClientStateManager`, etc.) now resolve `LoggerInterface`, `CacheInterface`, and `ConfigurationRepositoryInterface` Just-In-Time from the provided PSR-11 container. See **Breaking Changes** for implications.
 * **Default Logging Behavior:** Logging is now **disabled by default**. To enable logging, provide a `LoggerInterface` implementation via `withLogger()` (when using the default container) or by registering it within your custom PSR-11 container.
 * **Transport Handler Constructors:** Transport Handlers (e.g., `StdioTransportHandler`, `HttpTransportHandler`) now primarily accept the `Server` instance in their constructor, simplifying their instantiation.
 
