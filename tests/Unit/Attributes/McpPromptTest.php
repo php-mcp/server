@@ -4,7 +4,7 @@ namespace PhpMcp\Server\Tests\Unit\Attributes;
 
 use PhpMcp\Server\Attributes\McpPrompt;
 
-test('constructor assigns properties correctly for McpPrompt', function () {
+it('instantiates with name and description', function () {
     // Arrange
     $name = 'test-prompt-name';
     $description = 'This is a test prompt description.';
@@ -17,7 +17,7 @@ test('constructor assigns properties correctly for McpPrompt', function () {
     expect($attribute->description)->toBe($description);
 });
 
-test('constructor handles null values for McpPrompt', function () {
+it('instantiates with null values for name and description', function () {
     // Arrange & Act
     $attribute = new McpPrompt(name: null, description: null);
 
@@ -26,12 +26,11 @@ test('constructor handles null values for McpPrompt', function () {
     expect($attribute->description)->toBeNull();
 });
 
-test('constructor handles missing optional arguments for McpPrompt', function () {
+it('instantiates with missing optional arguments', function () {
     // Arrange & Act
-    $attribute = new McpPrompt(); // Use default constructor values
+    $attribute = new McpPrompt; // Use default constructor values
 
     // Assert
-    // Check default values (assuming they are null)
     expect($attribute->name)->toBeNull();
     expect($attribute->description)->toBeNull();
 });

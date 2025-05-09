@@ -1,6 +1,39 @@
 #!/usr/bin/env php
 <?php
 
+/*
+    |--------------------------------------------------------------------------
+    | MCP HTTP User Profile Server (Attribute Discovery)
+    |--------------------------------------------------------------------------
+    |
+    | This server demonstrates attribute-based discovery for MCP elements
+    | (ResourceTemplates, Resources, Tools, Prompts) defined in 'McpElements.php'.
+    | It runs via the HTTP transport, listening for SSE and POST requests.
+    |
+    | To Use:
+    | 1. Ensure 'McpElements.php' defines classes with MCP attributes.
+    | 2. Run this script from your CLI: `php server.php`
+    |    The server will listen on http://127.0.0.1:8080 by default.
+    | 3. Configure your MCP Client (e.g., Cursor) for this server:
+    |
+    | {
+    |     "mcpServers": {
+    |         "php-http-userprofile": {
+    |             "url": "http://127.0.0.1:8080/mcp/sse" // Use the SSE endpoint
+    |             // Ensure your client can reach this address
+    |         }
+    |     }
+    | }
+    |
+    | The ServerBuilder builds the server, $server->discover() scans for elements,
+    | and then $server->listen() starts the ReactPHP HTTP server.
+    |
+    | If you provided a `CacheInterface` implementation to the ServerBuilder,
+    | the discovery process will be cached, so you can comment out the
+    | discovery call after the first run to speed up subsequent runs.
+    |
+*/
+
 declare(strict_types=1);
 
 chdir(__DIR__);
@@ -22,11 +55,11 @@ class StderrLogger extends AbstractLogger
 }
 
 try {
-    $logger = new StderrLogger();
+    $logger = new StderrLogger;
     $logger->info('Starting MCP HTTP User Profile Server...');
 
     // --- Setup DI Container for DI in McpElements class ---
-    $container = new BasicContainer();
+    $container = new BasicContainer;
     $container->set(LoggerInterface::class, $logger);
 
     $server = Server::make()

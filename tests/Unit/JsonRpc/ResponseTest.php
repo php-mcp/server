@@ -3,28 +3,27 @@
 namespace PhpMcp\Server\Tests\Unit\JsonRpc;
 
 use InvalidArgumentException;
-// Use base exception for factory methods maybe
-use PhpMcp\Server\Exception\ProtocolException; // Use this for fromArray errors
+use PhpMcp\Server\Exception\ProtocolException;
 use PhpMcp\Server\JsonRpc\Error;
 use PhpMcp\Server\JsonRpc\Response;
-use PhpMcp\Server\JsonRpc\Result; // Keep for testing ::success factory
-use PhpMcp\Server\JsonRpc\Results\EmptyResult; // Needed for type hints in factories
+use PhpMcp\Server\JsonRpc\Result;
+use PhpMcp\Server\JsonRpc\Results\EmptyResult;
 
-// --- Construction and Factory Tests (Mostly Unchanged) ---
+// --- Construction and Factory Tests  ---
 
 test('response construction sets all properties for success response', function () {
-    $resultObject = new EmptyResult(); // Use Result object for constructor test consistency
+    $resultObject = new EmptyResult;
     $response = new Response('2.0', 1, $resultObject, null);
 
     expect($response->jsonrpc)->toBe('2.0');
     expect($response->id)->toBe(1);
-    expect($response->result)->toBeInstanceOf(EmptyResult::class); // Constructor stores what's passed
+    expect($response->result)->toBeInstanceOf(EmptyResult::class);
     expect($response->error)->toBeNull();
 });
 
 test('response construction sets all properties for error response', function () {
     $error = new Error(100, 'Test error');
-    $response = new Response('2.0', 1, null, $error); // Pass null ID if applicable
+    $response = new Response('2.0', 1, null, $error);
 
     expect($response->jsonrpc)->toBe('2.0');
     expect($response->id)->toBe(1);
@@ -34,7 +33,7 @@ test('response construction sets all properties for error response', function ()
 
 test('response construction allows null ID for error response', function () {
     $error = new Error(100, 'Test error');
-    $response = new Response('2.0', null, null, $error); // Null ID allowed with error
+    $response = new Response('2.0', null, null, $error);
 
     expect($response->id)->toBeNull();
     expect($response->error)->toBe($error);
@@ -57,24 +56,24 @@ test('response constructor throws exception if ID null and result present', func
 });
 
 test('response throws exception if both result and error are provided with ID', function () {
-    $result = new EmptyResult();
+    $result = new EmptyResult;
     $error = new Error(100, 'Test error');
     expect(fn () => new Response('2.0', 1, $result, $error))->toThrow(InvalidArgumentException::class);
 });
 
 test('success static method creates success response', function () {
-    $result = new EmptyResult();
-    $response = Response::success($result, 1); // Factory still takes Result object
+    $result = new EmptyResult;
+    $response = Response::success($result, 1);
 
     expect($response->jsonrpc)->toBe('2.0');
     expect($response->id)->toBe(1);
-    expect($response->result)->toBeInstanceOf(EmptyResult::class); // Stores the Result object
+    expect($response->result)->toBeInstanceOf(EmptyResult::class);
     expect($response->error)->toBeNull();
 });
 
 test('error static method creates error response', function () {
     $error = new Error(100, 'Test error');
-    $response = Response::error($error, 1); // With ID
+    $response = Response::error($error, 1);
 
     expect($response->jsonrpc)->toBe('2.0');
     expect($response->id)->toBe(1);
@@ -84,7 +83,7 @@ test('error static method creates error response', function () {
 
 test('error static method creates error response with null ID', function () {
     $error = new Error(100, 'Parse error');
-    $response = Response::error($error, null); // Null ID
+    $response = Response::error($error, null);
 
     expect($response->jsonrpc)->toBe('2.0');
     expect($response->id)->toBeNull();
@@ -92,11 +91,11 @@ test('error static method creates error response with null ID', function () {
     expect($response->error)->toBeInstanceOf(Error::class);
 });
 
-// --- Status Check Tests (Unchanged) ---
+// --- Status Check Tests ---
 
 test('isSuccess returns true for success response', function () {
-    $result = new EmptyResult();
-    $response = Response::success($result, 1); // Use factory
+    $result = new EmptyResult;
+    $response = Response::success($result, 1);
     expect($response->isSuccess())->toBeTrue();
 });
 
@@ -113,7 +112,7 @@ test('isError returns true for error response', function () {
 });
 
 test('isError returns false for success response', function () {
-    $result = new EmptyResult();
+    $result = new EmptyResult;
     $response = Response::success($result, 1);
     expect($response->isError())->toBeFalse();
 });
@@ -121,20 +120,19 @@ test('isError returns false for success response', function () {
 // --- fromArray Tests (Updated) ---
 
 test('fromArray creates valid success response with RAW result data', function () {
-    $rawResultData = ['key' => 'value', 'items' => [1, 2]]; // Example raw result
+    $rawResultData = ['key' => 'value', 'items' => [1, 2]];
     $data = [
         'jsonrpc' => '2.0',
         'id' => 1,
-        'result' => $rawResultData, // Use raw data here
+        'result' => $rawResultData,
     ];
 
     $response = Response::fromArray($data);
 
     expect($response->jsonrpc)->toBe('2.0');
     expect($response->id)->toBe(1);
-    // *** Assert the RAW result data is stored ***
     expect($response->result)->toEqual($rawResultData);
-    expect($response->result)->not->toBeInstanceOf(Result::class); // It shouldn't be a Result object yet
+    expect($response->result)->not->toBeInstanceOf(Result::class);
     expect($response->error)->toBeNull();
     expect($response->isSuccess())->toBeTrue();
 });
@@ -160,7 +158,7 @@ test('fromArray creates valid error response with ID', function () {
 test('fromArray creates valid error response with null ID', function () {
     $data = [
         'jsonrpc' => '2.0',
-        'id' => null, // Explicit null ID
+        'id' => null,
         'error' => ['code' => -32700, 'message' => 'Parse error'],
     ];
 
@@ -186,17 +184,15 @@ test('fromArray throws exception for response with ID but missing result/error',
 });
 
 test('fromArray throws exception for response with null ID but missing error', function () {
-    $data = ['jsonrpc' => '2.0', 'id' => null]; // Missing error
+    $data = ['jsonrpc' => '2.0', 'id' => null];
     expect(fn () => Response::fromArray($data))->toThrow(ProtocolException::class, 'must contain "error" when ID is null');
 });
 
 test('fromArray throws exception for response with null ID and result present', function () {
-    $data = ['jsonrpc' => '2.0', 'id' => null, 'result' => 'abc', 'error' => ['code' => -32700, 'message' => 'e']]; // Has result with null ID
-    // Need to adjust mock data to pass initial checks if both present
-    // Let's test the case where only result is present with null ID
+    $data = ['jsonrpc' => '2.0', 'id' => null, 'result' => 'abc', 'error' => ['code' => -32700, 'message' => 'e']];
     $dataOnlyResult = ['jsonrpc' => '2.0', 'id' => null, 'result' => 'abc'];
     expect(fn () => Response::fromArray($dataOnlyResult))
-        ->toThrow(ProtocolException::class, 'must contain "error" when ID is null'); // Constructor check catches this via wrapper
+        ->toThrow(ProtocolException::class, 'must contain "error" when ID is null');
 });
 
 test('fromArray throws exception for invalid ID type', function () {
@@ -212,44 +208,40 @@ test('fromArray throws exception for non-object error', function () {
 test('fromArray throws exception for invalid error object structure', function () {
     $data = ['jsonrpc' => '2.0', 'id' => 1, 'error' => ['code_missing' => -1]];
     expect(fn () => Response::fromArray($data))
-        ->toThrow(ProtocolException::class, 'Invalid "error" object structure'); // Message includes details from Error::fromArray
+        ->toThrow(ProtocolException::class, 'Invalid "error" object structure');
 });
 
-// --- toArray / jsonSerialize Tests (Updated) ---
+// --- toArray / jsonSerialize Tests ---
 
 test('toArray returns correct structure for success response with raw result', function () {
-    // Create response with raw data (as if from ::fromArray)
     $rawResult = ['some' => 'data'];
-    $response = new Response('2.0', 1, $rawResult); // Direct construction with raw data
+    $response = new Response('2.0', 1, $rawResult);
 
     $array = $response->toArray();
 
-    // toArray should output the raw result directly
     expect($array)->toBe([
         'jsonrpc' => '2.0',
         'id' => 1,
-        'result' => $rawResult, // Expect raw data
+        'result' => $rawResult,
     ]);
 });
 
 test('toArray returns correct structure when using success factory (with Result obj)', function () {
-    // Create response using ::success factory
-    $resultObject = new EmptyResult();
+    $resultObject = new EmptyResult;
     $response = Response::success($resultObject, 1);
 
     $array = $response->toArray();
 
-    // toArray should call toArray() on the Result object
     expect($array)->toBe([
         'jsonrpc' => '2.0',
         'id' => 1,
-        'result' => [], // Expect result of EmptyResult::toArray()
+        'result' => [],
     ]);
 });
 
 test('toArray returns correct structure for error response', function () {
     $error = new Error(100, 'Test error');
-    $response = Response::error($error, 1); // Use factory
+    $response = Response::error($error, 1);
 
     $array = $response->toArray();
 
@@ -262,19 +254,19 @@ test('toArray returns correct structure for error response', function () {
 
 test('toArray returns correct structure for error response with null ID', function () {
     $error = new Error(-32700, 'Parse error');
-    $response = Response::error($error, null); // Use factory with null ID
+    $response = Response::error($error, null);
 
     $array = $response->toArray();
 
     expect($array)->toBe([
         'jsonrpc' => '2.0',
-        'id' => null, // ID should be null
+        'id' => null,
         'error' => ['code' => -32700, 'message' => 'Parse error'],
     ]);
 });
 
 test('jsonSerialize returns same result as toArray', function () {
-    $result = new EmptyResult();
+    $result = new EmptyResult;
     $response = Response::success($result, 1);
 
     $array = $response->toArray();

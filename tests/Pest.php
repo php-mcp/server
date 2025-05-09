@@ -1,11 +1,8 @@
 <?php
 
-// --- Discovery Test Helpers ---
-
 const TEST_DISCOVERY_DIR = __DIR__.'/../_temp_discovery';
 const TEST_STUBS_DIR = __DIR__.'/Mocks/DiscoveryStubs';
 
-// Helper to recursively delete a directory
 function deleteDirectory(string $dir): bool
 {
     if (! is_dir($dir)) {
@@ -19,7 +16,6 @@ function deleteDirectory(string $dir): bool
     return rmdir($dir);
 }
 
-// Helper to manage temp directory
 function setupTempDir(): void
 {
     if (is_dir(TEST_DISCOVERY_DIR)) {
@@ -59,55 +55,4 @@ function createDiscoveryTestFile(string $stubName, ?string $targetFileName = nul
     }
 
     return $targetPath;
-}
-
-// --- Registry Test Helpers ---
-
-function createTestTool(string $name = 'test-tool'): \PhpMcp\Server\Definitions\ToolDefinition
-{
-    return new \PhpMcp\Server\Definitions\ToolDefinition(
-        className: 'Test\\ToolClass',
-        methodName: 'runTool',
-        toolName: $name,
-        description: 'A test tool',
-        inputSchema: ['type' => 'object', 'properties' => ['arg1' => ['type' => 'string']]]
-    );
-}
-
-function createTestResource(string $uri = 'file:///test.res', string $name = 'test-resource'): \PhpMcp\Server\Definitions\ResourceDefinition
-{
-    return new \PhpMcp\Server\Definitions\ResourceDefinition(
-        className: 'Test\\ResourceClass',
-        methodName: 'readResource',
-        uri: $uri,
-        name: $name,
-        description: 'A test resource',
-        mimeType: 'text/plain',
-        size: null,
-        annotations: []
-    );
-}
-
-function createTestPrompt(string $name = 'test-prompt'): \PhpMcp\Server\Definitions\PromptDefinition
-{
-    return new \PhpMcp\Server\Definitions\PromptDefinition(
-        className: 'Test\\PromptClass',
-        methodName: 'getPrompt',
-        promptName: $name,
-        description: 'A test prompt',
-        arguments: []
-    );
-}
-
-function createTestTemplate(string $uriTemplate = 'tmpl://{id}/data', string $name = 'test-template'): \PhpMcp\Server\Definitions\ResourceTemplateDefinition
-{
-    return new \PhpMcp\Server\Definitions\ResourceTemplateDefinition(
-        className: 'Test\\TemplateClass',
-        methodName: 'readTemplate',
-        uriTemplate: $uriTemplate,
-        name: $name,
-        description: 'A test template',
-        mimeType: 'application/json',
-        annotations: []
-    );
 }

@@ -4,13 +4,13 @@ namespace PhpMcp\Server\Tests\Unit;
 
 use Mockery;
 use Mockery\MockInterface;
-use PhpMcp\Server\ClientStateManager;
 use PhpMcp\Server\Definitions\PromptDefinition;
 use PhpMcp\Server\Definitions\ResourceDefinition;
 use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
 use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\JsonRpc\Notification;
 use PhpMcp\Server\Registry;
+use PhpMcp\Server\State\ClientStateManager;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 
@@ -61,7 +61,7 @@ function getRegistryProperty(Registry $reg, string $propName)
 
 // --- Basic Registration & Retrieval ---
 
-test('registers manual tool and marks as manual', function () {
+it('registers manual tool and marks as manual', function () {
     // Arrange
     $tool = createTestTool('manual-tool-1');
 
@@ -74,7 +74,7 @@ test('registers manual tool and marks as manual', function () {
     expect(getRegistryProperty($this->registry, 'manualToolNames'))->toHaveKey('manual-tool-1');
 });
 
-test('registers discovered tool', function () {
+it('registers discovered tool', function () {
     // Arrange
     $tool = createTestTool('discovered-tool-1');
 
@@ -87,7 +87,7 @@ test('registers discovered tool', function () {
     expect(getRegistryProperty($this->registry, 'manualToolNames'))->toBeEmpty();
 });
 
-test('registers manual resource and marks as manual', function () {
+it('registers manual resource and marks as manual', function () {
     // Arrange
     $res = createTestResource('manual://res/1');
 
@@ -99,7 +99,7 @@ test('registers manual resource and marks as manual', function () {
     expect(getRegistryProperty($this->registry, 'manualResourceUris'))->toHaveKey('manual://res/1');
 });
 
-test('registers discovered resource', function () {
+it('registers discovered resource', function () {
     // Arrange
     $res = createTestResource('discovered://res/1');
 
@@ -111,7 +111,7 @@ test('registers discovered resource', function () {
     expect(getRegistryProperty($this->registry, 'manualResourceUris'))->toBeEmpty();
 });
 
-test('registers manual prompt and marks as manual', function () {
+it('registers manual prompt and marks as manual', function () {
     // Arrange
     $prompt = createTestPrompt('manual-prompt');
 
@@ -122,7 +122,8 @@ test('registers manual prompt and marks as manual', function () {
     expect($this->registry->findPrompt('manual-prompt'))->toBe($prompt);
     expect(getRegistryProperty($this->registry, 'manualPromptNames'))->toHaveKey('manual-prompt');
 });
-test('registers discovered prompt', function () {
+
+it('registers discovered prompt', function () {
     // Arrange
     $prompt = createTestPrompt('discovered-prompt');
 
@@ -133,7 +134,8 @@ test('registers discovered prompt', function () {
     expect($this->registry->findPrompt('discovered-prompt'))->toBe($prompt);
     expect(getRegistryProperty($this->registry, 'manualPromptNames'))->toBeEmpty();
 });
-test('registers manual template and marks as manual', function () {
+
+it('registers manual template and marks as manual', function () {
     // Arrange
     $template = createTestTemplate('manual://tmpl/{id}');
 
@@ -144,7 +146,8 @@ test('registers manual template and marks as manual', function () {
     expect($this->registry->findResourceTemplateByUri('manual://tmpl/123')['definition'] ?? null)->toBe($template);
     expect(getRegistryProperty($this->registry, 'manualTemplateUris'))->toHaveKey('manual://tmpl/{id}');
 });
-test('registers discovered template', function () {
+
+it('registers discovered template', function () {
     // Arrange
     $template = createTestTemplate('discovered://tmpl/{id}');
 
@@ -180,7 +183,7 @@ test('hasElements returns true if discovered elements exist', function () {
 
 // --- Registration Precedence ---
 
-test('manual registration overrides existing discovered element', function () {
+it('overrides existing discovered element with manual registration', function () {
     // Arrange
     $toolName = 'override-test';
     $discoveredTool = createTestTool($toolName); // Version 1 (Discovered)
@@ -206,7 +209,7 @@ test('manual registration overrides existing discovered element', function () {
     expect($manualNamesProp->getValue($this->registry))->toHaveKey($toolName);
 });
 
-test('discovered element does NOT override existing manual element', function () {
+it('does not override existing manual element with discovered registration', function () {
     // Arrange
     $toolName = 'manual-priority';
     $manualTool = createTestTool($toolName); // Version 1 (Manual)
@@ -235,7 +238,7 @@ test('discovered element does NOT override existing manual element', function ()
 
 // --- Caching Logic ---
 
-test('constructor loads discovered elements from cache correctly', function () {
+it('loads discovered elements from cache correctly', function () {
     // Arrange
     $cachedTool = createTestTool('cached-tool-constructor');
     $cachedResource = createTestResource('cached://res-constructor');
@@ -259,7 +262,7 @@ test('constructor loads discovered elements from cache correctly', function () {
     expect(getRegistryProperty($registry, 'manualResourceUris'))->toBeEmpty();
 });
 
-test('constructor load skips cache items conflicting with LATER manual registration', function () {
+it('skips cache items conflicting with LATER manual registration', function () {
     // Arrange
     $conflictName = 'conflict-tool';
     $manualTool = createTestTool($conflictName);
@@ -285,7 +288,7 @@ test('constructor load skips cache items conflicting with LATER manual registrat
     expect(getRegistryProperty($registry, 'manualToolNames'))->toHaveKey($conflictName);
 });
 
-test('saveDiscoveredElementsToCache only saves non-manual elements', function () {
+it('saves only non-manual elements to cache', function () {
     // Arrange
     $manualTool = createTestTool('manual-save');
     $discoveredTool = createTestTool('discovered-save');
@@ -308,7 +311,7 @@ test('saveDiscoveredElementsToCache only saves non-manual elements', function ()
     expect($result)->toBeTrue();
 });
 
-test('loadDiscoveredElementsFromCache ignores non-array cache data', function () {
+it('ignores non-array cache data', function () {
     // Arrange
     $this->cache->shouldReceive('get')->with(DISCOVERED_CACHE_KEY)->once()->andReturn('invalid string data');
 
@@ -320,7 +323,7 @@ test('loadDiscoveredElementsFromCache ignores non-array cache data', function ()
     expect($registry->hasElements())->toBeFalse(); // But empty
 });
 
-test('loadDiscoveredElementsFromCache ignores cache on hydration error', function () {
+it('ignores cache on hydration error', function () {
     // Arrange
     $invalidToolData = ['toolName' => 'good-name', 'description' => 'good-desc', 'inputSchema' => 'not-an-array', 'className' => 'TestClass', 'methodName' => 'toolMethod']; // Invalid schema
     $cachedData = ['tools' => ['good-name' => $invalidToolData]];
@@ -334,7 +337,7 @@ test('loadDiscoveredElementsFromCache ignores cache on hydration error', functio
     expect($registry->hasElements())->toBeFalse(); // Hydration failed
 });
 
-test('clearDiscoveredElements removes only non-manual elements and optionally clears cache', function ($deleteCacheFile) {
+it('removes only non-manual elements and optionally clears cache', function ($deleteCacheFile) {
     // Arrange
     $manualTool = createTestTool('manual-clear');
     $discoveredTool = createTestTool('discovered-clear');
@@ -376,7 +379,7 @@ test('clearDiscoveredElements removes only non-manual elements and optionally cl
 
 // --- Notifier Tests ---
 
-test('default notifiers send messages via ClientStateManager', function () {
+it('default notifiers send messages via ClientStateManager', function () {
     // Arrange
     $tool = createTestTool('notify-tool');
     $resource = createTestResource('notify://res');
@@ -391,14 +394,14 @@ test('default notifiers send messages via ClientStateManager', function () {
     $this->registry->registerPrompt($prompt);
 });
 
-test('custom notifiers can be set and are called', function () {
+it('custom notifiers can be set and are called', function () {
     // Arrange
     $toolNotifierCalled = false;
     $this->registry->setToolsChangedNotifier(function () use (&$toolNotifierCalled) {
         $toolNotifierCalled = true;
     });
 
-    $this->clientStateManager->shouldNotReceive('queueMessageForAll'); // Default shouldn't be called
+    $this->clientStateManager->shouldNotReceive('queueMessageForAll');
 
     // Act
     $this->registry->registerTool(createTestTool('custom-notify'));

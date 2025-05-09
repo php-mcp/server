@@ -1,6 +1,8 @@
-<?php 
+<?php
+
 namespace PhpMcp\Server\Tests\Mocks\DiscoveryStubs;
 
-class ClassUsingTrait {
+class ClassUsingTrait
+{
     use ToolTrait;
-} 
+}

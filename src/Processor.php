@@ -20,11 +20,13 @@ use PhpMcp\Server\JsonRpc\Results\ListResourcesResult;
 use PhpMcp\Server\JsonRpc\Results\ListResourceTemplatesResult;
 use PhpMcp\Server\JsonRpc\Results\ListToolsResult;
 use PhpMcp\Server\JsonRpc\Results\ReadResourceResult;
+use PhpMcp\Server\State\ClientStateManager;
 use PhpMcp\Server\Support\ArgumentPreparer;
 use PhpMcp\Server\Support\SchemaValidator;
 use PhpMcp\Server\Traits\ResponseFormatter;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
+use Psr\Log\LogLevel;
 use stdClass;
 use Throwable;
 
@@ -216,7 +218,7 @@ class Processor
     // handlePing remains the same
     private function handlePing(string $clientId): EmptyResult
     {
-        return new EmptyResult();
+        return new EmptyResult;
     }
 
     // handleNotificationInitialized remains the same (uses ClientStateManager)
@@ -224,7 +226,7 @@ class Processor
     {
         $this->clientStateManager->markInitialized($clientId);
 
-        return new EmptyResult(); // Return EmptyResult, Response is handled by caller
+        return new EmptyResult; // Return EmptyResult, Response is handled by caller
     }
 
     // --- List Handlers (Updated pagination limit source) ---
@@ -290,7 +292,7 @@ class Processor
         }
 
         if ($argumentsRaw === null) {
-            $argumentsRaw = new stdClass();
+            $argumentsRaw = new stdClass;
         } elseif (! is_array($argumentsRaw) && ! $argumentsRaw instanceof stdClass) {
             throw McpServerException::invalidParams("Parameter 'arguments' must be an object/array for tools/call.");
         }
@@ -403,7 +405,7 @@ class Processor
 
         $this->clientStateManager->addResourceSubscription($clientId, $uri);
 
-        return new EmptyResult();
+        return new EmptyResult;
     }
 
     private function handleResourceUnsubscribe(array $params, string $clientId): EmptyResult
@@ -417,7 +419,7 @@ class Processor
 
         $this->clientStateManager->removeResourceSubscription($clientId, $uri);
 
-        return new EmptyResult();
+        return new EmptyResult;
     }
 
     private function handlePromptGet(array $params): GetPromptResult
@@ -473,27 +475,29 @@ class Processor
         }
     }
 
-    // handleLoggingSetLevel needs a way to persist the setting.
-    // Using ClientStateManager might be okay, or a dedicated config service.
-    // For Phase 1, let's just log it.
-    private function handleLoggingSetLevel(array $params): EmptyResult
+    private function handleLoggingSetLevel(array $params, string $clientId): EmptyResult
     {
         $level = $params['level'] ?? null;
-        $validLevels = ['emergency', 'alert', 'critical', 'error', 'warning', 'notice', 'info', 'debug'];
+        $validLevels = [
+            LogLevel::EMERGENCY, LogLevel::ALERT, LogLevel::CRITICAL,
+            LogLevel::ERROR, LogLevel::WARNING, LogLevel::NOTICE,
+            LogLevel::INFO, LogLevel::DEBUG,
+        ];
+
         if (! is_string($level) || ! in_array(strtolower($level), $validLevels)) {
             throw McpServerException::invalidParams("Invalid or missing 'level'. Must be one of: ".implode(', ', $validLevels));
         }
 
         $this->validateCapabilityEnabled('logging');
 
-        $this->logger->info('MCP logging level set request received', ['level' => $level]);
-        // In a real implementation, update the logger's minimum level or store this preference.
-        // $this->clientStateManager->setClientLogLevel($clientId, strtolower($level)); // Example state storage
+        $this->clientStateManager->setClientRequestedLogLevel($clientId, strtolower($level));
 
-        return new EmptyResult();
+        $this->logger->info("Processor: Client '{$clientId}' requested log level set to '{$level}'.");
+
+        return new EmptyResult;
     }
 
-    // --- Pagination Helpers (Unchanged) ---
+    // --- Pagination Helpers ---
 
     private function decodeCursor(?string $cursor): int
     {

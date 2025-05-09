@@ -36,7 +36,7 @@ interface ServerTransportInterface extends EventEmitterInterface
      * Sends a raw, framed message to a specific connected client.
      * The message MUST be a complete JSON-RPC frame (typically ending in "\n" for line-based transports
      * or formatted as an SSE event for HTTP transports). Framing is the responsibility of the caller
-     * (typically the ProtocolHandler) as it depends on the transport type.
+     * (typically the Protocol) as it depends on the transport type.
      *
      * @param  string  $clientId  Target client identifier ("stdio" is conventionally used for stdio transport).
      * @param  string  $rawFramedMessage  Message string ready for transport.

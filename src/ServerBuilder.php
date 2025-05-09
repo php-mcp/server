@@ -9,6 +9,7 @@ use PhpMcp\Server\Defaults\FileCache;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\Model\Capabilities;
+use PhpMcp\Server\State\ClientStateManager;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -44,9 +45,7 @@ final class ServerBuilder
 
     private array $manualPrompts = [];
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     /** Sets the server's identity. Required. */
     public function withServerInfo(string $name, string $version): self
@@ -148,30 +147,9 @@ final class ServerBuilder
         }
 
         $loop = $this->loop ?? Loop::get();
-        $logger = $this->logger ?? new NullLogger();
-        $container = $this->container ?? new BasicContainer();
-
         $cache = $this->cache;
-        if ($cache === null) {
-            $defaultCacheDir = dirname(__DIR__, 2).'/cache';
-            if (! is_dir($defaultCacheDir)) {
-                @mkdir($defaultCacheDir, 0775, true);
-            }
-
-            $cacheFile = $defaultCacheDir.'/mcp_server_registry.cache';
-            if (is_dir($defaultCacheDir) && (is_writable($defaultCacheDir) || is_writable($cacheFile))) {
-                try {
-                    $cache = new FileCache($cacheFile);
-                } catch (\InvalidArgumentException $e) {
-                    $logger->warning('Failed to initialize default FileCache, cache disabled.', ['path' => $cacheFile, 'error' => $e->getMessage()]);
-                    $cache = null;
-                }
-            } else {
-                $logger->warning('Default cache directory not found or not writable, cache disabled.', ['path' => $defaultCacheDir]);
-                $cache = null;
-            }
-        }
-
+        $logger = $this->logger ?? new NullLogger;
+        $container = $this->container ?? new BasicContainer;
         $capabilities = $this->capabilities ?? Capabilities::forServer();
 
         $configuration = new Configuration(

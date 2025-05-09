@@ -4,7 +4,7 @@ namespace PhpMcp\Server\Tests\Unit\Attributes;
 
 use PhpMcp\Server\Attributes\McpResourceTemplate;
 
-test('constructor assigns properties correctly for McpResourceTemplate', function () {
+it('instantiates with correct properties', function () {
     // Arrange
     $uriTemplate = 'file:///{path}/data';
     $name = 'test-template-name';
@@ -29,7 +29,7 @@ test('constructor assigns properties correctly for McpResourceTemplate', functio
     expect($attribute->annotations)->toBe($annotations);
 });
 
-test('constructor handles null values for McpResourceTemplate', function () {
+it('instantiates with null values for name and description', function () {
     // Arrange & Act
     $attribute = new McpResourceTemplate(
         uriTemplate: 'test://{id}', // uriTemplate is required
@@ -47,14 +47,13 @@ test('constructor handles null values for McpResourceTemplate', function () {
     expect($attribute->annotations)->toBe([]);
 });
 
-test('constructor handles missing optional arguments for McpResourceTemplate', function () {
+it('instantiates with missing optional arguments', function () {
     // Arrange & Act
     $uriTemplate = 'tmpl://{key}';
     $attribute = new McpResourceTemplate(uriTemplate: $uriTemplate);
 
     // Assert
     expect($attribute->uriTemplate)->toBe($uriTemplate);
-    // Check default values (assuming they are null or empty array)
     expect($attribute->name)->toBeNull();
     expect($attribute->description)->toBeNull();
     expect($attribute->mimeType)->toBeNull();
