@@ -10,6 +10,7 @@ use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DiscoveryException;
+use PhpMcp\Server\State\ClientStateManager;
 use PhpMcp\Server\Support\Discoverer;
 use Throwable;
 
@@ -24,7 +25,7 @@ use Throwable;
  */
 class Server
 {
-    protected ?ProtocolHandler $protocolHandler = null;
+    protected ?Protocol $protocol = null;
 
     protected bool $discoveryRan = false;
 
@@ -44,12 +45,11 @@ class Server
         protected readonly Registry $registry,
         protected readonly Processor $processor,
         protected readonly ClientStateManager $clientStateManager,
-    ) {
-    }
+    ) {}
 
     public static function make(): ServerBuilder
     {
-        return new ServerBuilder();
+        return new ServerBuilder;
     }
 
     /**
@@ -115,7 +115,7 @@ class Server
      * Binds the server's MCP logic to the provided transport and starts the transport's listener,
      * then runs the event loop, making this a BLOCKING call suitable for standalone servers.
      *
-     * For framework integration where the loop is managed externally, use `getProtocolHandler()`
+     * For framework integration where the loop is managed externally, use `getProtocol()`
      * and bind it to your framework's transport mechanism manually.
      *
      * @param  ServerTransportInterface  $transport  The transport to listen with.
@@ -138,18 +138,18 @@ class Server
             $transport->setLoop($this->configuration->loop);
         }
 
-        $protocolHandler = $this->getProtocolHandler();
+        $protocol = $this->getProtocol();
 
-        $closeHandlerCallback = function (?string $reason = null) use ($protocolHandler) {
+        $closeHandlerCallback = function (?string $reason = null) use ($protocol) {
             $this->isListening = false;
             $this->configuration->logger->info('Transport closed.', ['reason' => $reason ?? 'N/A']);
-            $protocolHandler->unbindTransport();
+            $protocol->unbindTransport();
             $this->configuration->loop->stop();
         };
 
         $transport->once('close', $closeHandlerCallback);
 
-        $protocolHandler->bindTransport($transport);
+        $protocol->bindTransport($transport);
 
         try {
             $transport->listen();
@@ -161,7 +161,7 @@ class Server
         } catch (Throwable $e) {
             $this->configuration->logger->critical('Failed to start listening or event loop crashed.', ['exception' => $e]);
             if ($this->isListening) {
-                $protocolHandler->unbindTransport();
+                $protocol->unbindTransport();
                 $transport->removeListener('close', $closeHandlerCallback); // Remove listener
                 $transport->close();
             }
@@ -169,7 +169,7 @@ class Server
             throw $e;
         } finally {
             if ($this->isListening) {
-                $protocolHandler->unbindTransport();
+                $protocol->unbindTransport();
                 $transport->removeListener('close', $closeHandlerCallback);
                 $transport->close();
             }
@@ -193,15 +193,15 @@ class Server
     }
 
     /**
-     * Gets the ProtocolHandler instance associated with this server.
+     * Gets the Protocol instance associated with this server.
      *
      * Useful for framework integrations where the event loop and transport
      * communication are managed externally.
      */
-    public function getProtocolHandler(): ProtocolHandler
+    public function getProtocol(): Protocol
     {
-        if ($this->protocolHandler === null) {
-            $this->protocolHandler = new ProtocolHandler(
+        if ($this->protocol === null) {
+            $this->protocol = new Protocol(
                 $this->processor,
                 $this->clientStateManager,
                 $this->configuration->logger,
@@ -209,7 +209,7 @@ class Server
             );
         }
 
-        return $this->protocolHandler;
+        return $this->protocol;
     }
 
     // --- Getters for Core Components ---

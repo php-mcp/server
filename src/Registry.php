@@ -11,6 +11,7 @@ use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
 use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\JsonRpc\Notification;
+use PhpMcp\Server\State\ClientStateManager;
 use PhpMcp\Server\Support\UriTemplateMatcher;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
@@ -81,7 +82,7 @@ class Registry
             $this->loadDiscoveredElementsFromCache();
         } else {
             $this->discoveredElementsLoaded = true;
-            $this->logger->debug('MCP Registry: Cache not provided, skipping initial cache load.');
+            $this->logger->debug('No cache provided to registry, skipping initial cache load.');
         }
     }
 
@@ -106,10 +107,10 @@ class Registry
 
     private function initializeCollections(): void
     {
-        $this->tools = new ArrayObject();
-        $this->resources = new ArrayObject();
-        $this->prompts = new ArrayObject();
-        $this->resourceTemplates = new ArrayObject();
+        $this->tools = new ArrayObject;
+        $this->resources = new ArrayObject;
+        $this->prompts = new ArrayObject;
+        $this->resourceTemplates = new ArrayObject;
 
         $this->manualToolNames = [];
         $this->manualResourceUris = [];

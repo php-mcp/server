@@ -12,6 +12,7 @@ use PhpMcp\Server\JsonRpc\Message;
 use PhpMcp\Server\JsonRpc\Notification;
 use PhpMcp\Server\JsonRpc\Request;
 use PhpMcp\Server\JsonRpc\Response;
+use PhpMcp\Server\State\ClientStateManager;
 use Psr\Log\LoggerInterface;
 use React\EventLoop\LoopInterface;
 use React\Promise\PromiseInterface;
@@ -26,7 +27,7 @@ use function React\Promise\reject;
  * This handler manages the JSON-RPC parsing, processing delegation, and response sending
  * based on events received from the transport layer.
  */
-class ProtocolHandler
+class Protocol
 {
     protected ?ServerTransportInterface $transport = null;
 
@@ -38,8 +39,7 @@ class ProtocolHandler
         protected readonly ClientStateManager $clientStateManager,
         protected readonly LoggerInterface $logger,
         protected readonly LoopInterface $loop
-    ) {
-    }
+    ) {}
 
     /**
      * Binds this handler to a transport instance by attaching event listeners.

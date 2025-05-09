@@ -5,7 +5,6 @@ namespace PhpMcp\Server\Tests\Unit; // Correct namespace
 use Mockery;
 // Use Mockery integration trait
 use Mockery\MockInterface;
-use PhpMcp\Server\ClientStateManager;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\JsonRpc\Notification;
@@ -13,14 +12,14 @@ use PhpMcp\Server\JsonRpc\Request;
 use PhpMcp\Server\JsonRpc\Response;
 use PhpMcp\Server\JsonRpc\Results\EmptyResult;
 use PhpMcp\Server\Processor;
-use PhpMcp\Server\ProtocolHandler;
+use PhpMcp\Server\Protocol;
+use PhpMcp\Server\State\ClientStateManager;
 use Psr\Log\LoggerInterface;
 use React\EventLoop\Loop;
 
 use function React\Async\await;
 use function React\Promise\resolve;
 
-// --- Setup ---
 beforeEach(function () {
     $this->processor = Mockery::mock(Processor::class);
     $this->clientStateManager = Mockery::mock(ClientStateManager::class);
@@ -29,7 +28,7 @@ beforeEach(function () {
     $this->loop = Loop::get();
     $this->transport = Mockery::mock(ServerTransportInterface::class);
 
-    $this->handler = new ProtocolHandler(
+    $this->handler = new Protocol(
         $this->processor,
         $this->clientStateManager,
         $this->logger,
@@ -50,13 +49,13 @@ afterEach(function () {
     Mockery::close();
 });
 
-test('handleRawMessage processes valid request', function () {
+it('can handle a valid request', function () {
     $clientId = 'client-req-1';
     $requestId = 123;
     $method = 'test/method';
     $params = ['a' => 1];
     $rawJson = json_encode(['jsonrpc' => '2.0', 'id' => $requestId, 'method' => $method, 'params' => $params]);
-    $expectedResponse = Response::success(new EmptyResult(), $requestId);
+    $expectedResponse = Response::success(new EmptyResult, $requestId);
     $expectedResponseJson = json_encode($expectedResponse->toArray());
 
     $this->processor->shouldReceive('process')->once()->with(Mockery::type(Request::class), $clientId)->andReturn($expectedResponse);
@@ -66,7 +65,7 @@ test('handleRawMessage processes valid request', function () {
     // Mockery verifies calls
 });
 
-test('handleRawMessage processes valid notification', function () {
+it('can handle a valid notification', function () {
     $clientId = 'client-notif-1';
     $method = 'notify/event';
     $params = ['b' => 2];
@@ -78,7 +77,7 @@ test('handleRawMessage processes valid notification', function () {
     $this->handler->handleRawMessage($rawJson, $clientId);
 });
 
-test('handleRawMessage sends parse error response', function () {
+it('sends a parse error response for invalid JSON', function () {
     $clientId = 'client-err-parse';
     $rawJson = '{"jsonrpc":"2.0", "id":';
 
@@ -88,7 +87,7 @@ test('handleRawMessage sends parse error response', function () {
     $this->handler->handleRawMessage($rawJson, $clientId);
 });
 
-test('handleRawMessage sends invalid request error response', function () {
+it('sends an invalid request error response for a request with missing method', function () {
     $clientId = 'client-err-invalid';
     $rawJson = '{"jsonrpc":"2.0", "id": 456}'; // Missing method
 
@@ -98,7 +97,7 @@ test('handleRawMessage sends invalid request error response', function () {
     $this->handler->handleRawMessage($rawJson, $clientId);
 });
 
-test('handleRawMessage sends McpError response', function () {
+it('sends a mcp error response for a method not found', function () {
     $clientId = 'client-err-mcp';
     $requestId = 789;
     $method = 'nonexistent/method';
@@ -111,7 +110,7 @@ test('handleRawMessage sends McpError response', function () {
     $this->handler->handleRawMessage($rawJson, $clientId);
 });
 
-test('handleRawMessage sends internal error response on processor exception', function () {
+it('sends an internal error response on processor exception', function () {
     $clientId = 'client-err-internal';
     $requestId = 101;
     $method = 'explode/now';
@@ -126,13 +125,13 @@ test('handleRawMessage sends internal error response on processor exception', fu
 
 // --- Test Event Handlers (Now call the handler directly) ---
 
-test('handleClientConnected logs info', function () {
+it('logs info when a client connects', function () {
     $clientId = 'client-connect-test';
     $this->logger->shouldReceive('info')->once()->with('Client connected', ['clientId' => $clientId]);
     $this->handler->handleClientConnected($clientId); // Call method directly
 });
 
-test('handleClientDisconnected cleans up state', function () {
+it('cleans up state when a client disconnects', function () {
     $clientId = 'client-disconnect-test';
     $reason = 'Connection closed by peer';
 
@@ -142,7 +141,7 @@ test('handleClientDisconnected cleans up state', function () {
     $this->handler->handleClientDisconnected($clientId, $reason); // Call method directly
 });
 
-test('handleTransportError cleans up client state', function () {
+it('cleans up client state when a transport error occurs', function () {
     $clientId = 'client-transporterror-test';
     $error = new \RuntimeException('Socket error');
 
@@ -152,7 +151,7 @@ test('handleTransportError cleans up client state', function () {
     $this->handler->handleTransportError($error, $clientId); // Call method directly
 });
 
-test('handleTransportError logs general error', function () {
+it('logs a general error when a transport error occurs', function () {
     $error = new \RuntimeException('Listener setup failed');
 
     $this->logger->shouldReceive('error')->once()->with('General transport error', Mockery::any());
@@ -161,16 +160,16 @@ test('handleTransportError logs general error', function () {
     $this->handler->handleTransportError($error, null); // Call method directly
 });
 
-// --- Test Binding/Unbinding (Unchanged) ---
+// --- Test Binding/Unbinding ---
 
-test('bindTransport attaches listeners', function () {
+it('attaches listeners when binding a new transport', function () {
     $newTransport = Mockery::mock(ServerTransportInterface::class);
     $newTransport->shouldReceive('on')->times(4);
     $this->handler->bindTransport($newTransport);
     expect(true)->toBeTrue();
 });
 
-test('unbindTransport removes listeners', function () {
+it('removes listeners when unbinding a transport', function () {
     $this->transport->shouldReceive('on')->times(4);
     $this->handler->bindTransport($this->transport);
     $this->transport->shouldReceive('removeListener')->times(4);
@@ -178,7 +177,7 @@ test('unbindTransport removes listeners', function () {
     expect(true)->toBeTrue();
 });
 
-test('reBindTransport unbinds previous', function () {
+it('unbinds previous transport when binding a new one', function () {
     $transport1 = Mockery::mock(ServerTransportInterface::class);
     $transport2 = Mockery::mock(ServerTransportInterface::class);
     $transport1->shouldReceive('on')->times(4);
@@ -189,9 +188,7 @@ test('reBindTransport unbinds previous', function () {
     expect(true)->toBeTrue();
 });
 
-// --- Test sendNotification (Updated to use await) ---
-
-test('sendNotification encodes and sends', function () {
+it('encodes and sends a notification', function () {
     $clientId = 'client-send-notif';
     $notification = new Notification('2.0', 'state/update', ['value' => true]);
     $expectedJson = json_encode($notification->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -209,7 +206,7 @@ test('sendNotification encodes and sends', function () {
 
 })->group('usesLoop');
 
-test('sendNotification rejects on encoding error', function () {
+it('rejects on encoding error when sending a notification', function () {
     $clientId = 'client-send-notif-err';
     $resource = fopen('php://memory', 'r'); // Unencodable resource
     $notification = new Notification('2.0', 'bad/data', ['res' => $resource]);
@@ -226,7 +223,7 @@ test('sendNotification rejects on encoding error', function () {
 
 })->group('usesLoop')->throws(McpServerException::class, 'Failed to encode notification');
 
-test('sendNotification rejects if transport not bound', function () {
+it('rejects if transport not bound when sending a notification', function () {
     $this->handler->unbindTransport();
     $notification = new Notification('2.0', 'test');
 

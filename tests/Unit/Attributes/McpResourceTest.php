@@ -4,7 +4,7 @@ namespace PhpMcp\Server\Tests\Unit\Attributes;
 
 use PhpMcp\Server\Attributes\McpResource;
 
-test('constructor assigns properties correctly for McpResource', function () {
+it('instantiates with correct properties', function () {
     // Arrange
     $uri = 'file:///test/resource';
     $name = 'test-resource-name';
@@ -32,7 +32,7 @@ test('constructor assigns properties correctly for McpResource', function () {
     expect($attribute->annotations)->toBe($annotations);
 });
 
-test('constructor handles null values for McpResource', function () {
+it('instantiates with null values for name and description', function () {
     // Arrange & Act
     $attribute = new McpResource(
         uri: 'file:///test', // URI is required
@@ -52,14 +52,13 @@ test('constructor handles null values for McpResource', function () {
     expect($attribute->annotations)->toBe([]);
 });
 
-test('constructor handles missing optional arguments for McpResource', function () {
+it('instantiates with missing optional arguments', function () {
     // Arrange & Act
     $uri = 'file:///only-uri';
     $attribute = new McpResource(uri: $uri);
 
     // Assert
     expect($attribute->uri)->toBe($uri);
-    // Check default values (assuming they are null or empty array)
     expect($attribute->name)->toBeNull();
     expect($attribute->description)->toBeNull();
     expect($attribute->mimeType)->toBeNull();

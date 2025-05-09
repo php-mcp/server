@@ -6,7 +6,6 @@ use Mockery;
 use PhpMcp\Server\Attributes\McpTool;
 use PhpMcp\Server\Configuration;
 use PhpMcp\Server\Defaults\BasicContainer;
-use PhpMcp\Server\Defaults\FileCache;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\Model\Capabilities;
@@ -21,61 +20,22 @@ use ReflectionClass;
 
 class DummyHandlerClass
 {
-    public function handle()
-    {
-    }
+    public function handle() {}
 }
 class DummyInvokableClass
 {
-    public function __invoke()
-    {
-    }
+    public function __invoke() {}
 }
 class HandlerWithDeps
 {
-    public function __construct(public LoggerInterface $log)
-    {
-    }
+    public function __construct(public LoggerInterface $log) {}
 
     #[McpTool(name: 'depTool')]
-    public function run()
-    {
-    }
+    public function run() {}
 }
 
 beforeEach(function () {
-    $this->builder = new ServerBuilder();
-
-    $this->tempBasePath = sys_get_temp_dir().'/mcp_builder_test_'.bin2hex(random_bytes(4));
-    if (! is_dir($this->tempBasePath)) {
-        @mkdir($this->tempBasePath, 0777, true);
-    }
-
-    $this->tempCachePath = dirname(__DIR__, 3).'/cache';
-    if (! is_dir($this->tempCachePath)) {
-        @mkdir($this->tempCachePath, 0777, true);
-    }
-});
-
-afterEach(function () {
-    if (! empty($this->tempBasePath) && is_dir($this->tempBasePath)) {
-        @rmdir($this->tempBasePath);
-    }
-    if (! empty($this->tempCachePath) && is_dir($this->tempCachePath)) {
-        $cacheFiles = glob($this->tempCachePath.'/mcp_server_registry*.cache');
-        if ($cacheFiles) {
-            foreach ($cacheFiles as $file) {
-                @unlink($file);
-            }
-        }
-    }
-    Mockery::close();
-});
-
-afterAll(function () {
-    if (! empty($this->tempBasePath) && is_dir($this->tempBasePath)) {
-        @rmdir($this->tempBasePath);
-    }
+    $this->builder = new ServerBuilder;
 });
 
 function getBuilderProperty(ServerBuilder $builder, string $propertyName)
@@ -204,7 +164,7 @@ it('throws exception for empty server name or version', function ($name, $versio
 
 // --- Default Dependency Resolution Tests ---
 
-test('build resolves default Logger correctly', function () {
+it('resolves default Logger correctly when building', function () {
     $server = $this->builder
         ->withServerInfo('Test', '1.0')
         ->withTool([DummyHandlerClass::class, 'handle'])
@@ -212,7 +172,7 @@ test('build resolves default Logger correctly', function () {
     expect($server->getConfiguration()->logger)->toBeInstanceOf(NullLogger::class);
 });
 
-test('build resolves default Loop correctly', function () {
+it('resolves default Loop correctly when building', function () {
     $server = $this->builder
         ->withServerInfo('Test', '1.0')
         ->withTool([DummyHandlerClass::class, 'handle'])
@@ -220,7 +180,7 @@ test('build resolves default Loop correctly', function () {
     expect($server->getConfiguration()->loop)->toBeInstanceOf(LoopInterface::class);
 });
 
-test('build resolves default Container correctly', function () {
+it('resolves default Container correctly when building', function () {
     $server = $this->builder
         ->withServerInfo('Test', '1.0')
         ->withTool([DummyHandlerClass::class, 'handle'])
@@ -228,43 +188,7 @@ test('build resolves default Container correctly', function () {
     expect($server->getConfiguration()->container)->toBeInstanceOf(BasicContainer::class);
 });
 
-it('resolves Cache to null if default directory not writable', function () {
-    $unwritableDir = '/path/to/non/writable/dir_'.uniqid();
-    // Need to ensure the internal default path logic points somewhere bad,
-    // or mock the is_writable checks - which is hard.
-    // Let's test the outcome: logger warning and null cache in config.
-    $logger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
-    $logger->shouldReceive('warning')
-        ->with(Mockery::pattern('/Default cache directory not found or not writable|Failed to initialize default FileCache/'), Mockery::any())
-        ->once();
-    // We can't easily *force* the default path to be unwritable without modifying the code under test,
-    // so we rely on the fact that if the `new FileCache` fails or the dir check fails,
-    // the builder will log a warning and proceed with null cache.
-    // This test mainly verifies the builder *calls* the logger on failure.
-
-    $builder = $this->builder
-        ->withServerInfo('Test', '1.0')
-        ->withLogger($logger) // Inject mock logger
-        ->withTool([DummyHandlerClass::class, 'handle']);
-
-    // Manually set the internal cache to null *before* build to simulate failed default creation path
-    $reflector = new ReflectionClass($builder);
-    $cacheProp = $reflector->getProperty('cache');
-    $cacheProp->setAccessible(true);
-    $cacheProp->setValue($builder, null);
-    // Force internal logic path by temporarily making default dir unwritable if possible
-    $originalPerms = fileperms($this->tempCachePath);
-    @chmod($this->tempCachePath, 0444); // Try making read-only
-
-    $server = $builder->build();
-
-    @chmod($this->tempCachePath, $originalPerms); // Restore permissions
-
-    // We expect the logger warning was triggered and cache is null
-    expect($server->getConfiguration()->cache)->toBeNull();
-});
-
-test('build uses provided dependencies over defaults', function () {
+it('uses provided dependencies over defaults when building', function () {
     $myLoop = Mockery::mock(LoopInterface::class);
     $myLogger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
     $myContainer = Mockery::mock(ContainerInterface::class);
@@ -289,11 +213,9 @@ test('build uses provided dependencies over defaults', function () {
     expect($config->capabilities)->toBe($myCaps);
 });
 
-// --- Tests for build() success and manual registration ---
-
-it('build successfully creates Server with defaults', function () {
-    $container = new BasicContainer();
-    $container->set(LoggerInterface::class, new NullLogger());
+it('successfully creates Server with defaults', function () {
+    $container = new BasicContainer;
+    $container->set(LoggerInterface::class, new NullLogger);
 
     $server = $this->builder
         ->withServerInfo('BuiltServer', '1.0')
@@ -312,7 +234,7 @@ it('build successfully creates Server with defaults', function () {
 
 }); // REMOVED skip
 
-it('build successfully creates Server with custom dependencies', function () {
+it('successfully creates Server with custom dependencies', function () {
     $myLoop = Mockery::mock(LoopInterface::class);
     $myLogger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
     $myContainer = Mockery::mock(ContainerInterface::class);
@@ -338,9 +260,9 @@ it('build successfully creates Server with custom dependencies', function () {
 
 }); // REMOVED skip
 
-it('build throws DefinitionException if manual tool registration fails', function () {
-    $container = new BasicContainer();
-    $container->set(LoggerInterface::class, new NullLogger());
+it('throws DefinitionException if manual tool registration fails', function () {
+    $container = new BasicContainer;
+    $container->set(LoggerInterface::class, new NullLogger);
 
     $this->builder
         ->withServerInfo('FailRegServer', '1.0')
@@ -351,9 +273,9 @@ it('build throws DefinitionException if manual tool registration fails', functio
 
 })->throws(DefinitionException::class, '1 error(s) occurred during manual element registration');
 
-it('build throws DefinitionException if manual resource registration fails', function () {
-    $container = new BasicContainer();
-    $container->set(LoggerInterface::class, new NullLogger());
+it('throws DefinitionException if manual resource registration fails', function () {
+    $container = new BasicContainer;
+    $container->set(LoggerInterface::class, new NullLogger);
 
     $this->builder
         ->withServerInfo('FailRegServer', '1.0')

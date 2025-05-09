@@ -1,4 +1,5 @@
 <?php
+
 namespace PhpMcp\Server\Tests\Mocks\DiscoveryStubs;
 
 use PhpMcp\Server\Attributes\McpTool;
@@ -9,17 +10,30 @@ use PhpMcp\Server\Attributes\McpResourceTemplate;
 class AllElementsStub
 {
     #[McpTool(name: 'discovered-tool')]
-    public function toolMethod(): void {}
+    public function toolMethod(): void
+    {
+    }
 
     #[McpResource(uri: 'discovered://resource')]
-    public function resourceMethod(): string { return ''; }
+    public function resourceMethod(): string
+    {
+        return '';
+    }
 
     #[McpPrompt(name: 'discovered-prompt')]
-    public function promptMethod(): array { return []; }
+    public function promptMethod(): array
+    {
+        return [];
+    }
 
     #[McpResourceTemplate(uriTemplate: 'discovered://template/{id}')]
-    public function templateMethod(string $id): array { return []; }
+    public function templateMethod(string $id): array
+    {
+        return [];
+    }
 
     // Non-MCP method
-    public function ignoredMethod(): void {}
+    public function ignoredMethod(): void
+    {
+    }
 }

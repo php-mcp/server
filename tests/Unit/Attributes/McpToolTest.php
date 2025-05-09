@@ -4,7 +4,7 @@ namespace PhpMcp\Server\Tests\Unit\Attributes;
 
 use PhpMcp\Server\Attributes\McpTool;
 
-test('constructor assigns properties correctly for McpTool', function () {
+it('instantiates with correct properties', function () {
     // Arrange
     $name = 'test-tool-name';
     $description = 'This is a test description.';
@@ -17,7 +17,7 @@ test('constructor assigns properties correctly for McpTool', function () {
     expect($attribute->description)->toBe($description);
 });
 
-test('constructor handles null values for McpTool', function () {
+it('instantiates with null values for name and description', function () {
     // Arrange & Act
     $attribute = new McpTool(name: null, description: null);
 
@@ -26,12 +26,11 @@ test('constructor handles null values for McpTool', function () {
     expect($attribute->description)->toBeNull();
 });
 
-test('constructor handles missing optional arguments for McpTool', function () {
+it('instantiates with missing optional arguments', function () {
     // Arrange & Act
-    $attribute = new McpTool(); // Use default constructor values
+    $attribute = new McpTool; // Use default constructor values
 
     // Assert
-    // Check default values (assuming they are null)
     expect($attribute->name)->toBeNull();
     expect($attribute->description)->toBeNull();
 });
