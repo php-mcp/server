@@ -64,6 +64,19 @@ class StdioServerTransport implements LoggerAwareInterface, LoopAwareInterface, 
         protected $inputStreamResource = STDIN,
         protected $outputStreamResource = STDOUT
     ) {
+        if (str_contains(PHP_OS, 'WIN') && ($this->inputStreamResource === STDIN && $this->outputStreamResource === STDOUT)) {
+            $message = 'STDIN and STDOUT are not supported as input and output stream resources'.
+                'on Windows due to PHP\'s limitations with non blocking pipes.'.
+                'Please use WSL or HttpServerTransport, or if you are advanced, provide your own stream resources.';
+
+            throw new TransportException($message);
+        }
+
+        // if (str_contains(PHP_OS, 'WIN')) {
+        //     $this->inputStreamResource = pclose(popen('winpty -c "'.$this->inputStreamResource.'"', 'r'));
+        //     $this->outputStreamResource = pclose(popen('winpty -c "'.$this->outputStreamResource.'"', 'w'));
+        // }
+
         if (! is_resource($this->inputStreamResource) || get_resource_type($this->inputStreamResource) !== 'stream') {
             throw new TransportException('Invalid input stream resource provided.');
         }
