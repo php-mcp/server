@@ -23,11 +23,12 @@ function getSimpleSchema(): array
             'age' => ['type' => 'integer', 'minimum' => 0],
             'active' => ['type' => 'boolean'],
             'score' => ['type' => 'number'],
+            'date' => ['type' => 'string', 'format' => 'date-time'],
             'items' => ['type' => 'array', 'items' => ['type' => 'string']],
             'nullableValue' => ['type' => ['string', 'null']],
             'optionalValue' => ['type' => 'string'] // Not required
         ],
-        'required' => ['name', 'age', 'active', 'score', 'items', 'nullableValue'],
+        'required' => ['name', 'age', 'active', 'score', 'date', 'items', 'nullableValue'],
         'additionalProperties' => false,
     ];
 }
@@ -39,6 +40,7 @@ function getValidData(): array
         'age' => 30,
         'active' => true,
         'score' => 99.5,
+        'date' => '2025-05-10 01:29:05',
         'items' => ['a', 'b'],
         'nullableValue' => null,
         'optionalValue' => 'present'
@@ -65,6 +67,18 @@ test('invalid type generates type error', function () {
         ->and($errors[0]['pointer'])->toBe('/age')
         ->and($errors[0]['keyword'])->toBe('type')
         ->and($errors[0]['message'])->toContain('Expected `integer`');
+});
+
+test('invalid format generates format error', function () {
+    $schema = getSimpleSchema();
+    $data = getValidData();
+    $data['date'] = 'today'; // Invalid type
+
+    $errors = $this->validator->validateAgainstJsonSchema($data, $schema);
+    expect($errors)->toHaveCount(1)
+        ->and($errors[0]['pointer'])->toBe('/date')
+        ->and($errors[0]['keyword'])->toBe('format')
+        ->and($errors[0]['message'])->toContain('Value does not match the required format: `date-time`');
 });
 
 test('missing required property generates required error', function () {
