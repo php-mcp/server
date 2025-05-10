@@ -56,7 +56,7 @@ test('generates empty schema for method with no parameters', function () {
 
     $schema = $this->schemaGenerator->fromMethodParameters($method);
 
-    expect($schema)->toEqual(['type' => 'object', 'properties' => new \stdClass()]);
+    expect($schema)->toEqual(['type' => 'object', 'properties' => new \stdClass]);
     expect($schema)->not->toHaveKey('required');
 });
 
@@ -215,16 +215,4 @@ test('generates schema using docblock type overriding php type hint', function (
     // Docblock type (@param string) overrides PHP type hint (int)
     expect($schema['properties']['p1'])->toEqual(['type' => 'string', 'description' => 'Docblock overrides int']);
     expect($schema['required'])->toEqualCanonicalizing(['p1']);
-});
-
-test('generates schema infers format from parameter name', function () {
-    $method = new ReflectionMethod(SchemaGeneratorTestStub::class, 'formatParams');
-    setupDocBlockExpectations($this->docBlockParserMock, $method);
-
-    $schema = $this->schemaGenerator->fromMethodParameters($method);
-
-    expect($schema['properties']['email'])->toEqual(['type' => 'string', 'description' => 'Email address', 'format' => 'email']);
-    expect($schema['properties']['url'])->toEqual(['type' => 'string', 'description' => 'URL string', 'format' => 'uri']);
-    expect($schema['properties']['dateTime'])->toEqual(['type' => 'string', 'description' => 'ISO Date time string', 'format' => 'date-time']);
-    expect($schema['required'])->toEqualCanonicalizing(['email', 'url', 'dateTime']);
 });

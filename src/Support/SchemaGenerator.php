@@ -131,20 +131,10 @@ class SchemaGenerator
                     }
                 }
 
-                // Add format for specific string types (basic inference)
-                if (isset($paramSchema['type'])) {
-                    $schemaType = is_array($paramSchema['type']) ? (in_array('string', $paramSchema['type']) ? 'string' : null) : $paramSchema['type'];
-                    if ($schemaType === 'string') {
-                        if (stripos($name, 'email') !== false || stripos($typeString, 'email') !== false) {
-                            $paramSchema['format'] = 'email';
-                        } elseif (stripos($name, 'date') !== false || stripos($typeString, 'date') !== false) {
-                            $paramSchema['format'] = 'date-time'; // Or 'date' depending on convention
-                        } elseif (stripos($name, 'uri') !== false || stripos($name, 'url') !== false || stripos($typeString, 'uri') !== false || stripos($typeString, 'url') !== false) {
-                            $paramSchema['format'] = 'uri';
-                        }
-                        // Add more format detections if needed
-                    }
-                }
+                // TODO: Revisit format inference or add explicit @schema docblock tag for formats in a future version.
+                // For now, parameters typed as 'string' will not have a 'format' keyword automatically added.
+                // Users needing specific string format validation (date-time, email, uri, regex pattern)
+                // would need to perform that validation within their tool/resource handler method.
 
                 // Handle array items type if possible
                 if (isset($paramSchema['type'])) {
@@ -176,7 +166,7 @@ class SchemaGenerator
 
         if (empty($schema['properties'])) {
             // Keep properties object even if empty, per spec
-            $schema['properties'] = new stdClass();
+            $schema['properties'] = new stdClass;
         }
         if (empty($schema['required'])) {
             unset($schema['required']);
