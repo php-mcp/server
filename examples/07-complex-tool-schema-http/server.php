@@ -82,7 +82,7 @@ try {
 
     $server->discover(__DIR__, ['.']);
 
-    $transport = new HttpServerTransport('120.0.0.1', 8082, 'mcp_scheduler');
+    $transport = new HttpServerTransport('127.0.0.1', 8082, 'mcp_scheduler');
     $server->listen($transport);
 
     $logger->info('Server listener stopped gracefully.');

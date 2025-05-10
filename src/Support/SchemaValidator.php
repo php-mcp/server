@@ -2,12 +2,12 @@
 
 namespace PhpMcp\Server\Support;
 
+use InvalidArgumentException;
 use JsonException;
 use Opis\JsonSchema\Errors\ValidationError;
 use Opis\JsonSchema\Validator;
 use Psr\Log\LoggerInterface;
 use Throwable;
-use InvalidArgumentException;
 
 /**
  * Validates data against JSON Schema definitions using opis/json-schema.
@@ -15,6 +15,7 @@ use InvalidArgumentException;
 class SchemaValidator
 {
     private ?Validator $jsonSchemaValidator = null;
+
     private LoggerInterface $logger;
 
     public function __construct(LoggerInterface $logger)
@@ -50,12 +51,15 @@ class SchemaValidator
 
         } catch (JsonException $e) {
             $this->logger->error('MCP SDK: Invalid schema structure provided for validation (JSON conversion failed).', ['exception' => $e]);
+
             return [['pointer' => '', 'keyword' => 'internal', 'message' => 'Invalid schema definition provided (JSON error).']];
         } catch (InvalidArgumentException $e) {
             $this->logger->error('MCP SDK: Invalid schema structure provided for validation.', ['exception' => $e]);
+
             return [['pointer' => '', 'keyword' => 'internal', 'message' => $e->getMessage()]];
         } catch (Throwable $e) {
             $this->logger->error('MCP SDK: Error preparing data/schema for validation.', ['exception' => $e]);
+
             return [['pointer' => '', 'keyword' => 'internal', 'message' => 'Internal validation preparation error.']];
         }
 
@@ -70,6 +74,7 @@ class SchemaValidator
                 'data' => json_encode($dataToValidate),
                 'schema' => json_encode($schemaObject),
             ]);
+
             return [['pointer' => '', 'keyword' => 'internal', 'message' => 'Schema validation process failed: '.$e->getMessage()]];
         }
 
@@ -101,9 +106,10 @@ class SchemaValidator
     private function getJsonSchemaValidator(): Validator
     {
         if ($this->jsonSchemaValidator === null) {
-            $this->jsonSchemaValidator = new Validator();
+            $this->jsonSchemaValidator = new Validator;
             // Potentially configure resolver here if needed later
         }
+
         return $this->jsonSchemaValidator;
     }
 
@@ -114,11 +120,12 @@ class SchemaValidator
     {
         if (is_array($data)) {
             // Check if it's an associative array (keys are not sequential numbers 0..N-1)
-            if (!empty($data) && array_keys($data) !== range(0, count($data) - 1)) {
-                $obj = new \stdClass();
+            if (! empty($data) && array_keys($data) !== range(0, count($data) - 1)) {
+                $obj = new \stdClass;
                 foreach ($data as $key => $value) {
                     $obj->{$key} = $this->convertDataForValidator($value);
                 }
+
                 return $obj;
             } else {
                 // It's a list (sequential array), convert items recursively
@@ -126,12 +133,14 @@ class SchemaValidator
             }
         } elseif (is_object($data) && $data instanceof \stdClass) {
             // Deep copy/convert stdClass objects as well
-            $obj = new \stdClass();
+            $obj = new \stdClass;
             foreach (get_object_vars($data) as $key => $value) {
                 $obj->{$key} = $this->convertDataForValidator($value);
             }
+
             return $obj;
         }
+
         // Leave other objects and scalar types as they are
         return $data;
     }
@@ -165,8 +174,10 @@ class SchemaValidator
         }
         $escapedComponents = array_map(function ($component) {
             $componentStr = (string) $component;
+
             return str_replace(['~', '/'], ['~0', '~1'], $componentStr);
         }, $pathComponents);
+
         return '/'.implode('/', $escapedComponents);
     }
 
@@ -213,6 +224,7 @@ class SchemaValidator
                         if ($v === null) {
                             return 'null';
                         }
+
                         return (string) $v;
                     }, $allowedValues);
                     $message = 'Value must be one of the allowed values: '.implode(', ', $formattedAllowed).'.';
@@ -289,12 +301,14 @@ class SchemaValidator
                     $builtInMessage = preg_replace_callback('/\{(\w+)\}/', function ($match) use ($placeholders) {
                         $key = $match[1];
                         $value = $placeholders[$key] ?? '{'.$key.'}';
+
                         return is_array($value) ? json_encode($value) : (string) $value;
                     }, $builtInMessage);
                     $message = $builtInMessage;
                 }
                 break;
         }
+
         return $message;
     }
 }

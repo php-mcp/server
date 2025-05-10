@@ -65,7 +65,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
         private readonly string $mcpPathPrefix = 'mcp', // e.g., /mcp/sse, /mcp/message
         private readonly ?array $sslContext = null // For enabling HTTPS
     ) {
-        $this->logger = new NullLogger();
+        $this->logger = new NullLogger;
         $this->loop = Loop::get();
         $this->ssePath = '/'.trim($mcpPathPrefix, '/').'/sse';
         $this->messagePath = '/'.trim($mcpPathPrefix, '/').'/message';
@@ -109,7 +109,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
             $this->http->listen($this->socket);
 
             $this->socket->on('error', function (Throwable $error) {
-                $this->logger->error('HttpTransport: Socket server error.', ['error' => $error->getMessage()]);
+                $this->logger->error('Socket server error.', ['error' => $error->getMessage()]);
                 $this->emit('error', [new TransportException("Socket server error: {$error->getMessage()}", 0, $error)]);
                 $this->close();
             });
@@ -159,7 +159,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
         $clientId = 'sse_'.bin2hex(random_bytes(16));
         $this->logger->info('New SSE connection', ['clientId' => $clientId]);
 
-        $sseStream = new ThroughStream();
+        $sseStream = new ThroughStream;
 
         $sseStream->on('close', function () use ($clientId) {
             $this->logger->info('SSE stream closed', ['clientId' => $clientId]);
@@ -216,13 +216,13 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
         $clientId = $queryParams['clientId'] ?? null;
 
         if (! $clientId || ! is_string($clientId)) {
-            $this->logger->warning('HttpTransport: Received POST without valid clientId query parameter.');
+            $this->logger->warning('Received POST without valid clientId query parameter.');
 
             return new Response(400, ['Content-Type' => 'text/plain'], 'Missing or invalid clientId query parameter');
         }
 
         if (! isset($this->activeSseStreams[$clientId])) {
-            $this->logger->warning('HttpTransport: Received POST for unknown or disconnected clientId.', ['clientId' => $clientId]);
+            $this->logger->warning('Received POST for unknown or disconnected clientId.', ['clientId' => $clientId]);
 
             return new Response(404, ['Content-Type' => 'text/plain'], 'Client ID not found or disconnected');
         }
@@ -234,7 +234,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
         $body = $request->getBody()->getContents();
 
         if (empty($body)) {
-            $this->logger->warning('HttpTransport: Received empty POST body', ['clientId' => $clientId]);
+            $this->logger->warning('Received empty POST body', ['clientId' => $clientId]);
 
             return new Response(400, ['Content-Type' => 'text/plain'], 'Empty request body');
         }
@@ -265,16 +265,15 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
             return \React\Promise\resolve(null);
         }
 
-        $deferred = new Deferred();
+        $deferred = new Deferred;
         $written = $this->sendSseEvent($stream, 'message', $jsonData);
 
         if ($written) {
-            $this->logger->debug('HttpTransport: Message sent via SSE.', ['clientId' => $clientId, 'data' => $jsonData]);
             $deferred->resolve(null);
         } else {
-            $this->logger->debug('HttpTransport: SSE stream buffer full, waiting for drain.', ['clientId' => $clientId]);
+            $this->logger->debug('SSE stream buffer full, waiting for drain.', ['clientId' => $clientId]);
             $stream->once('drain', function () use ($deferred, $clientId) {
-                $this->logger->debug('HttpTransport: SSE stream drained.', ['clientId' => $clientId]);
+                $this->logger->debug('SSE stream drained.', ['clientId' => $clientId]);
                 $deferred->resolve(null);
             });
             // Add a timeout?
@@ -316,7 +315,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
         }
         $this->closing = true;
         $this->listening = false;
-        $this->logger->info('HttpTransport: Closing...');
+        $this->logger->info('Closing transport...');
 
         if ($this->socket) {
             $this->socket->close();
@@ -326,7 +325,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
         $activeStreams = $this->activeSseStreams;
         $this->activeSseStreams = [];
         foreach ($activeStreams as $clientId => $stream) {
-            $this->logger->debug('HttpTransport: Closing active SSE stream', ['clientId' => $clientId]);
+            $this->logger->debug('Closing active SSE stream', ['clientId' => $clientId]);
             unset($this->activeSseStreams[$clientId]);
             $stream->close();
         }

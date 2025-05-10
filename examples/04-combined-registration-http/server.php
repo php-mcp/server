@@ -19,7 +19,7 @@
     |
     | To Use:
     | 1. Run this script from your CLI: `php server.php`
-    |    The server will listen on http://0.0.0.0:8081 by default.
+    |    The server will listen on http://127.0.0.1:8081 by default.
     | 2. Configure your MCP Client (e.g., Cursor):
     |
     | {
@@ -80,7 +80,7 @@ try {
     // If 'config://priority' was discovered, the manual one takes precedence.
     $server->discover(__DIR__, scanDirs: ['.']);
 
-    $transport = new HttpServerTransport('0.0.0.0', 8081, 'mcp_combined');
+    $transport = new HttpServerTransport('127.0.0.1', 8081, 'mcp_combined');
 
     $server->listen($transport);
 

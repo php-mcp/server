@@ -299,18 +299,33 @@ class Processor
 
         $definition = $this->registry->findTool($toolName);
         if (! $definition) {
-            throw McpServerException::methodNotFound("Tool '{$toolName}' not found."); // Method not found seems appropriate
+            throw McpServerException::methodNotFound("Tool '{$toolName}' not found.");
         }
 
         $inputSchema = $definition->getInputSchema();
         $argumentsForValidation = is_object($argumentsRaw) ? (array) $argumentsRaw : $argumentsRaw;
 
         $validationErrors = $this->schemaValidator->validateAgainstJsonSchema($argumentsForValidation, $inputSchema);
+
         if (! empty($validationErrors)) {
-            throw McpServerException::invalidParams(data: ['validation_errors' => $validationErrors]);
+            $errorMessages = [];
+
+            foreach ($validationErrors as $errorDetail) {
+                $pointer = $errorDetail['pointer'] ?? '';
+                $message = $errorDetail['message'] ?? 'Unknown validation error';
+                $errorMessages[] = ($pointer !== '/' && $pointer !== '' ? "Property '{$pointer}': " : '').$message;
+            }
+
+            $summaryMessage = "Invalid parameters for tool '{$toolName}': ".implode('; ', array_slice($errorMessages, 0, 3));
+
+            if (count($errorMessages) > 3) {
+                $summaryMessage .= '; ...and more errors.';
+            }
+
+            throw McpServerException::invalidParams($summaryMessage, data: ['validation_errors' => $validationErrors]);
         }
 
-        $argumentsForPhpCall = (array) $argumentsRaw; // Need array for ArgumentPreparer
+        $argumentsForPhpCall = (array) $argumentsRaw;
 
         try {
             $instance = $this->container->get($definition->getClassName());
