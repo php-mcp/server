@@ -40,7 +40,7 @@ function getValidData(): array
         'age' => 30,
         'active' => true,
         'score' => 99.5,
-        'date' => '2025-05-10 01:29:05',
+        'date' => '2025-05-10T01:29:05Z',
         'items' => ['a', 'b'],
         'nullableValue' => null,
         'optionalValue' => 'present'
@@ -72,7 +72,7 @@ test('invalid type generates type error', function () {
 test('invalid format generates format error', function () {
     $schema = getSimpleSchema();
     $data = getValidData();
-    $data['date'] = 'today'; // Invalid type
+    $data['date'] = '2025-05-10 01:29:05'; // Invalid type
 
     $errors = $this->validator->validateAgainstJsonSchema($data, $schema);
     expect($errors)->toHaveCount(1)
