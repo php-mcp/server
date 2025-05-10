@@ -143,13 +143,6 @@ test('generates schema for array types', function () {
 });
 
 test('generates schema for enum types', function () {
-    // Skip test if PHP version is less than 8.1
-    if (version_compare(PHP_VERSION, '8.1', '<')) {
-        expect(true)->toBeTrue(); // Placeholder assertion
-
-        return; // Skip test
-    }
-
     $method = new ReflectionMethod(SchemaGeneratorTestStub::class, 'enumTypes');
     setupDocBlockExpectations($this->docBlockParserMock, $method);
 
