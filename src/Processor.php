@@ -285,15 +285,15 @@ class Processor
     private function handleToolCall(array $params): CallToolResult
     {
         $toolName = $params['name'] ?? null;
-        $argumentsRaw = $params['arguments'] ?? null;
+        $arguments = $params['arguments'] ?? null;
 
         if (! is_string($toolName) || empty($toolName)) {
             throw McpServerException::invalidParams("Missing or invalid 'name' parameter for tools/call.");
         }
 
-        if ($argumentsRaw === null) {
-            $argumentsRaw = new stdClass;
-        } elseif (! is_array($argumentsRaw) && ! $argumentsRaw instanceof stdClass) {
+        if ($arguments === null || $arguments === []) {
+            $arguments = new stdClass;
+        } elseif (! is_array($arguments) && ! $arguments instanceof stdClass) {
             throw McpServerException::invalidParams("Parameter 'arguments' must be an object/array for tools/call.");
         }
 
@@ -303,9 +303,8 @@ class Processor
         }
 
         $inputSchema = $definition->getInputSchema();
-        $argumentsForValidation = is_object($argumentsRaw) ? (array) $argumentsRaw : $argumentsRaw;
 
-        $validationErrors = $this->schemaValidator->validateAgainstJsonSchema($argumentsForValidation, $inputSchema);
+        $validationErrors = $this->schemaValidator->validateAgainstJsonSchema($arguments, $inputSchema);
 
         if (! empty($validationErrors)) {
             $errorMessages = [];
@@ -325,7 +324,7 @@ class Processor
             throw McpServerException::invalidParams($summaryMessage, data: ['validation_errors' => $validationErrors]);
         }
 
-        $argumentsForPhpCall = (array) $argumentsRaw;
+        $argumentsForPhpCall = (array) $arguments;
 
         try {
             $instance = $this->container->get($definition->getClassName());
