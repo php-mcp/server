@@ -2,6 +2,8 @@
 
 namespace PhpMcp\Server\JsonRpc;
 
+use PhpMcp\Server\Exception\ProtocolException;
+
 class Error
 {
     /**
@@ -25,6 +27,10 @@ class Error
      */
     public static function fromArray(array $data): self
     {
+        if (! isset($data['code']) || ! is_int($data['code'])) {
+            throw ProtocolException::invalidRequest('Invalid or missing "code" field.');
+        }
+
         return new self(
             $data['code'],
             $data['message'],

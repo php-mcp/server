@@ -6,7 +6,6 @@ use phpDocumentor\Reflection\DocBlock;
 use phpDocumentor\Reflection\DocBlock\Tags\Param;
 use phpDocumentor\Reflection\DocBlock\Tags\Return_;
 use phpDocumentor\Reflection\DocBlockFactory;
-use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -17,12 +16,9 @@ class DocBlockParser
 {
     private DocBlockFactory $docBlockFactory;
 
-    private LoggerInterface $logger;
-
-    public function __construct(ContainerInterface $container)
+    public function __construct(private LoggerInterface $logger)
     {
         $this->docBlockFactory = DocBlockFactory::createInstance();
-        $this->logger = $container->get(LoggerInterface::class);
     }
 
     /**
@@ -37,7 +33,10 @@ class DocBlockParser
             return $this->docBlockFactory->create($docComment);
         } catch (Throwable $e) {
             // Log error or handle gracefully if invalid DocBlock syntax is encountered
-            $this->logger->warning('Failed to parse DocBlock', ['error' => $e->getMessage(), 'exception' => $e]);
+            $this->logger->warning('Failed to parse DocBlock', [
+                'error' => $e->getMessage(),
+                'exception_trace' => $e->getTraceAsString(),
+            ]);
 
             return null;
         }

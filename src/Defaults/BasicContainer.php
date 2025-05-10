@@ -1,90 +1,186 @@
 <?php
 
+declare(strict_types=1); // Added missing strict_types
+
 namespace PhpMcp\Server\Defaults;
 
+use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;
+use Psr\Container\NotFoundExceptionInterface;
 use ReflectionClass;
 use ReflectionException;
+use ReflectionNamedType;
+use ReflectionParameter;
+use Throwable; // Changed from \Throwable to Throwable
 
 /**
- * A very basic PSR-11 container implementation.
+ * A basic PSR-11 container implementation with simple constructor auto-wiring.
  *
- * Supports getting instances of classes with parameterless constructors.
+ * Supports instantiating classes with parameterless constructors or constructors
+ * where all parameters are type-hinted classes/interfaces known to the container,
+ * or have default values. Does NOT support scalar/built-in type injection without defaults.
  */
 class BasicContainer implements ContainerInterface
 {
-    /** @var array<string, object> Simple cache for already created instances */
+    /** @var array<string, object> Cache for already created instances (shared singletons) */
     private array $instances = [];
+
+    /** @var array<string, bool> Track classes currently being resolved to detect circular dependencies */
+    private array $resolving = [];
 
     /**
      * Finds an entry of the container by its identifier and returns it.
      *
-     * @param  string  $id  Identifier of the entry to look for.
+     * @param  string  $id  Identifier of the entry to look for (usually a FQCN).
      * @return mixed Entry.
      *
      * @throws NotFoundExceptionInterface No entry was found for **this** identifier.
-     * @throws ContainerExceptionInterface Error while retrieving the entry.
+     * @throws ContainerExceptionInterface Error while retrieving the entry (e.g., dependency resolution failure, circular dependency).
      */
     public function get(string $id): mixed
     {
+        // 1. Check instance cache
         if (isset($this->instances[$id])) {
             return $this->instances[$id];
         }
 
-        if (! class_exists($id)) {
-            throw new NotFoundException("Class or entry '{$id}' not found.");
+        // 2. Check if class exists
+        if (! class_exists($id) && ! interface_exists($id)) { // Also check interface for bindings
+            throw new NotFoundException("Class, interface, or entry '{$id}' not found.");
         }
 
+        // 7. Circular Dependency Check
+        if (isset($this->resolving[$id])) {
+            throw new ContainerException("Circular dependency detected while resolving '{$id}'. Resolution path: ".implode(' -> ', array_keys($this->resolving))." -> {$id}");
+        }
+
+        $this->resolving[$id] = true; // Mark as currently resolving
+
         try {
+            // 3. Reflect on the class
             $reflector = new ReflectionClass($id);
+
+            // Check if class is instantiable (abstract classes, interfaces cannot be directly instantiated)
             if (! $reflector->isInstantiable()) {
-                throw new ContainerException("Class '{$id}' is not instantiable.");
+                // We might have an interface bound to a concrete class via set()
+                // This check is slightly redundant due to class_exists but good practice
+                throw new ContainerException("Class '{$id}' is not instantiable (e.g., abstract class or interface without explicit binding).");
             }
 
+            // 4. Get the constructor
             $constructor = $reflector->getConstructor();
-            if ($constructor && $constructor->getNumberOfRequiredParameters() > 0) {
-                throw new ContainerException("Cannot auto-instantiate class '{$id}' with required constructor parameters using this basic container.");
+
+            // 5. If no constructor or constructor has no parameters, instantiate directly
+            if ($constructor === null || $constructor->getNumberOfParameters() === 0) {
+                $instance = $reflector->newInstance();
+            } else {
+                // 6. Constructor has parameters, attempt to resolve them
+                $parameters = $constructor->getParameters();
+                $resolvedArgs = [];
+
+                foreach ($parameters as $parameter) {
+                    $resolvedArgs[] = $this->resolveParameter($parameter, $id);
+                }
+
+                // Instantiate with resolved arguments
+                $instance = $reflector->newInstanceArgs($resolvedArgs);
             }
 
-            $instance = $reflector->newInstance();
-            $this->instances[$id] = $instance; // Cache the instance
+            // Cache the instance
+            $this->instances[$id] = $instance;
 
             return $instance;
 
         } catch (ReflectionException $e) {
-            throw new ContainerException("Failed to reflect class '{$id}'.", 0, $e);
-        } catch (\Throwable $e) {
-            // Catch any other errors during instantiation
-            throw new ContainerException("Failed to instantiate class '{$id}'.", 0, $e);
+            throw new ContainerException("Reflection failed for '{$id}'.", 0, $e);
+        } catch (ContainerExceptionInterface $e) { // Re-throw container exceptions directly
+            throw $e;
+        } catch (Throwable $e) { // Catch other instantiation errors
+            throw new ContainerException("Failed to instantiate or resolve dependencies for '{$id}': ".$e->getMessage(), (int) $e->getCode(), $e);
+        } finally {
+            // 7. Remove from resolving stack once done (success or failure)
+            unset($this->resolving[$id]);
         }
     }
 
     /**
-     * Returns true if the container can return an entry for the given identifier.
-     * Returns false otherwise.
+     * Attempts to resolve a single constructor parameter.
      *
-     * `has($id)` returning true does not mean that `get($id)` will not throw an exception.
-     * It does however mean that `get($id)` will not throw a `NotFoundExceptionInterface`.
-     *
-     * @param  string  $id  Identifier of the entry to look for.
+     * @throws ContainerExceptionInterface If a required dependency cannot be resolved.
      */
-    public function has(string $id): bool
+    private function resolveParameter(ReflectionParameter $parameter, string $consumerClassId): mixed
     {
-        // Only checks if the class exists, not if it's instantiable by this container
-        return class_exists($id);
+        // Check for type hint
+        $type = $parameter->getType();
+
+        if ($type instanceof ReflectionNamedType && ! $type->isBuiltin()) {
+            // Type hint is a class or interface name
+            $typeName = $type->getName();
+            try {
+                // Recursively get the dependency
+                return $this->get($typeName);
+            } catch (NotFoundExceptionInterface $e) {
+                // Dependency class not found, fail ONLY if required
+                if (! $parameter->isOptional() && ! $parameter->allowsNull()) {
+                    throw new ContainerException("Unresolvable dependency '{$typeName}' required by '{$consumerClassId}' constructor parameter \${$parameter->getName()}.", 0, $e);
+                }
+                // If optional or nullable, proceed (will check allowsNull/Default below)
+            } catch (ContainerExceptionInterface $e) {
+                // Dependency itself failed to resolve (e.g., its own deps, circular)
+                throw new ContainerException("Failed to resolve dependency '{$typeName}' for '{$consumerClassId}' parameter \${$parameter->getName()}: ".$e->getMessage(), 0, $e);
+            }
+        }
+
+        // Check if parameter has a default value
+        if ($parameter->isDefaultValueAvailable()) {
+            return $parameter->getDefaultValue();
+        }
+
+        // Check if parameter allows null (and wasn't resolved above)
+        if ($parameter->allowsNull()) {
+            return null;
+        }
+
+        // Check if it was a built-in type without a default (unresolvable by this basic container)
+        if ($type instanceof ReflectionNamedType && $type->isBuiltin()) {
+            throw new ContainerException("Cannot auto-wire built-in type '{$type->getName()}' for required parameter \${$parameter->getName()} in '{$consumerClassId}' constructor. Provide a default value or use a more advanced container.");
+        }
+
+        // Check if it was a union/intersection type without a default (also unresolvable)
+        if ($type !== null && ! $type instanceof ReflectionNamedType) {
+            throw new ContainerException("Cannot auto-wire complex type (union/intersection) for required parameter \${$parameter->getName()} in '{$consumerClassId}' constructor. Provide a default value or use a more advanced container.");
+        }
+
+        // If we reach here, it's an untyped, required parameter without a default.
+        // Or potentially an unresolvable optional class dependency where null is not allowed (edge case).
+        throw new ContainerException("Cannot resolve required parameter \${$parameter->getName()} for '{$consumerClassId}' constructor (untyped or unresolvable complex type).");
     }
 
     /**
-     * Adds a pre-built instance to the container (simple singleton behavior).
-     * Not part of PSR-11, but useful for basic setup.
+     * Returns true if the container can return an entry for the given identifier.
+     * Checks explicitly set instances and if the class/interface exists.
+     * Does not guarantee `get()` will succeed if auto-wiring fails.
+     */
+    public function has(string $id): bool
+    {
+        return isset($this->instances[$id]) || class_exists($id) || interface_exists($id);
+    }
+
+    /**
+     * Adds a pre-built instance or a factory/binding to the container.
+     * This basic version only supports pre-built instances (singletons).
      */
     public function set(string $id, object $instance): void
     {
+        // Could add support for closures/factories later if needed
         $this->instances[$id] = $instance;
     }
 }
 
-// Basic ContainerException (not required by PSR-11 but good practice)
-class ContainerException extends \Exception implements \Psr\Container\ContainerExceptionInterface
+// Keep custom exception classes as they are PSR-11 compliant placeholders
+class ContainerException extends \Exception implements ContainerExceptionInterface
+{
+}
+class NotFoundException extends \Exception implements NotFoundExceptionInterface
 {
 }

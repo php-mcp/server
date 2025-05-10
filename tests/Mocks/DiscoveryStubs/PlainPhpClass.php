@@ -1,6 +1,10 @@
-<?php 
+<?php
+
 namespace PhpMcp\Server\Tests\Mocks\DiscoveryStubs;
 
-class PlainPhpClass {
-    public function someMethod(): void {}
-} 
+class PlainPhpClass
+{
+    public function someMethod(): void
+    {
+    }
+}

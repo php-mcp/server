@@ -10,7 +10,9 @@ class DocBlockTestStub
     /**
      * Simple summary line.
      */
-    public function methodWithSummaryOnly(): void {}
+    public function methodWithSummaryOnly(): void
+    {
+    }
 
     /**
      * Summary line here.
@@ -21,7 +23,9 @@ class DocBlockTestStub
      *
      * @since 1.0
      */
-    public function methodWithSummaryAndDescription(): void {}
+    public function methodWithSummaryAndDescription(): void
+    {
+    }
 
     /**
      * Method with various parameter tags.
@@ -33,14 +37,19 @@ class DocBlockTestStub
      * @param array<string, mixed> $param5 Array description.
      * @param \stdClass $param6 Object param.
      */
-    public function methodWithParams(string $param1, ?int $param2, bool $param3, $param4, array $param5, \stdClass $param6): void {}
+    public function methodWithParams(string $param1, ?int $param2, bool $param3, $param4, array $param5, \stdClass $param6): void
+    {
+    }
 
     /**
      * Method with return tag.
      *
      * @return string The result of the operation.
      */
-    public function methodWithReturn(): string { return ''; }
+    public function methodWithReturn(): string
+    {
+        return '';
+    }
 
     /**
      * Method with multiple tags.
@@ -51,15 +60,24 @@ class DocBlockTestStub
      * @deprecated Use newMethod() instead.
      * @see \PhpMcp\Server\Tests\Mocks\SupportStubs\DocBlockTestStub::newMethod()
      */
-    public function methodWithMultipleTags(float $value): bool { return true; }
+    public function methodWithMultipleTags(float $value): bool
+    {
+        return true;
+    }
 
     /**
      * Malformed docblock - missing closing
      */
-    public function methodWithMalformedDocBlock(): void {}
+    public function methodWithMalformedDocBlock(): void
+    {
+    }
 
-    public function methodWithNoDocBlock(): void {}
+    public function methodWithNoDocBlock(): void
+    {
+    }
 
     // Some other method needed for a @see tag perhaps
-    public function newMethod(): void {}
+    public function newMethod(): void
+    {
+    }
 }

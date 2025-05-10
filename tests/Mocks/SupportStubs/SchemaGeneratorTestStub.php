@@ -9,7 +9,9 @@ use stdClass;
  */
 class SchemaGeneratorTestStub
 {
-    public function noParams(): void {}
+    public function noParams(): void
+    {
+    }
 
     /**
      * Method with simple required types.
@@ -20,7 +22,9 @@ class SchemaGeneratorTestStub
      * @param array $p5 Array param
      * @param stdClass $p6 Object param
      */
-    public function simpleRequired(string $p1, int $p2, bool $p3, float $p4, array $p5, stdClass $p6): void {}
+    public function simpleRequired(string $p1, int $p2, bool $p3, float $p4, array $p5, stdClass $p6): void
+    {
+    }
 
     /**
      * Method with simple optional types with default values.
@@ -38,7 +42,8 @@ class SchemaGeneratorTestStub
         float $p4 = 1.23,
         array $p5 = ['a', 'b'],
         ?stdClass $p6 = null
-    ): void {}
+    ): void {
+    }
 
     /**
      * Method with nullable types without explicit defaults.
@@ -46,21 +51,27 @@ class SchemaGeneratorTestStub
      * @param ?int $p2 Nullable int shorthand
      * @param ?bool $p3 Nullable bool
      */
-    public function nullableWithoutDefault(?string $p1, ?int $p2, ?bool $p3): void {}
+    public function nullableWithoutDefault(?string $p1, ?int $p2, ?bool $p3): void
+    {
+    }
 
     /**
      * Method with nullable types WITH explicit null defaults.
      * @param string|null $p1 Nullable string with default
      * @param ?int $p2 Nullable int shorthand with default
      */
-    public function nullableWithNullDefault(?string $p1 = null, ?int $p2 = null): void {}
+    public function nullableWithNullDefault(?string $p1 = null, ?int $p2 = null): void
+    {
+    }
 
     /**
      * Method with union types.
      * @param string|int $p1 String or Int
      * @param bool|string|null $p2 Bool, String or Null
      */
-    public function unionTypes(string|int $p1, bool|null|string $p2): void {}
+    public function unionTypes(string|int $p1, bool|null|string $p2): void
+    {
+    }
 
     /**
      * Method with various array types.
@@ -78,7 +89,8 @@ class SchemaGeneratorTestStub
         array $p4,
         array $p5,
         array $p6
-    ): void {}
+    ): void {
+    }
 
     /**
      * Method with various enum types (requires PHP 8.1+).
@@ -96,33 +108,42 @@ class SchemaGeneratorTestStub
         ?BackedStringEnum $p4,
         BackedIntEnum $p5 = BackedIntEnum::First,
         ?UnitEnum $p6 = null
-    ): void {}
+    ): void {
+    }
 
     /**
      * Method with variadic parameters.
      * @param string ...$items Variadic strings
      */
-    public function variadicParam(string ...$items): void {}
+    public function variadicParam(string ...$items): void
+    {
+    }
 
     /**
      * Method with mixed type hint.
      * @param mixed $p1 Mixed type
      * @param mixed $p2 Optional mixed type
      */
-    public function mixedType(mixed $p1, mixed $p2 = 'hello'): void {}
+    public function mixedType(mixed $p1, mixed $p2 = 'hello'): void
+    {
+    }
 
     /**
      * Method using only docblocks for type/description.
      * @param string $p1 Only docblock type
      * @param $p2 Only docblock description
      */
-    public function docBlockOnly($p1, $p2): void {}
+    public function docBlockOnly($p1, $p2): void
+    {
+    }
 
     /**
      * Method with docblock type overriding PHP type hint.
      * @param string $p1 Docblock overrides int
      */
-    public function docBlockOverrides(int $p1): void {}
+    public function docBlockOverrides(int $p1): void
+    {
+    }
 
     /**
      * Method with parameters implying formats.
@@ -130,8 +151,10 @@ class SchemaGeneratorTestStub
      * @param string $url URL string
      * @param string $dateTime ISO Date time string
      */
-    public function formatParams(string $email, string $url, string $dateTime): void {}
+    public function formatParams(string $email, string $url, string $dateTime): void
+    {
+    }
 
     // Intersection types might not be directly supported by JSON schema
     // public function intersectionType(MyInterface&MyOtherInterface $p1): void {}
-} 
+}
