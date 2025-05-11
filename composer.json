@@ -19,6 +19,7 @@
         "psr/log": "^1.0 || ^2.0 || ^3.0",
         "psr/simple-cache": "^1.0 || ^2.0 || ^3.0",
         "react/event-loop": "^1.5",
+        "react/http": "^1.11",
         "react/stream": "^1.4",
         "symfony/finder": "^6.4 || ^7.2"
     },
@@ -27,7 +28,6 @@
         "mockery/mockery": "^1.6",
         "pestphp/pest": "^2.36.0|^3.5.0",
         "react/async": "^4.0",
-        "react/http": "^1.11",
         "symfony/var-dumper": "^6.4.11|^7.1.5"
     },
     "suggest": {
