@@ -2,6 +2,14 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## PHP MCP Server v2.0.1 (HotFix) - 2025-05-11
+
+### What's Changed
+
+* Fix: Ensure react/http is a runtime dependency for HttpServerTransport by @CodeWithKyrian in https://github.com/php-mcp/server/pull/7
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/2.0.0...2.0.1
+
 ## PHP MCP Server v2.0.0 - 2025-05-11
 
 This release marks a significant architectural refactoring of the package, aimed at improving modularity, testability, flexibility, and aligning its structure more closely with the `php-mcp/client` library. The core functionality remains, but the way servers are configured, run, and integrated has fundamentally changed.
@@ -11,27 +19,32 @@ This release marks a significant architectural refactoring of the package, aimed
 #### Core Architecture Overhaul
 
 * **Decoupled Design:** The server core logic is now separated from the transport (network/IO) layer.
-    * **`ServerBuilder`:** A new fluent builder (`Server::make()`) is the primary way to configure server identity, dependencies (Logger, Cache, Container, Loop), capabilities, and manually registered elements.
-    * **`Server` Object:** The main `Server` class, created by the builder, now holds the configured core components (`Registry`, `Processor`, `ClientStateManager`, `Configuration`) but is transport-agnostic itself.
-    * **`ServerTransportInterface`:** A new event-driven interface defines the contract for server-side transports (Stdio, Http). Transports are now responsible solely for listening and raw data transfer, emitting events for lifecycle and messages.
-    * **`Protocol`:** A new internal class acts as a bridge, listening to events from a bound `ServerTransportInterface` and coordinating interactions with the `Processor` and `ClientStateManager`.
-    
+  
+  * **`ServerBuilder`:** A new fluent builder (`Server::make()`) is the primary way to configure server identity, dependencies (Logger, Cache, Container, Loop), capabilities, and manually registered elements.
+  * **`Server` Object:** The main `Server` class, created by the builder, now holds the configured core components (`Registry`, `Processor`, `ClientStateManager`, `Configuration`) but is transport-agnostic itself.
+  * **`ServerTransportInterface`:** A new event-driven interface defines the contract for server-side transports (Stdio, Http). Transports are now responsible solely for listening and raw data transfer, emitting events for lifecycle and messages.
+  * **`Protocol`:** A new internal class acts as a bridge, listening to events from a bound `ServerTransportInterface` and coordinating interactions with the `Processor` and `ClientStateManager`.
+  
 * **Explicit Server Execution:**
-    * The old `$server->run(?string)` method is **removed**.
-    * **`$server->listen(ServerTransportInterface $transport)`:** Introduced as the primary way to start a *standalone* server. It binds the `Protocol` to the provided transport, starts the listener, and runs the event loop (making it a blocking call).
-    
+  
+  * The old `$server->run(?string)` method is **removed**.
+  * **`$server->listen(ServerTransportInterface $transport)`:** Introduced as the primary way to start a *standalone* server. It binds the `Protocol` to the provided transport, starts the listener, and runs the event loop (making it a blocking call).
+  
 
 #### Discovery and Caching Refinements
 
 * **Explicit Discovery:** Attribute discovery is no longer triggered automatically during `build()`. You must now explicitly call `$server->discover(basePath: ..., scanDirs: ...)` *after* building the server instance if you want to find elements via attributes.
+  
 * **Caching Behavior:**
-    * Only *discovered* elements are eligible for caching. Manually registered elements (via `ServerBuilder->with*` methods) are **never cached**.
-    * The `Registry` attempts to load discovered elements from cache upon instantiation (during `ServerBuilder::build()`).
-    * Calling `$server->discover()` will first clear any previously discovered/cached elements from the registry before scanning. It then saves the *newly discovered* results to the cache if enabled (`saveToCache: true`).
-    * `Registry` cache methods renamed for clarity: `saveDiscoveredElementsToCache()` and `clearDiscoveredElements()`.
-    * `Registry::isLoaded()` renamed to `discoveryRanOrCached()` for better clarity.
-    
+  
+  * Only *discovered* elements are eligible for caching. Manually registered elements (via `ServerBuilder->with*` methods) are **never cached**.
+  * The `Registry` attempts to load discovered elements from cache upon instantiation (during `ServerBuilder::build()`).
+  * Calling `$server->discover()` will first clear any previously discovered/cached elements from the registry before scanning. It then saves the *newly discovered* results to the cache if enabled (`saveToCache: true`).
+  * `Registry` cache methods renamed for clarity: `saveDiscoveredElementsToCache()` and `clearDiscoveredElements()`.
+  * `Registry::isLoaded()` renamed to `discoveryRanOrCached()` for better clarity.
+  
 * **Manual vs. Discovered Precedence:** If an element is registered both manually and found via discovery/cache with the same identifier (name/URI), the **manually registered version always takes precedence**.
+  
 
 #### Dependency Injection and Configuration
 
@@ -50,12 +63,16 @@ This release marks a significant architectural refactoring of the package, aimed
 #### Transports
 
 * **New Implementations:** Introduced `PhpMcp\Server\Transports\StdioServerTransport` and `PhpMcp\Server\Transports\HttpServerTransport`, both implementing `ServerTransportInterface`.
-    * `StdioServerTransport` constructor now accepts custom input/output stream resources, improving testability and flexibility (defaults to `STDIN`/`STDOUT`).
-    * `HttpServerTransport` constructor now accepts an array of request interceptor callables for custom request pre-processing (e.g., authentication), and also takes `host`, `port`, `mcpPathPrefix`, and `sslContext` for server configuration.
-    
+  
+  * `StdioServerTransport` constructor now accepts custom input/output stream resources, improving testability and flexibility (defaults to `STDIN`/`STDOUT`).
+  * `HttpServerTransport` constructor now accepts an array of request interceptor callables for custom request pre-processing (e.g., authentication), and also takes `host`, `port`, `mcpPathPrefix`, and `sslContext` for server configuration.
+  
 * **Windows `stdio` Limitation:** `StdioServerTransport` now throws a `TransportException` if instantiated with default `STDIN`/`STDOUT` on Windows, due to PHP's limitations with non-blocking pipes, guiding users to `WSL` or `HttpServerTransport`.
+  
 * **Aware Interfaces:** Transports can implement `LoggerAwareInterface` and `LoopAwareInterface` to receive the configured Logger and Loop instances when `$server->listen()` is called.
+  
 * **Removed:** The old `StdioTransportHandler`, `HttpTransportHandler`, and `ReactPhpHttpTransportHandler` classes.
+  
 
 #### Capabilities Configuration
 
@@ -90,28 +107,39 @@ This release marks a significant architectural refactoring of the package, aimed
 This is a major refactoring with significant breaking changes:
 
 1. **`Server->run()` Method Removed:** Replace calls to `$server->run('stdio')` with:
+   
     ```php
     $transport = new StdioServerTransport();
-    // Optionally call $server->discover(...) first
-    $server->listen($transport);
-    
+   // Optionally call $server->discover(...) first
+   $server->listen($transport);
+   
+   
     ```
-    The `http` and `reactphp` options for `run()` were already invalid and are fully removed.
+   The `http` and `reactphp` options for `run()` were already invalid and are fully removed.
+   
 2. **Configuration (`ConfigurationRepositoryInterface` Removed):** Configuration is now handled via the `Configuration` VO assembled by `ServerBuilder`. Remove any usage of the old `ConfigurationRepositoryInterface`. Core settings like server name/version are set via `withServerInfo`, capabilities via `withCapabilities`.
+   
 3. **Dependency Injection:**
-    * If using `ServerBuilder->withContainer()` with a custom PSR-11 container, that container is now only responsible for resolving *your application's handler classes* and their dependencies.
-    * Core server dependencies (Logger, Cache, Loop) **must** be provided explicitly to the `ServerBuilder` using `withLogger()`, `withCache()`, `withLoop()` or rely on the builder's defaults.
-    
+   
+   * If using `ServerBuilder->withContainer()` with a custom PSR-11 container, that container is now only responsible for resolving *your application's handler classes* and their dependencies.
+   * Core server dependencies (Logger, Cache, Loop) **must** be provided explicitly to the `ServerBuilder` using `withLogger()`, `withCache()`, `withLoop()` or rely on the builder's defaults.
+   
 4. **Transport Handlers Replaced:**
-    * `StdioTransportHandler`, `HttpTransportHandler`, `ReactPhpHttpTransportHandler` are **removed**.
-    * Use `new StdioServerTransport()` or `new HttpServerTransport(...)` and pass them to `$server->listen()`.
-    * Constructor signatures and interaction patterns have changed.
-    
+   
+   * `StdioTransportHandler`, `HttpTransportHandler`, `ReactPhpHttpTransportHandler` are **removed**.
+   * Use `new StdioServerTransport()` or `new HttpServerTransport(...)` and pass them to `$server->listen()`.
+   * Constructor signatures and interaction patterns have changed.
+   
 5. **`Registry` Cache Methods Renamed:** `saveElementsToCache` is now `saveDiscoveredElementsToCache`, and `clearCache` is now `clearDiscoveredElements`. Their behavior is also changed to only affect discovered elements.
+   
 6. **Core Component Constructors:** The constructors for `Registry`, `Processor`, `ClientStateManager` (previously `TransportState`), `Discoverer`, `DocBlockParser` have changed. Update any direct instantiations (though typically these are managed internally).
+   
 7. **Exception Renaming:** `McpException` is now `McpServerException`. Update `catch` blocks accordingly.
+   
 8. **Default Null Logger:** Logging is effectively disabled by default. Provide a logger via `ServerBuilder->withLogger()` to enable it.
+   
 9. **Schema Generation:** Automatic string `format` inference (e.g., "date-time") removed from `SchemaGenerator`. String parameters are now plain strings in the schema unless a more advanced format definition mechanism is used in the future.
+   
 
 ### Deprecations
 
