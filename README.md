@@ -143,7 +143,6 @@ The server uses a decoupled architecture:
 *   **`Protocol`:** Internal bridge listening to transport events, interacting with `Processor` and `ClientStateManager`.
 *   **`discover()` Method:** An **explicit** method on the `Server` instance to trigger attribute discovery. Takes path configurations as arguments. By default, it clears previously discovered/cached elements before scanning and saves the new results to cache (if enabled).
 *   **`listen()` Method:** Starts the server using a specific transport. Binds the `Protocol`, starts the transport listener, and **runs the event loop (blocking)**. Performs a pre-check and warns if no elements are registered and discovery hasn't run.
-*   **`getProtocol()` Method:** For framework integration (see below).
 
 ## Defining MCP Elements
 
@@ -281,22 +280,6 @@ $server->listen($transport);
 **Endpoints:**
 *   **SSE:** `GET /{mcpPathPrefix}/sse` (e.g., `GET /mcp/sse`) - Client connects here.
 *   **Messages:** `POST /{mcpPathPrefix}/message?clientId={clientId}` (e.g., `POST /mcp/message?clientId=sse_abc123`) - Client sends requests here. The `clientId` query parameter is essential for the server to route the message correctly to the state associated with the SSE connection. The server sends the POST path (including the generated `clientId`) via the initial `endpoint` SSE event to the client, so you will never have to manually handle this.
-
-### Custom / Framework Integration
-
-Integrate into frameworks without the blocking `listen()` call:
-
-1.  **Build Server:** `$server = Server::make()->...->build();`, likely as a service container singleton.
-2.  **(Optional) Discover:** `$server->discover(...);` (Perhaps in a cache warmup command).
-3.  **Get Protocol:** Obtain the protocol from the server: `$protocol = $server->getProtocol();`
-4.  **Bridge Transport Events:** In your framework's request handling (HTTP controller, WebSocket):
-    *   When a new connection is established: `$protocol->handleClientConnected($clientId);`
-    *   When a raw JSON-RPC message frame is received, call: `$protocol->handleRawMessage($rawJsonFrame, $clientId);`
-    *   When a connection closes, call: `$protocol->handleClientDisconnected($clientId, $reason);`
-    *   Handle transport-level errors by potentially calling: `$protocol->handleTransportError($exception, $clientId);`
-5.  **Sending Responses:** You'll need framework-specific logic to send responses/notifications back to the correct client connection identified by `$clientId`.
-
-This approach allows the framework to manage the event loop, sockets, and request/response objects, while leveraging the `php-mcp/server` core for MCP processing logic.
 
 ## Connecting MCP Clients
 
@@ -565,7 +548,6 @@ See the [`examples/`](./examples/) directory:
 *   **`05-stdio-env-variables/`**: `stdio` server with a tool that uses environment variables passed by the MCP client.
 *   **`06-custom-dependencies-stdio/`**: `stdio` server showing DI container usage for injecting services into MCP handlers (Task Manager example).
 *   **`07-complex-tool-schema-http/`**: `http+sse` server with a tool demonstrating complex input schemas (optionals, defaults, enums).
-*   *(Conceptual framework example to be added)*
 
 ## Testing
 
