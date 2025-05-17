@@ -2,6 +2,14 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v2.1.0 - 2025-05-17
+
+### What's Changed
+
+* feat(schema): add Schema attributes and enhance DocBlock array type parsing by @CodeWithKyrian in https://github.com/php-mcp/server/pull/8
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/2.0.1...2.1.0
+
 ## PHP MCP Server v2.0.1 (HotFix) - 2025-05-11
 
 ### What's Changed
@@ -112,6 +120,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
     ```
