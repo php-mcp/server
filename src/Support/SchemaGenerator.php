@@ -4,6 +4,7 @@ namespace PhpMcp\Server\Support;
 
 use phpDocumentor\Reflection\DocBlock;
 use phpDocumentor\Reflection\DocBlock\Tags\Param;
+use PhpMcp\Server\Attributes\Schema;
 use ReflectionEnum;
 use ReflectionIntersectionType;
 use ReflectionMethod;
@@ -52,6 +53,7 @@ class SchemaGenerator
             $hasDefault = $paramInfo['has_default'];
             $reflectionType = $paramInfo['reflection_type_object'];
             $isVariadic = $paramInfo['is_variadic'];
+            $schemaConstraints = $paramInfo['schema_constraints'] ?? [];
 
             $paramSchema = [];
 
@@ -139,11 +141,30 @@ class SchemaGenerator
                 // Handle array items type if possible
                 if (isset($paramSchema['type'])) {
                     $schemaType = is_array($paramSchema['type']) ? (in_array('array', $paramSchema['type']) ? 'array' : null) : $paramSchema['type'];
-                    if (in_array('array', $this->mapPhpTypeToJsonSchemaType($typeString))) {
+                    
+                    // Special handling for object-like arrays using array{} syntax
+                    if (preg_match('/^array\s*{/i', $typeString)) {
+                        $objectSchema = $this->inferArrayItemsType($typeString);
+                        if (is_array($objectSchema) && isset($objectSchema['properties'])) {
+                            // Override the type and merge in the properties
+                            $paramSchema = array_merge($paramSchema, $objectSchema);
+                            // Ensure type is object
+                            $paramSchema['type'] = $allowsNull ? ['object', 'null'] : 'object';
+                        }
+                    }
+                    // Handle regular arrays
+                    elseif (in_array('array', $this->mapPhpTypeToJsonSchemaType($typeString))) {
                         $itemsType = $this->inferArrayItemsType($typeString);
                         if ($itemsType !== 'any') {
                             if (is_string($itemsType)) {
                                 $paramSchema['items'] = ['type' => $itemsType];
+                            } else {
+                                // Handle complex array item types (for nested arrays and object types)
+                                if (!isset($itemsType['type']) && isset($itemsType['properties'])) {
+                                    // This is an object schema from array{} syntax
+                                    $itemsType = array_merge(['type' => 'object'], $itemsType);
+                                }
+                                $paramSchema['items'] = $itemsType;
                             }
                         }
                         // Ensure the main type is array, potentially adding null
@@ -155,6 +176,30 @@ class SchemaGenerator
                         }
                     }
                 }
+            }
+
+            // Merge constraints from Schema attribute
+            if (!empty($schemaConstraints)) {
+                // Special handling for 'type' to avoid overriding detected type
+                if (isset($schemaConstraints['type']) && isset($paramSchema['type'])) {
+                    if (is_array($paramSchema['type']) && !is_array($schemaConstraints['type'])) {
+                        if (!in_array($schemaConstraints['type'], $paramSchema['type'])) {
+                            $paramSchema['type'][] = $schemaConstraints['type'];
+                            sort($paramSchema['type']);
+                        }
+                    } elseif (is_array($schemaConstraints['type']) && !is_array($paramSchema['type'])) {
+                        if (!in_array($paramSchema['type'], $schemaConstraints['type'])) {
+                            $schemaConstraints['type'][] = $paramSchema['type'];
+                            sort($schemaConstraints['type']);
+                            $paramSchema['type'] = $schemaConstraints['type'];
+                        }
+                    }
+                    // Remove 'type' to avoid overwriting in the array_merge
+                    unset($schemaConstraints['type']);
+                }
+
+                // Now merge the rest of the schema constraints
+                $paramSchema = array_merge($paramSchema, $schemaConstraints);
             }
 
             $schema['properties'][$name] = $paramSchema;
@@ -189,13 +234,17 @@ class SchemaGenerator
      *     allows_null: bool,
      *     default_value: mixed|null,
      *     has_default: bool,
-     *     is_variadic: bool
+     *     is_variadic: bool,
+     *     schema_constraints: array<string, mixed>
      * }>
      */
     private function parseParametersInfo(ReflectionMethod $method, ?DocBlock $docBlock): array
     {
         $paramTags = $this->docBlockParser->getParamTags($docBlock);
         $parametersInfo = [];
+        
+        // Extract method-level schema constraints (for all parameters)
+        $methodSchemaConstraints = $this->extractSchemaConstraintsFromAttributes($method);
 
         foreach ($method->getParameters() as $rp) {
             $paramName = $rp->getName();
@@ -207,6 +256,13 @@ class SchemaGenerator
             $hasDefault = $rp->isDefaultValueAvailable();
             $defaultValue = $hasDefault ? $rp->getDefaultValue() : null;
             $isVariadic = $rp->isVariadic();
+
+            // Extract schema constraints from parameter attributes
+            // Parameter attributes override method attributes
+            $paramSchemaConstraints = $this->extractSchemaConstraintsFromAttributes($rp);
+            $schemaConstraints = !empty($paramSchemaConstraints) 
+                ? $paramSchemaConstraints 
+                : $methodSchemaConstraints;
 
             // If the default value is a BackedEnum, use its scalar value for JSON schema
             if ($hasDefault && $defaultValue instanceof \BackedEnum) {
@@ -234,10 +290,32 @@ class SchemaGenerator
                 'default_value' => $defaultValue,
                 'has_default' => $hasDefault,
                 'is_variadic' => $isVariadic,
+                'schema_constraints' => $schemaConstraints,
             ];
         }
 
         return $parametersInfo;
+    }
+
+    /**
+     * Extract schema constraints from attributes.
+     *
+     * @param ReflectionParameter|ReflectionMethod $reflection The reflection object to extract schema constraints from
+     * @return array<string, mixed> The extracted schema constraints
+     */
+    private function extractSchemaConstraintsFromAttributes(ReflectionParameter|ReflectionMethod $reflection): array
+    {
+        $constraints = [];
+        
+        if (method_exists($reflection, 'getAttributes')) { // PHP 8+ check
+            $schemaAttrs = $reflection->getAttributes(Schema::class, \ReflectionAttribute::IS_INSTANCEOF);
+            if (!empty($schemaAttrs)) {
+                $schemaAttr = $schemaAttrs[0]->newInstance();
+                $constraints = $schemaAttr->toArray();
+            }
+        }
+        
+        return $constraints;
     }
 
     /**
@@ -366,12 +444,18 @@ class SchemaGenerator
     {
         $normalizedType = strtolower(trim($phpTypeString));
 
-        // PRIORITY 1: Check for array syntax first (T[] or generics)
-        if (str_contains($normalizedType, '[]') || preg_match('/^(array|list|iterable|collection)</i', $normalizedType)) {
+        // PRIORITY 1: Check for array{} syntax which should be treated as object
+        if (preg_match('/^array\s*{/i', $normalizedType)) {
+            return ['object'];
+        }
+        
+        // PRIORITY 2: Check for array syntax first (T[] or generics)
+        if (str_contains($normalizedType, '[]') || 
+            preg_match('/^(array|list|iterable|collection)</i', $normalizedType)) {
             return ['array'];
         }
 
-        // PRIORITY 2: Handle unions (recursive)
+        // PRIORITY 3: Handle unions (recursive)
         if (str_contains($normalizedType, '|')) {
             $types = explode('|', $normalizedType);
             $jsonTypes = [];
@@ -383,20 +467,20 @@ class SchemaGenerator
             return array_values(array_unique($jsonTypes));
         }
 
-        // PRIORITY 3: Handle simple built-in types
+        // PRIORITY 4: Handle simple built-in types
         return match ($normalizedType) {
             'string', 'scalar' => ['string'],
             '?string' => ['null', 'string'],
             'int', 'integer' => ['integer'],
-            '?int' => ['null', 'integer'],
+            '?int', '?integer' => ['null', 'integer'],
             'float', 'double', 'number' => ['number'],
-            '?float', '?double' => ['null', 'number'],
+            '?float', '?double', '?number' => ['null', 'number'],
             'bool', 'boolean' => ['boolean'],
-            '?bool' => ['null', 'boolean'],
+            '?bool', '?boolean' => ['null', 'boolean'],
             'array' => ['array'], // Catch native 'array' hint if not caught by generics/[]
             '?array' => ['null', 'array'],
-            'object' => ['object'], // Catch native 'object' hint
-            '?object' => ['null', 'object'],
+            'object', 'stdclass' => ['object'], // Catch native 'object' hint
+            '?object', '?stdclass' => ['null', 'object'],
             'null' => ['null'],
             'resource', 'callable' => ['object'], // Represent these complex types as object
             'mixed' => [], // Omit type for mixed
@@ -412,22 +496,142 @@ class SchemaGenerator
     private function inferArrayItemsType(string $phpTypeString): string|array
     {
         $normalizedType = trim($phpTypeString);
-        $itemType = null;
-
-        // Match T[] or ?T[] syntax, capturing T
-        if (preg_match('/^(\\??)(string|int|integer|bool|boolean|float|double|number)\\s*\\[\\]$/i', $normalizedType, $matches)) {
+        
+        // Case 1: Simple T[] syntax (e.g., string[], int[], bool[], etc.)
+        if (preg_match('/^(\\??)([\w\\\\]+)\\s*\\[\\]$/i', $normalizedType, $matches)) {
             $itemType = strtolower($matches[2]);
-
-            return match ($itemType) {
-                'string' => 'string',
-                'int', 'integer' => 'integer',
-                'bool', 'boolean' => 'boolean',
-                'float', 'double', 'number' => 'number',
-                default => 'any',
-            };
+            return $this->mapSimpleTypeToJsonSchema($itemType);
+        }
+        
+        // Case 2: Generic array<T> syntax (e.g., array<string>, array<int>, etc.)
+        if (preg_match('/^(\\??)array\s*<\s*([\w\\\\|]+)\s*>$/i', $normalizedType, $matches)) {
+            $itemType = strtolower($matches[2]);
+            return $this->mapSimpleTypeToJsonSchema($itemType);
+        }
+        
+        // Case 3: Nested array<array<T>> syntax or T[][] syntax
+        if (preg_match('/^(\\??)array\s*<\s*array\s*<\s*([\w\\\\|]+)\s*>\s*>$/i', $normalizedType, $matches) ||
+            preg_match('/^(\\??)([\w\\\\]+)\s*\[\]\[\]$/i', $normalizedType, $matches)) {
+            $innerType = $this->mapSimpleTypeToJsonSchema(isset($matches[2]) ? strtolower($matches[2]) : 'any');
+            // Return a schema for array with items being arrays
+            return [
+                'type' => 'array',
+                'items' => [
+                    'type' => $innerType
+                ]
+            ];
+        }
+        
+        // Case 4: Object-like array syntax (e.g., array{name: string, age: int})
+        if (preg_match('/^(\\??)array\s*\{(.+)\}$/is', $normalizedType, $matches)) {
+            return $this->parseObjectLikeArray($matches[2]);
         }
 
-        // No support for array<K,V>, list<V>, or arrays of objects/enums yet
+        // No match or unsupported syntax
         return 'any';
+    }
+    
+    /**
+     * Parses object-like array syntax into a JSON Schema object
+     */
+    private function parseObjectLikeArray(string $propertiesStr): array
+    {
+        $properties = [];
+        $required = [];
+        
+        // Parse properties from the string, handling nested structures
+        $depth = 0;
+        $currentProp = '';
+        $buffer = '';
+        
+        for ($i = 0; $i < strlen($propertiesStr); $i++) {
+            $char = $propertiesStr[$i];
+            
+            // Track nested braces
+            if ($char === '{') {
+                $depth++;
+                $buffer .= $char;
+            }
+            elseif ($char === '}') {
+                $depth--;
+                $buffer .= $char;
+            }
+            // Property separator (comma)
+            elseif ($char === ',' && $depth === 0) {
+                // Process the completed property
+                $this->parsePropertyDefinition(trim($buffer), $properties, $required);
+                $buffer = '';
+            }
+            else {
+                $buffer .= $char;
+            }
+        }
+        
+        // Process the last property
+        if (!empty($buffer)) {
+            $this->parsePropertyDefinition(trim($buffer), $properties, $required);
+        }
+        
+        if (!empty($properties)) {
+            return [
+                'type' => 'object',
+                'properties' => $properties,
+                'required' => $required
+            ];
+        }
+        
+        return ['type' => 'object'];
+    }
+    
+    /**
+     * Parses a single property definition from an object-like array syntax
+     */
+    private function parsePropertyDefinition(string $propDefinition, array &$properties, array &$required): void
+    {
+        // Match property name and type
+        if (preg_match('/^([a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*)\s*:\s*(.+)$/i', $propDefinition, $matches)) {
+            $propName = $matches[1];
+            $propType = trim($matches[2]);
+            
+            // Add to required properties
+            $required[] = $propName;
+            
+            // Check for nested array{} syntax
+            if (preg_match('/^array\s*\{(.+)\}$/is', $propType, $nestedMatches)) {
+                $nestedSchema = $this->parseObjectLikeArray($nestedMatches[1]);
+                $properties[$propName] = $nestedSchema;
+            }
+            // Check for array<T> or T[] syntax
+            elseif (preg_match('/^array\s*<\s*([\w\\\\|]+)\s*>$/i', $propType, $arrayMatches) ||
+                   preg_match('/^([\w\\\\]+)\s*\[\]$/i', $propType, $arrayMatches)) {
+                $itemType = $arrayMatches[1] ?? 'any';
+                $properties[$propName] = [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => $this->mapSimpleTypeToJsonSchema($itemType)
+                    ]
+                ];
+            }
+            // Simple type
+            else {
+                $properties[$propName] = ['type' => $this->mapSimpleTypeToJsonSchema($propType)];
+            }
+        }
+    }
+    
+    /**
+     * Helper method to map basic PHP types to JSON Schema types
+     */
+    private function mapSimpleTypeToJsonSchema(string $type): string
+    {
+        return match (strtolower($type)) {
+            'string' => 'string',
+            'int', 'integer' => 'integer',
+            'bool', 'boolean' => 'boolean',
+            'float', 'double', 'number' => 'number',
+            'array' => 'array',
+            'object', 'stdclass' => 'object',
+            default => in_array(strtolower($type), ['datetime', 'datetimeinterface']) ? 'string' : 'object',
+        };
     }
 }
