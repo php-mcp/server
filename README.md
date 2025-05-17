@@ -14,7 +14,7 @@ This package simplifies building MCP servers through:
 *   **Attribute-Based Definition:** Define MCP elements using PHP 8 Attributes (`#[McpTool]`, `#[McpResource]`, `#[McpPrompt]`, `#[McpResourceTemplate]`) on your methods or invokable classes.
 *   **Manual Registration:** Programmatically register elements using a fluent builder API.
 *   **Explicit Discovery:** Trigger attribute scanning on demand via the `$server->discover()` method.
-*   **Metadata Inference:** Intelligently generate MCP schemas and descriptions from type hints and DocBlocks.
+*   **Metadata Inference:** Intelligently generate MCP schemas and descriptions from PHP type hints and DocBlocks.
 *   **Selective Caching:** Optionally cache *discovered* element definitions to speed up startup, while always preserving manually registered elements.
 *   **Flexible Transports:** Supports `stdio` and `http+sse`, separating core logic from network communication.
 *   **PSR Compliance:** Integrates with PSR-3 (Logging), PSR-11 (Container), and PSR-16 (SimpleCache).
@@ -138,6 +138,8 @@ The server uses a decoupled architecture:
 *   **`Server`:** The central object holding the configured state and core logic components (`Registry`, `Processor`, `ClientStateManager`, `Configuration`). It's transport-agnostic. Provides methods to `discover()` elements and `listen()` via a specific transport.
 *   **`Registry`:** Stores MCP element definitions. **Distinguishes between manually registered and discovered elements.** Handles optional caching of *discovered* elements only. Loads cached discovered elements upon instantiation if available.
 *   **`Processor`:** Processes parsed JSON-RPC requests/notifications, executes handlers (via DI Container), formats results, handles errors.
+*   **`SchemaGenerator`:** Generates JSON Schema for method parameters from PHP type hints and DocBlocks.
+*   **`SchemaValidator`:** Validates incoming data against the generated JSON Schema.
 *   **`ClientStateManager`:** Manages client runtime state (initialization, subscriptions, activity) using the configured cache.
 *   **`ServerTransportInterface`:** Event-driven interface for server-side transports (`StdioServerTransport`, `HttpServerTransport`). Handles communication, emits events.
 *   **`Protocol`:** Internal bridge listening to transport events, interacting with `Processor` and `ClientStateManager`.
@@ -324,6 +326,16 @@ The value returned by your method determines the content sent back to the client
 
 The method's return type hint (`@return` tag in DocBlock) is used to generate the tool's output schema, but the actual formatting depends on the *value* returned at runtime.
 
+**Schema Generation**
+
+The server automatically generates JSON Schema for tool parameters based on:
+
+1. PHP type hints
+2. DocBlock annotations
+3. Schema attributes (for enhanced validation)
+
+**Examples:**
+
 ```php
 /**
  * Fetches user details by ID.
@@ -336,6 +348,18 @@ The method's return type hint (`@return` tag in DocBlock) is used to generate th
 public function getUserById(int $userId, bool $includeEmail = false): array
 {
     // ... implementation returning an array ...
+}
+
+/**
+ * Process user data with nested structures.
+ * 
+ * @param array{name: string, contact: array{email: string, phone?: string}} $userData
+ * @param string[] $tags Tags associated with the user
+ * @return array{success: bool, message: string}
+ */
+#[McpTool]
+public function processUserData(array $userData, array $tags): array {
+    // Implementation
 }
 
 /**
@@ -365,6 +389,33 @@ class AdderTool {
     }
 }
 ```
+
+**Additional Validation with `#[Schema]`**
+
+For enhanced schema generation and parameter validation, you can use the `Schema` attribute:
+
+```php
+use PhpMcp\Server\Attributes\Schema;
+use PhpMcp\Server\Attributes\Schema\Format;
+use PhpMcp\Server\Attributes\Schema\ArrayItems;
+use PhpMcp\Server\Attributes\Schema\Property;
+
+/**
+ * Validates user information.
+ */
+#[McpTool]
+public function validateUser(
+    #[Schema(format: 'email')] 
+    string $email,
+    
+    #[Schema(minItems: 2, uniqueItems: true)]
+    array $tags
+): bool {
+    // Implementation
+}
+```
+
+The Schema attribute adds JSON Schema constraints like string formats, numeric ranges, array constraints, and object property validations.
 
 #### `#[McpResource]`
 
