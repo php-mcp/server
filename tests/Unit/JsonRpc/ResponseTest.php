@@ -12,7 +12,7 @@ use PhpMcp\Server\JsonRpc\Results\EmptyResult;
 // --- Construction and Factory Tests  ---
 
 test('response construction sets all properties for success response', function () {
-    $resultObject = new EmptyResult;
+    $resultObject = new EmptyResult();
     $response = new Response('2.0', 1, $resultObject, null);
 
     expect($response->jsonrpc)->toBe('2.0');
@@ -56,13 +56,13 @@ test('response constructor throws exception if ID null and result present', func
 });
 
 test('response throws exception if both result and error are provided with ID', function () {
-    $result = new EmptyResult;
+    $result = new EmptyResult();
     $error = new Error(100, 'Test error');
     expect(fn () => new Response('2.0', 1, $result, $error))->toThrow(InvalidArgumentException::class);
 });
 
 test('success static method creates success response', function () {
-    $result = new EmptyResult;
+    $result = new EmptyResult();
     $response = Response::success($result, 1);
 
     expect($response->jsonrpc)->toBe('2.0');
@@ -94,7 +94,7 @@ test('error static method creates error response with null ID', function () {
 // --- Status Check Tests ---
 
 test('isSuccess returns true for success response', function () {
-    $result = new EmptyResult;
+    $result = new EmptyResult();
     $response = Response::success($result, 1);
     expect($response->isSuccess())->toBeTrue();
 });
@@ -112,7 +112,7 @@ test('isError returns true for error response', function () {
 });
 
 test('isError returns false for success response', function () {
-    $result = new EmptyResult;
+    $result = new EmptyResult();
     $response = Response::success($result, 1);
     expect($response->isError())->toBeFalse();
 });
@@ -227,7 +227,7 @@ test('toArray returns correct structure for success response with raw result', f
 });
 
 test('toArray returns correct structure when using success factory (with Result obj)', function () {
-    $resultObject = new EmptyResult;
+    $resultObject = new EmptyResult();
     $response = Response::success($resultObject, 1);
 
     $array = $response->toArray();
@@ -266,7 +266,7 @@ test('toArray returns correct structure for error response with null ID', functi
 });
 
 test('jsonSerialize returns same result as toArray', function () {
-    $result = new EmptyResult;
+    $result = new EmptyResult();
     $response = Response::success($result, 1);
 
     $array = $response->toArray();

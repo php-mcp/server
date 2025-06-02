@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PhpMcp\Server;
 
 use PhpMcp\Server\Defaults\BasicContainer;
-use PhpMcp\Server\Defaults\FileCache;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\Model\Capabilities;
@@ -15,7 +14,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Psr\SimpleCache\CacheInterface;
 use React\EventLoop\Loop;
-use React\EventLoop\LoopInterface; // For temporary build() status
+use React\EventLoop\LoopInterface;
 use Throwable;
 
 final class ServerBuilder
@@ -45,9 +44,13 @@ final class ServerBuilder
 
     private array $manualPrompts = [];
 
-    public function __construct() {}
+    public function __construct()
+    {
+    }
 
-    /** Sets the server's identity. Required. */
+    /**
+     * Sets the server's identity. Required.
+     */
     public function withServerInfo(string $name, string $version): self
     {
         $this->name = trim($name);
@@ -56,7 +59,9 @@ final class ServerBuilder
         return $this;
     }
 
-    /** Configures the server's declared capabilities. */
+    /**
+     * Configures the server's declared capabilities.
+     */
     public function withCapabilities(Capabilities $capabilities): self
     {
         $this->capabilities = $capabilities;
@@ -64,7 +69,9 @@ final class ServerBuilder
         return $this;
     }
 
-    /** Provides a PSR-3 logger instance. Defaults to NullLogger. */
+    /**
+     * Provides a PSR-3 logger instance. Defaults to NullLogger.
+     */
     public function withLogger(LoggerInterface $logger): self
     {
         $this->logger = $logger;
@@ -95,7 +102,9 @@ final class ServerBuilder
         return $this;
     }
 
-    /** Provides a ReactPHP Event Loop instance. Defaults to Loop::get(). */
+    /**
+     * Provides a ReactPHP Event Loop instance. Defaults to Loop::get().
+     */
     public function withLoop(LoopInterface $loop): self
     {
         $this->loop = $loop;
@@ -103,7 +112,9 @@ final class ServerBuilder
         return $this;
     }
 
-    /** Manually registers a tool handler. */
+    /**
+     * Manually registers a tool handler.
+     */
     public function withTool(array|string $handler, ?string $name = null, ?string $description = null): self
     {
         $this->manualTools[] = compact('handler', 'name', 'description');
@@ -111,7 +122,9 @@ final class ServerBuilder
         return $this;
     }
 
-    /** Manually registers a resource handler. */
+    /**
+     * Manually registers a resource handler.
+     */
     public function withResource(array|string $handler, string $uri, ?string $name = null, ?string $description = null, ?string $mimeType = null, ?int $size = null, array $annotations = []): self
     {
         $this->manualResources[] = compact('handler', 'uri', 'name', 'description', 'mimeType', 'size', 'annotations');
@@ -119,7 +132,9 @@ final class ServerBuilder
         return $this;
     }
 
-    /** Manually registers a resource template handler. */
+    /**
+     * Manually registers a resource template handler.
+     */
     public function withResourceTemplate(array|string $handler, string $uriTemplate, ?string $name = null, ?string $description = null, ?string $mimeType = null, array $annotations = []): self
     {
         $this->manualResourceTemplates[] = compact('handler', 'uriTemplate', 'name', 'description', 'mimeType', 'annotations');
@@ -127,7 +142,9 @@ final class ServerBuilder
         return $this;
     }
 
-    /** Manually registers a prompt handler. */
+    /**
+     * Manually registers a prompt handler.
+     */
     public function withPrompt(array|string $handler, ?string $name = null, ?string $description = null): self
     {
         $this->manualPrompts[] = compact('handler', 'name', 'description');
@@ -148,8 +165,8 @@ final class ServerBuilder
 
         $loop = $this->loop ?? Loop::get();
         $cache = $this->cache;
-        $logger = $this->logger ?? new NullLogger;
-        $container = $this->container ?? new BasicContainer;
+        $logger = $this->logger ?? new NullLogger();
+        $container = $this->container ?? new BasicContainer();
         $capabilities = $this->capabilities ?? Capabilities::forServer();
 
         $configuration = new Configuration(
@@ -165,16 +182,11 @@ final class ServerBuilder
 
         $clientStateManager = new ClientStateManager($configuration->logger, $configuration->cache, 'mcp_state_', $configuration->definitionCacheTtl);
         $registry = new Registry($configuration->logger, $configuration->cache, $clientStateManager);
-        $processor = new Processor($configuration, $registry, $clientStateManager, $configuration->container);
+        $protocol = new Protocol($configuration, $registry, $clientStateManager);
 
         $this->performManualRegistrations($registry, $configuration->logger);
 
-        $server = new Server(
-            $configuration,
-            $registry,
-            $processor,
-            $clientStateManager,
-        );
+        $server = new Server($configuration, $registry, $protocol);
 
         return $server;
     }
@@ -280,7 +292,11 @@ final class ServerBuilder
         $logger->debug('Manual element registration complete.');
     }
 
-    /** @internal Helper copied from old Server class for validation */
+    /**
+     * Gets a reflection method from a handler.
+     *
+     * @throws \InvalidArgumentException If the handler is invalid.
+     */
     private function validateAndGetReflectionMethod(array|string $handler): \ReflectionMethod
     {
         $className = null;

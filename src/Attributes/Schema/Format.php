@@ -29,4 +29,4 @@ class Format
     public const RELATIVE_JSON_POINTER = 'relative-json-pointer';
     public const REGEX = 'regex';
     public const UUID = 'uuid';
-} 
+}

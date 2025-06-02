@@ -6,7 +6,9 @@ use PhpMcp\Server\Attributes\McpTool;
 
 class EnvToolHandler
 {
-    public function __construct() {}
+    public function __construct()
+    {
+    }
 
     /**
      * Performs an action that can be modified by an environment variable.

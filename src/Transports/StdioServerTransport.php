@@ -85,7 +85,7 @@ class StdioServerTransport implements LoggerAwareInterface, LoopAwareInterface, 
             throw new TransportException('Invalid output stream resource provided.');
         }
 
-        $this->logger = new NullLogger;
+        $this->logger = new NullLogger();
         $this->loop = Loop::get();
     }
 
@@ -192,7 +192,7 @@ class StdioServerTransport implements LoggerAwareInterface, LoopAwareInterface, 
             return reject(new TransportException('Stdio transport is closed or STDOUT is not writable.'));
         }
 
-        $deferred = new Deferred;
+        $deferred = new Deferred();
         $written = $this->stdout->write($rawFramedMessage);
 
         if ($written) {

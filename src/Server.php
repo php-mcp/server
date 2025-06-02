@@ -10,14 +10,13 @@ use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DiscoveryException;
-use PhpMcp\Server\State\ClientStateManager;
 use PhpMcp\Server\Support\Discoverer;
 use Throwable;
 
 /**
  * Core MCP Server instance.
  *
- * Holds the configured MCP logic (Registry, Processor, State, Configuration)
+ * Holds the configured MCP logic (Configuration, Registry, Protocol)
  * but is transport-agnostic. It relies on a ServerTransportInterface implementation,
  * provided via the listen() method, to handle network communication.
  *
@@ -25,8 +24,6 @@ use Throwable;
  */
 class Server
 {
-    protected ?Protocol $protocol = null;
-
     protected bool $discoveryRan = false;
 
     protected bool $isListening = false;
@@ -36,20 +33,18 @@ class Server
      *
      * @param  Configuration  $configuration  Core configuration and dependencies.
      * @param  Registry  $registry  Holds registered MCP element definitions.
-     * @param  Processor  $processor  Handles processing of MCP requests.
-     * @param  ClientStateManager  $clientStateManager  Manages client runtime state.
-     * @param  array|null  $discoveryConfig  Configuration for attribute discovery, or null if disabled/not set.
+     * @param  Protocol  $protocol  Handles MCP requests and responses.
      */
     public function __construct(
         protected readonly Configuration $configuration,
         protected readonly Registry $registry,
-        protected readonly Processor $processor,
-        protected readonly ClientStateManager $clientStateManager,
-    ) {}
+        protected readonly Protocol $protocol,
+    ) {
+    }
 
     public static function make(): ServerBuilder
     {
-        return new ServerBuilder;
+        return new ServerBuilder();
     }
 
     /**
@@ -88,7 +83,9 @@ class Server
         $shouldSaveCache = $saveToCache && $cacheAvailable;
 
         $this->configuration->logger->info('Starting MCP element discovery...', [
-            'basePath' => $realBasePath, 'force' => $force, 'saveToCache' => $shouldSaveCache,
+            'basePath' => $realBasePath,
+            'force' => $force,
+            'saveToCache' => $shouldSaveCache,
         ]);
 
         $this->registry->clearDiscoveredElements($shouldSaveCache);
@@ -178,12 +175,15 @@ class Server
         }
     }
 
+    /**
+     * Warns if no MCP elements are registered and discovery has not been run.
+     */
     protected function warnIfNoElements(): void
     {
         if (! $this->registry->hasElements() && ! $this->discoveryRan) {
             $this->configuration->logger->warning(
-                'Starting listener, but no MCP elements are registered and discovery has not been run. '.
-                'Call $server->discover(...) at least once to find and cache elements before listen().'
+                'Starting listener, but no MCP elements are registered and discovery has not been run. ' .
+                    'Call $server->discover(...) at least once to find and cache elements before listen().'
             );
         } elseif (! $this->registry->hasElements() && $this->discoveryRan) {
             $this->configuration->logger->warning(
@@ -193,44 +193,26 @@ class Server
     }
 
     /**
-     * Gets the Protocol instance associated with this server.
-     *
-     * Useful for framework integrations where the event loop and transport
-     * communication are managed externally.
+     * Gets the Configuration instance associated with this server.
      */
-    public function getProtocol(): Protocol
-    {
-        if ($this->protocol === null) {
-            $this->protocol = new Protocol(
-                $this->processor,
-                $this->clientStateManager,
-                $this->configuration->logger,
-                $this->configuration->loop
-            );
-        }
-
-        return $this->protocol;
-    }
-
-    // --- Getters for Core Components ---
-
     public function getConfiguration(): Configuration
     {
         return $this->configuration;
     }
 
+    /**
+     * Gets the Registry instance associated with this server.
+     */
     public function getRegistry(): Registry
     {
         return $this->registry;
     }
 
-    public function getProcessor(): Processor
+    /**
+     * Gets the Protocol instance associated with this server.
+     */
+    public function getProtocol(): Protocol
     {
-        return $this->processor;
-    }
-
-    public function getClientStateManager(): ClientStateManager
-    {
-        return $this->clientStateManager;
+        return $this->protocol;
     }
 }

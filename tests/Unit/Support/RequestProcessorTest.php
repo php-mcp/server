@@ -17,7 +17,7 @@ use PhpMcp\Server\JsonRpc\Results\EmptyResult;
 use PhpMcp\Server\JsonRpc\Results\InitializeResult;
 use PhpMcp\Server\JsonRpc\Results\ListToolsResult;
 use PhpMcp\Server\Model\Capabilities;
-use PhpMcp\Server\Processor;
+use PhpMcp\Server\Support\RequestProcessor;
 use PhpMcp\Server\Registry;
 use PhpMcp\Server\State\ClientStateManager;
 use PhpMcp\Server\Support\ArgumentPreparer;
@@ -33,19 +33,16 @@ const SUPPORTED_VERSION_PROC = '2024-11-05';
 const SERVER_NAME_PROC = 'Test Proc Server';
 const SERVER_VERSION_PROC = '0.2.0';
 
-/** Creates a Request object for testing */
 function createRequest(string $method, array $params = [], string $id = 'req-1'): Request
 {
     return new Request('2.0', $id, $method, $params);
 }
 
-/** Creates a Notification object for testing */
 function createNotification(string $method, array $params = []): Notification
 {
     return new Notification('2.0', $method, $params);
 }
 
-/** Asserts that a response is an MCP error response with the expected code */
 function expectMcpErrorResponse(?Response $response, int $expectedCode, ?string $id = 'req-1'): void
 {
     test()->expect($response)->toBeInstanceOf(Response::class);
@@ -65,7 +62,6 @@ beforeEach(function () {
     $this->argumentPreparerMock = Mockery::mock(ArgumentPreparer::class);
     $this->cacheMock = Mockery::mock(CacheInterface::class);
 
-    // Create a default Configuration object for tests
     $this->configuration = new Configuration(
         serverName: SERVER_NAME_PROC,
         serverVersion: SERVER_VERSION_PROC,
@@ -77,34 +73,25 @@ beforeEach(function () {
         definitionCacheTtl: 3600
     );
 
-    // Default registry state (empty)
-    $this->registryMock->allows('allTools')->withNoArgs()->andReturn(new \ArrayObject)->byDefault();
-    $this->registryMock->allows('allResources')->withNoArgs()->andReturn(new \ArrayObject)->byDefault();
-    $this->registryMock->allows('allResourceTemplates')->withNoArgs()->andReturn(new \ArrayObject)->byDefault();
-    $this->registryMock->allows('allPrompts')->withNoArgs()->andReturn(new \ArrayObject)->byDefault();
+    $this->registryMock->allows('allTools')->withNoArgs()->andReturn(new \ArrayObject())->byDefault();
+    $this->registryMock->allows('allResources')->withNoArgs()->andReturn(new \ArrayObject())->byDefault();
+    $this->registryMock->allows('allResourceTemplates')->withNoArgs()->andReturn(new \ArrayObject())->byDefault();
+    $this->registryMock->allows('allPrompts')->withNoArgs()->andReturn(new \ArrayObject())->byDefault();
 
-    // Default transport state (not initialized)
     $this->clientStateManagerMock->allows('isInitialized')->with(CLIENT_ID_PROC)->andReturn(false)->byDefault();
 
-    $this->processor = new Processor(
+    $this->processor = new RequestProcessor(
         $this->configuration,
         $this->registryMock,
         $this->clientStateManagerMock,
-        $this->containerMock,
         $this->schemaValidatorMock,
         $this->argumentPreparerMock
     );
 });
 
-// createRequest, createNotification, expectMcpErrorResponse helpers remain the same
-
-// --- Tests Start Here ---
-
 it('can be instantiated', function () {
-    expect($this->processor)->toBeInstanceOf(Processor::class);
+    expect($this->processor)->toBeInstanceOf(RequestProcessor::class);
 });
-
-// --- Initialize Tests (Updated capabilities check) ---
 
 it('can handle an initialize request', function () {
     $clientInfo = ['name' => 'TestClientProc', 'version' => '1.3.0'];
@@ -116,9 +103,9 @@ it('can handle an initialize request', function () {
     $this->clientStateManagerMock->shouldReceive('storeClientInfo')->once()->with($clientInfo, SUPPORTED_VERSION_PROC, CLIENT_ID_PROC);
 
     // Mock registry counts to enable capabilities in response
-    $this->registryMock->allows('allTools')->andReturn(new \ArrayObject(['dummyTool' => new stdClass]));
-    $this->registryMock->allows('allResources')->andReturn(new \ArrayObject(['dummyRes' => new stdClass]));
-    $this->registryMock->allows('allPrompts')->andReturn(new \ArrayObject(['dummyPrompt' => new stdClass]));
+    $this->registryMock->allows('allTools')->andReturn(new \ArrayObject(['dummyTool' => new stdClass()]));
+    $this->registryMock->allows('allResources')->andReturn(new \ArrayObject(['dummyRes' => new stdClass()]));
+    $this->registryMock->allows('allPrompts')->andReturn(new \ArrayObject(['dummyPrompt' => new stdClass()]));
 
     // Override default capabilities in the configuration passed to processor for this test
     $capabilities = Capabilities::forServer(
@@ -141,8 +128,7 @@ it('can handle an initialize request', function () {
         cache: $this->cacheMock,
         container: $this->containerMock
     );
-    // Re-create processor with updated config for this test
-    $this->processor = new Processor($this->configuration, $this->registryMock, $this->clientStateManagerMock, $this->containerMock, $this->schemaValidatorMock, $this->argumentPreparerMock);
+    $this->processor = new RequestProcessor($this->configuration, $this->registryMock, $this->clientStateManagerMock, $this->schemaValidatorMock, $this->argumentPreparerMock);
 
     /** @var Response<InitializeResult> $response */
     $response = $this->processor->process($request, CLIENT_ID_PROC);
@@ -162,8 +148,6 @@ it('can handle an initialize request', function () {
     expect($response->result->instructions)->toBe('Test Instructions');
 });
 
-// Other initialize tests (missing params, etc.) remain largely the same logic
-
 it('marks client as initialized when receiving an initialized notification', function () {
     $notification = createNotification('notifications/initialized');
     $this->clientStateManagerMock->shouldReceive('markInitialized')->once()->with(CLIENT_ID_PROC);
@@ -177,7 +161,9 @@ it('fails if client not initialized for non-initialize methods', function (strin
     expectMcpErrorResponse($response, McpServerException::CODE_INVALID_REQUEST);
     expect($response->error->message)->toContain('Client not initialized');
 })->with([
-    'tools/list', 'tools/call', 'resources/list', // etc.
+    'tools/list',
+    'tools/call',
+    'resources/list', // etc.
 ]);
 
 it('fails if capability is disabled', function (string $method, array $params, array $enabledCaps) {
@@ -193,7 +179,7 @@ it('fails if capability is disabled', function (string $method, array $params, a
         cache: $this->cacheMock,
         container: $this->containerMock
     );
-    $this->processor = new Processor($this->configuration, $this->registryMock, $this->clientStateManagerMock, $this->containerMock, $this->schemaValidatorMock, $this->argumentPreparerMock);
+    $this->processor = new RequestProcessor($this->configuration, $this->registryMock, $this->clientStateManagerMock, $this->schemaValidatorMock, $this->argumentPreparerMock);
 
     $request = createRequest($method, $params);
     $response = $this->processor->process($request, CLIENT_ID_PROC);
@@ -201,7 +187,6 @@ it('fails if capability is disabled', function (string $method, array $params, a
     expectMcpErrorResponse($response, McpServerException::CODE_METHOD_NOT_FOUND);
     expect($response->error->message)->toContain('capability');
     expect($response->error->message)->toContain('is not enabled');
-
 })->with([
     'tools/call' => ['tools/call', [], ['toolsEnabled' => false]],
     'resources/read' => ['resources/read', [], ['resourcesEnabled' => false]],
@@ -234,10 +219,6 @@ it('can list tools using hardcoded limit', function () {
     expect($response->result->tools)->toHaveCount(2); // Assumes limit >= 2
 });
 
-// Other list tests (empty, pagination) remain similar logic, just limit is fixed
-
-// --- Action Methods  ---
-
 it('can call a tool using the container to get handler', function () {
     $this->clientStateManagerMock->allows('isInitialized')->with(CLIENT_ID_PROC)->andReturn(true);
     $toolName = 'myTool';
@@ -261,10 +242,13 @@ it('can call a tool using the container to get handler', function () {
     $handlerInstance->shouldReceive($handlerMethod)->once()->with('v')->andReturn($toolResult);
 
     // Spy/mock formatToolResult
-    /** @var Processor&MockInterface $processorSpy */
-    $processorSpy = Mockery::mock(Processor::class.'[formatToolResult]', [
-        $this->configuration, $this->registryMock, $this->clientStateManagerMock, $this->containerMock,
-        $this->schemaValidatorMock, $this->argumentPreparerMock,
+    /** @var RequestProcessor&MockInterface $processorSpy */
+    $processorSpy = Mockery::mock(RequestProcessor::class . '[formatToolResult]', [
+        $this->configuration,
+        $this->registryMock,
+        $this->clientStateManagerMock,
+        $this->schemaValidatorMock,
+        $this->argumentPreparerMock,
     ])->makePartial()->shouldAllowMockingProtectedMethods();
     $processorSpy->shouldReceive('formatToolResult')->once()->andReturn([new TextContent('Success')]);
 
@@ -274,10 +258,3 @@ it('can call a tool using the container to get handler', function () {
     expect($response->error)->toBeNull();
     expect($response->result)->toBeInstanceOf(CallToolResult::class);
 });
-
-// Other action tests (call errors, read resource, get prompt, subscribe) remain similar logic,
-// ensuring $this->container->get() is mocked correctly for handler resolution.
-
-// Test subscribe/logging capability checks (if flags were added to Configuration VO)
-// test('handleResourceSubscribe fails if capability flag false', function() { ... });
-// test('handleLoggingSetLevel fails if capability flag false', function() { ... });

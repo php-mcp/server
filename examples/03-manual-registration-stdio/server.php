@@ -51,10 +51,10 @@ class StderrLogger extends AbstractLogger
 }
 
 try {
-    $logger = new StderrLogger;
+    $logger = new StderrLogger();
     $logger->info('Starting MCP Manual Registration (Stdio) Server...');
 
-    $container = new BasicContainer;
+    $container = new BasicContainer();
     $container->set(LoggerInterface::class, $logger);
 
     $server = Server::make()
@@ -67,7 +67,7 @@ try {
         ->withResourceTemplate([SimpleHandlers::class, 'getItemDetails'], 'item://{itemId}/details', 'get_item_details', mimeType: 'application/json')
         ->build();
 
-    $transport = new StdioServerTransport;
+    $transport = new StdioServerTransport();
     $server->listen($transport);
 
     $logger->info('Server listener stopped gracefully.');

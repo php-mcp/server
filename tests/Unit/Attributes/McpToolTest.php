@@ -28,7 +28,7 @@ it('instantiates with null values for name and description', function () {
 
 it('instantiates with missing optional arguments', function () {
     // Arrange & Act
-    $attribute = new McpTool; // Use default constructor values
+    $attribute = new McpTool(); // Use default constructor values
 
     // Assert
     expect($attribute->name)->toBeNull();

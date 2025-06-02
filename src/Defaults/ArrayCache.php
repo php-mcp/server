@@ -101,7 +101,7 @@ class ArrayCache implements CacheInterface
             return time() + $ttl;
         }
         if ($ttl instanceof DateInterval) {
-            return (new DateTime)->add($ttl)->getTimestamp();
+            return (new DateTime())->add($ttl)->getTimestamp();
         }
 
         // Invalid TTL type, treat as no expiry

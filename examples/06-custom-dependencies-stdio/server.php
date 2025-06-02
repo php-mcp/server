@@ -69,10 +69,10 @@ class StderrLogger extends AbstractLogger
 }
 
 try {
-    $logger = new StderrLogger;
+    $logger = new StderrLogger();
     $logger->info('Starting MCP Custom Dependencies (Stdio) Server...');
 
-    $container = new BasicContainer;
+    $container = new BasicContainer();
     $container->set(LoggerInterface::class, $logger);
 
     $taskRepo = new Services\InMemoryTaskRepository($logger);
@@ -89,7 +89,7 @@ try {
 
     $server->discover(__DIR__, ['.']);
 
-    $transport = new StdioServerTransport;
+    $transport = new StdioServerTransport();
     $server->listen($transport);
 
     $logger->info('Server listener stopped gracefully.');

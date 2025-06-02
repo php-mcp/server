@@ -20,22 +20,30 @@ use ReflectionClass;
 
 class DummyHandlerClass
 {
-    public function handle() {}
+    public function handle()
+    {
+    }
 }
 class DummyInvokableClass
 {
-    public function __invoke() {}
+    public function __invoke()
+    {
+    }
 }
 class HandlerWithDeps
 {
-    public function __construct(public LoggerInterface $log) {}
+    public function __construct(public LoggerInterface $log)
+    {
+    }
 
     #[McpTool(name: 'depTool')]
-    public function run() {}
+    public function run()
+    {
+    }
 }
 
 beforeEach(function () {
-    $this->builder = new ServerBuilder;
+    $this->builder = new ServerBuilder();
 });
 
 function getBuilderProperty(ServerBuilder $builder, string $propertyName)
@@ -214,8 +222,8 @@ it('uses provided dependencies over defaults when building', function () {
 });
 
 it('successfully creates Server with defaults', function () {
-    $container = new BasicContainer;
-    $container->set(LoggerInterface::class, new NullLogger);
+    $container = new BasicContainer();
+    $container->set(LoggerInterface::class, new NullLogger());
 
     $server = $this->builder
         ->withServerInfo('BuiltServer', '1.0')
@@ -261,8 +269,8 @@ it('successfully creates Server with custom dependencies', function () {
 }); // REMOVED skip
 
 it('throws DefinitionException if manual tool registration fails', function () {
-    $container = new BasicContainer;
-    $container->set(LoggerInterface::class, new NullLogger);
+    $container = new BasicContainer();
+    $container->set(LoggerInterface::class, new NullLogger());
 
     $this->builder
         ->withServerInfo('FailRegServer', '1.0')
@@ -274,8 +282,8 @@ it('throws DefinitionException if manual tool registration fails', function () {
 })->throws(DefinitionException::class, '1 error(s) occurred during manual element registration');
 
 it('throws DefinitionException if manual resource registration fails', function () {
-    $container = new BasicContainer;
-    $container->set(LoggerInterface::class, new NullLogger);
+    $container = new BasicContainer();
+    $container->set(LoggerInterface::class, new NullLogger());
 
     $this->builder
         ->withServerInfo('FailRegServer', '1.0')

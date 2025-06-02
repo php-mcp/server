@@ -135,16 +135,10 @@ The server uses a decoupled architecture:
 
 *   **`ServerBuilder`:** Fluent interface (`Server::make()->...`) for configuration. Collects server identity, dependencies (Logger, Cache, Container, Loop), capabilities, and **manual** element registrations. Calls `build()` to create the `Server` instance.
 *   **`Configuration`:** A value object holding the resolved configuration and dependencies.
-*   **`Server`:** The central object holding the configured state and core logic components (`Registry`, `Processor`, `ClientStateManager`, `Configuration`). It's transport-agnostic. Provides methods to `discover()` elements and `listen()` via a specific transport.
+*   **`Server`:** The central object holding the configured state and core logic components (`Registry`, `Protocol`, `Configuration`). It's transport-agnostic. Provides methods to `discover()` elements and `listen()` via a specific transport.
+*   **`Protocol`:** Internal bridge listening to transport events and processes JSON-RPC messages from the transport.
 *   **`Registry`:** Stores MCP element definitions. **Distinguishes between manually registered and discovered elements.** Handles optional caching of *discovered* elements only. Loads cached discovered elements upon instantiation if available.
-*   **`Processor`:** Processes parsed JSON-RPC requests/notifications, executes handlers (via DI Container), formats results, handles errors.
-*   **`SchemaGenerator`:** Generates JSON Schema for method parameters from PHP type hints and DocBlocks.
-*   **`SchemaValidator`:** Validates incoming data against the generated JSON Schema.
-*   **`ClientStateManager`:** Manages client runtime state (initialization, subscriptions, activity) using the configured cache.
 *   **`ServerTransportInterface`:** Event-driven interface for server-side transports (`StdioServerTransport`, `HttpServerTransport`). Handles communication, emits events.
-*   **`Protocol`:** Internal bridge listening to transport events, interacting with `Processor` and `ClientStateManager`.
-*   **`discover()` Method:** An **explicit** method on the `Server` instance to trigger attribute discovery. Takes path configurations as arguments. By default, it clears previously discovered/cached elements before scanning and saves the new results to cache (if enabled).
-*   **`listen()` Method:** Starts the server using a specific transport. Binds the `Protocol`, starts the transport listener, and **runs the event loop (blocking)**. Performs a pre-check and warns if no elements are registered and discovery hasn't run.
 
 ## Defining MCP Elements
 

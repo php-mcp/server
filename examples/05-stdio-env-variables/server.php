@@ -51,7 +51,7 @@ class StderrLogger extends AbstractLogger
 }
 
 try {
-    $logger = new StderrLogger;
+    $logger = new StderrLogger();
     $logger->info('Starting MCP Stdio Environment Variable Example Server...');
 
     $server = Server::make()
@@ -61,7 +61,7 @@ try {
 
     $server->discover(__DIR__, ['.']);
 
-    $transport = new StdioServerTransport;
+    $transport = new StdioServerTransport();
     $server->listen($transport);
 
     $logger->info('Server listener stopped gracefully.');

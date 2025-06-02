@@ -249,11 +249,11 @@ test('handles empty schema (allows anything)', function () {
 
 test('validates schema with string format constraints from Schema attribute', function () {
     $emailSchema = (new Schema(format: Format::EMAIL))->toArray();
-    
+
     // Valid email
     $validErrors = $this->validator->validateAgainstJsonSchema('user@example.com', $emailSchema);
     expect($validErrors)->toBeEmpty();
-    
+
     // Invalid email
     $invalidErrors = $this->validator->validateAgainstJsonSchema('not-an-email', $emailSchema);
     expect($invalidErrors)->not->toBeEmpty()
@@ -263,16 +263,16 @@ test('validates schema with string format constraints from Schema attribute', fu
 
 test('validates schema with string length constraints from Schema attribute', function () {
     $passwordSchema = (new Schema(minLength: 8, pattern: '^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$'))->toArray();
-    
+
     // Valid password (meets length and pattern)
     $validErrors = $this->validator->validateAgainstJsonSchema('Password123', $passwordSchema);
     expect($validErrors)->toBeEmpty();
-    
+
     // Invalid - too short
     $shortErrors = $this->validator->validateAgainstJsonSchema('Pass1', $passwordSchema);
     expect($shortErrors)->not->toBeEmpty()
         ->and($shortErrors[0]['keyword'])->toBe('minLength');
-        
+
     // Invalid - no digit
     $noDigitErrors = $this->validator->validateAgainstJsonSchema('PasswordXYZ', $passwordSchema);
     expect($noDigitErrors)->not->toBeEmpty()
@@ -281,16 +281,16 @@ test('validates schema with string length constraints from Schema attribute', fu
 
 test('validates schema with numeric constraints from Schema attribute', function () {
     $ageSchema = (new Schema(minimum: 18, maximum: 120))->toArray();
-    
+
     // Valid age
     $validErrors = $this->validator->validateAgainstJsonSchema(25, $ageSchema);
     expect($validErrors)->toBeEmpty();
-    
+
     // Invalid - too low
     $tooLowErrors = $this->validator->validateAgainstJsonSchema(15, $ageSchema);
     expect($tooLowErrors)->not->toBeEmpty()
         ->and($tooLowErrors[0]['keyword'])->toBe('minimum');
-        
+
     // Invalid - too high
     $tooHighErrors = $this->validator->validateAgainstJsonSchema(150, $ageSchema);
     expect($tooHighErrors)->not->toBeEmpty()
@@ -299,16 +299,16 @@ test('validates schema with numeric constraints from Schema attribute', function
 
 test('validates schema with array constraints from Schema attribute', function () {
     $tagsSchema = (new Schema(uniqueItems: true, minItems: 2))->toArray();
-    
+
     // Valid tags array
     $validErrors = $this->validator->validateAgainstJsonSchema(['php', 'javascript', 'python'], $tagsSchema);
     expect($validErrors)->toBeEmpty();
-    
+
     // Invalid - duplicate items
     $duplicateErrors = $this->validator->validateAgainstJsonSchema(['php', 'php', 'javascript'], $tagsSchema);
     expect($duplicateErrors)->not->toBeEmpty()
         ->and($duplicateErrors[0]['keyword'])->toBe('uniqueItems');
-        
+
     // Invalid - too few items
     $tooFewErrors = $this->validator->validateAgainstJsonSchema(['php'], $tagsSchema);
     expect($tooFewErrors)->not->toBeEmpty()
@@ -324,7 +324,7 @@ test('validates schema with object constraints from Schema attribute', function 
         ],
         required: ['name', 'email']
     ))->toArray();
-    
+
     // Valid user object
     $validUser = [
         'name' => 'John',
@@ -333,7 +333,7 @@ test('validates schema with object constraints from Schema attribute', function 
     ];
     $validErrors = $this->validator->validateAgainstJsonSchema($validUser, $userSchema);
     expect($validErrors)->toBeEmpty();
-    
+
     // Invalid - missing required email
     $missingEmailUser = [
         'name' => 'John',
@@ -342,7 +342,7 @@ test('validates schema with object constraints from Schema attribute', function 
     $missingErrors = $this->validator->validateAgainstJsonSchema($missingEmailUser, $userSchema);
     expect($missingErrors)->not->toBeEmpty()
         ->and($missingErrors[0]['keyword'])->toBe('required');
-        
+
     // Invalid - name too short
     $shortNameUser = [
         'name' => 'J',
@@ -352,7 +352,7 @@ test('validates schema with object constraints from Schema attribute', function 
     $nameErrors = $this->validator->validateAgainstJsonSchema($shortNameUser, $userSchema);
     expect($nameErrors)->not->toBeEmpty()
         ->and($nameErrors[0]['keyword'])->toBe('minLength');
-        
+
     // Invalid - age too low
     $youngUser = [
         'name' => 'John',
@@ -367,14 +367,16 @@ test('validates schema with object constraints from Schema attribute', function 
 test('validates schema with nested constraints from Schema attribute', function () {
     $orderSchema = (new Schema(
         properties: [
-            new Property('customer', 
+            new Property(
+                'customer',
                 properties: [
                     new Property('id', pattern: '^CUS-[0-9]{6}$'),
                     new Property('name', minLength: 2)
                 ],
                 required: ['id']
             ),
-            new Property('items', 
+            new Property(
+                'items',
                 minItems: 1,
                 items: new ArrayItems(
                     properties: [
@@ -387,7 +389,7 @@ test('validates schema with nested constraints from Schema attribute', function 
         ],
         required: ['customer', 'items']
     ))->toArray();
-    
+
     // Valid order
     $validOrder = [
         'customer' => [
@@ -403,7 +405,7 @@ test('validates schema with nested constraints from Schema attribute', function 
     ];
     $validErrors = $this->validator->validateAgainstJsonSchema($validOrder, $orderSchema);
     expect($validErrors)->toBeEmpty();
-    
+
     // Invalid - bad customer ID format
     $badCustomerIdOrder = [
         'customer' => [
@@ -420,7 +422,7 @@ test('validates schema with nested constraints from Schema attribute', function 
     $customerIdErrors = $this->validator->validateAgainstJsonSchema($badCustomerIdOrder, $orderSchema);
     expect($customerIdErrors)->not->toBeEmpty()
         ->and($customerIdErrors[0]['keyword'])->toBe('pattern');
-        
+
     // Invalid - empty items array
     $emptyItemsOrder = [
         'customer' => [
@@ -432,7 +434,7 @@ test('validates schema with nested constraints from Schema attribute', function 
     $emptyItemsErrors = $this->validator->validateAgainstJsonSchema($emptyItemsOrder, $orderSchema);
     expect($emptyItemsErrors)->not->toBeEmpty()
         ->and($emptyItemsErrors[0]['keyword'])->toBe('minItems');
-        
+
     // Invalid - missing required property in items
     $missingProductIdOrder = [
         'customer' => [
