@@ -65,7 +65,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
         private readonly string $mcpPathPrefix = 'mcp', // e.g., /mcp/sse, /mcp/message
         private readonly ?array $sslContext = null // For enabling HTTPS
     ) {
-        $this->logger = new NullLogger;
+        $this->logger = new NullLogger();
         $this->loop = Loop::get();
         $this->ssePath = '/'.trim($mcpPathPrefix, '/').'/sse';
         $this->messagePath = '/'.trim($mcpPathPrefix, '/').'/message';
@@ -159,7 +159,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
         $clientId = 'sse_'.bin2hex(random_bytes(16));
         $this->logger->info('New SSE connection', ['clientId' => $clientId]);
 
-        $sseStream = new ThroughStream;
+        $sseStream = new ThroughStream();
 
         $sseStream->on('close', function () use ($clientId) {
             $this->logger->info('SSE stream closed', ['clientId' => $clientId]);
@@ -265,7 +265,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
             return \React\Promise\resolve(null);
         }
 
-        $deferred = new Deferred;
+        $deferred = new Deferred();
         $written = $this->sendSseEvent($stream, 'message', $jsonData);
 
         if ($written) {

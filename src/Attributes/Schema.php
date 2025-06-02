@@ -13,7 +13,7 @@ class Schema
 {
     /** @var Property[] */
     protected array $properties = [];
-    
+
     /**
      * @param string|null $format String format (email, date-time, uri, etc.)
      * @param int|null $minLength Minimum string length
@@ -63,26 +63,52 @@ class Schema
     public function toArray(): array
     {
         $schema = [];
-        
+
         // String constraints
-        if ($this->format !== null) $schema['format'] = $this->format;
-        if ($this->minLength !== null) $schema['minLength'] = $this->minLength;
-        if ($this->maxLength !== null) $schema['maxLength'] = $this->maxLength;
-        if ($this->pattern !== null) $schema['pattern'] = $this->pattern;
-        
+        if ($this->format !== null) {
+            $schema['format'] = $this->format;
+        }
+        if ($this->minLength !== null) {
+            $schema['minLength'] = $this->minLength;
+        }
+        if ($this->maxLength !== null) {
+            $schema['maxLength'] = $this->maxLength;
+        }
+        if ($this->pattern !== null) {
+            $schema['pattern'] = $this->pattern;
+        }
+
         // Numeric constraints
-        if ($this->minimum !== null) $schema['minimum'] = $this->minimum;
-        if ($this->maximum !== null) $schema['maximum'] = $this->maximum;
-        if ($this->exclusiveMinimum !== null) $schema['exclusiveMinimum'] = $this->exclusiveMinimum;
-        if ($this->exclusiveMaximum !== null) $schema['exclusiveMaximum'] = $this->exclusiveMaximum;
-        if ($this->multipleOf !== null) $schema['multipleOf'] = $this->multipleOf;
-        
+        if ($this->minimum !== null) {
+            $schema['minimum'] = $this->minimum;
+        }
+        if ($this->maximum !== null) {
+            $schema['maximum'] = $this->maximum;
+        }
+        if ($this->exclusiveMinimum !== null) {
+            $schema['exclusiveMinimum'] = $this->exclusiveMinimum;
+        }
+        if ($this->exclusiveMaximum !== null) {
+            $schema['exclusiveMaximum'] = $this->exclusiveMaximum;
+        }
+        if ($this->multipleOf !== null) {
+            $schema['multipleOf'] = $this->multipleOf;
+        }
+
         // Array constraints
-        if ($this->items !== null) $schema['items'] = $this->items->toArray();
-        if ($this->minItems !== null) $schema['minItems'] = $this->minItems;
-        if ($this->maxItems !== null) $schema['maxItems'] = $this->maxItems;
-        if ($this->uniqueItems !== null) $schema['uniqueItems'] = $this->uniqueItems;
-        
+        if ($this->items !== null) {
+            $schema['items'] = $this->items->toArray();
+        }
+        if ($this->minItems !== null) {
+            $schema['minItems'] = $this->minItems;
+        }
+        if ($this->maxItems !== null) {
+            $schema['maxItems'] = $this->maxItems;
+        }
+        if ($this->uniqueItems !== null) {
+            $schema['uniqueItems'] = $this->uniqueItems;
+        }
+
         // Object constraints
         if (!empty($this->properties)) {
             $props = [];
@@ -91,9 +117,11 @@ class Schema
             }
             $schema['properties'] = $props;
         }
-        
-        if ($this->required !== null) $schema['required'] = $this->required;
-        
+
+        if ($this->required !== null) {
+            $schema['required'] = $this->required;
+        }
+
         if ($this->additionalProperties !== null) {
             if ($this->additionalProperties instanceof self) {
                 $schema['additionalProperties'] = $this->additionalProperties->toArray();
@@ -101,11 +129,15 @@ class Schema
                 $schema['additionalProperties'] = $this->additionalProperties;
             }
         }
-        
+
         // General constraints
-        if ($this->enum !== null) $schema['enum'] = $this->enum;
-        if ($this->default !== null) $schema['default'] = $this->default;
-        
+        if ($this->enum !== null) {
+            $schema['enum'] = $this->enum;
+        }
+        if ($this->default !== null) {
+            $schema['default'] = $this->default;
+        }
+
         return $schema;
     }
-} 
+}

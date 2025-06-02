@@ -56,4 +56,4 @@ class Property extends Schema
             default: $default,
         );
     }
-} 
+}

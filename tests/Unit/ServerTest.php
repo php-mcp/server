@@ -15,11 +15,9 @@ use PhpMcp\Server\Processor;
 use PhpMcp\Server\Protocol;
 use PhpMcp\Server\Registry;
 use PhpMcp\Server\Server;
-use PhpMcp\Server\State\ClientStateManager;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
-use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
 
 beforeEach(function () {
@@ -41,11 +39,12 @@ beforeEach(function () {
         $container
     );
 
+
     $this->registry = Mockery::mock(Registry::class);
     $this->processor = Mockery::mock(Processor::class);
-    $this->clientStateManager = Mockery::mock(ClientStateManager::class);
+    $this->protocol = Mockery::mock(Protocol::class);
 
-    $this->server = new Server($this->configuration, $this->registry, $this->processor, $this->clientStateManager);
+    $this->server = new Server($this->configuration, $this->registry, $this->protocol);
 
     $this->registry->allows('hasElements')->withNoArgs()->andReturn(false)->byDefault();
     $this->registry->allows('discoveryRanOrCached')->withNoArgs()->andReturn(false)->byDefault();
@@ -61,15 +60,7 @@ beforeEach(function () {
 it('provides getters for core components', function () {
     expect($this->server->getConfiguration())->toBe($this->configuration);
     expect($this->server->getRegistry())->toBe($this->registry);
-    expect($this->server->getProcessor())->toBe($this->processor);
-    expect($this->server->getClientStateManager())->toBe($this->clientStateManager);
-});
-
-it('gets protocol handler lazily', function () {
-    $handler1 = $this->server->getProtocol();
-    $handler2 = $this->server->getProtocol();
-    expect($handler1)->toBeInstanceOf(Protocol::class);
-    expect($handler2)->toBe($handler1);
+    expect($this->server->getProtocol())->toBe($this->protocol);
 });
 
 it('skips discovery if already run and not forced', function () {
@@ -134,7 +125,6 @@ it('throws DiscoveryException if discoverer fails', function () {
     $this->registry->shouldReceive('saveDiscoveredElementsToCache')->once()->andThrow($exception);
 
     $this->server->discover($basePath);
-
 })->throws(DiscoveryException::class, 'Element discovery failed: Filesystem error');
 
 it('resets discoveryRan flag on failure', function () {
@@ -159,21 +149,18 @@ it('resets discoveryRan flag on failure', function () {
 it('throws exception if already listening', function () {
     $transport = Mockery::mock(ServerTransportInterface::class);
 
-    // Simulate the first listen call succeeding and setting the flag
     $transport->shouldReceive('setLogger', 'setLoop', 'on', 'once', 'removeListener', 'close')->withAnyArgs()->byDefault();
     $transport->shouldReceive('listen')->once(); // Expect listen on first call
     $transport->shouldReceive('emit')->withAnyArgs()->byDefault(); // Allow emit
     $this->loop->shouldReceive('run')->once()->andReturnUsing(fn () => $transport->emit('close')); // Simulate loop run for first call
+    $this->protocol->shouldReceive('bindTransport', 'unbindTransport')->once();
 
-    // Make the first call successful
     $this->server->listen($transport);
 
-    // Reset mocks for the second call if necessary (though Mockery should handle it)
-    // Now, mark as listening and try again
     $reflector = new \ReflectionClass($this->server);
     $prop = $reflector->getProperty('isListening');
     $prop->setAccessible(true);
-    $prop->setValue($this->server, true); // Ensure flag is set
+    $prop->setValue($this->server, true);
 
     // Act & Assert: Second call throws
     expect(fn () => $this->server->listen($transport))
@@ -192,6 +179,7 @@ it('warns if no elements and discovery not run when trying to listen', function 
     $transport->shouldReceive('setLogger', 'setLoop', 'on', 'once', 'removeListener', 'close')->withAnyArgs();
     $transport->shouldReceive('listen')->once();
     $transport->shouldReceive('emit')->withAnyArgs()->byDefault(); // Allow emit
+    $this->protocol->shouldReceive('bindTransport', 'unbindTransport')->once();
     $this->loop->shouldReceive('run')->once()->andReturnUsing(fn () => $transport->emit('close'));
 
     $this->server->listen($transport);
@@ -200,7 +188,6 @@ it('warns if no elements and discovery not run when trying to listen', function 
 it('warns if no elements found AFTER discovery when trying to listen', function () {
     $transport = Mockery::mock(ServerTransportInterface::class);
 
-    // Setup: No elements, discoveryRan=true
     $this->registry->shouldReceive('hasElements')->andReturn(false);
     $reflector = new \ReflectionClass($this->server);
     $prop = $reflector->getProperty('discoveryRan');
@@ -212,6 +199,7 @@ it('warns if no elements found AFTER discovery when trying to listen', function 
     $transport->shouldReceive('setLogger', 'setLoop', 'on', 'once', 'removeListener', 'close')->withAnyArgs();
     $transport->shouldReceive('listen')->once();
     $transport->shouldReceive('emit')->withAnyArgs()->byDefault();
+    $this->protocol->shouldReceive('bindTransport', 'unbindTransport')->once();
     $this->loop->shouldReceive('run')->once()->andReturnUsing(fn () => $transport->emit('close'));
 
     $this->server->listen($transport);
@@ -220,15 +208,14 @@ it('warns if no elements found AFTER discovery when trying to listen', function 
 it('does not warn if elements are present when trying to listen', function () {
     $transport = Mockery::mock(ServerTransportInterface::class);
 
-    // Setup: HAS elements
     $this->registry->shouldReceive('hasElements')->andReturn(true);
 
-    $this->logger->shouldNotReceive('warning'); // Expect NO warning
+    $this->logger->shouldNotReceive('warning');
 
-    // --- FIX: Allow necessary mock calls ---
     $transport->shouldReceive('setLogger', 'setLoop', 'on', 'once', 'removeListener', 'close')->withAnyArgs();
     $transport->shouldReceive('listen')->once();
     $transport->shouldReceive('emit')->withAnyArgs()->byDefault();
+    $this->protocol->shouldReceive('bindTransport', 'unbindTransport')->once();
     $this->loop->shouldReceive('run')->once()->andReturnUsing(fn () => $transport->emit('close'));
 
     $this->server->listen($transport);
@@ -240,29 +227,9 @@ it('injects logger and loop into aware transports when listening', function () {
     $transport->shouldReceive('setLoop')->with($this->loop)->once();
     $transport->shouldReceive('on', 'once', 'removeListener', 'close')->withAnyArgs();
     $transport->shouldReceive('listen')->once();
-    $transport->shouldReceive('emit')->withAnyArgs()->byDefault(); // Allow emit
+    $transport->shouldReceive('emit')->withAnyArgs()->byDefault();
+    $this->protocol->shouldReceive('bindTransport', 'unbindTransport')->once();
     $this->loop->shouldReceive('run')->once()->andReturnUsing(fn () => $transport->emit('close'));
 
     $this->server->listen($transport);
-});
-
-it('binds protocol handler and starts transport listen', function () {
-    $transport = Mockery::mock(ServerTransportInterface::class);
-    // Get the real handler instance but spy on it
-    $protocolSpy = Mockery::spy($this->server->getProtocol());
-    $reflector = new \ReflectionClass($this->server);
-    $prop = $reflector->getProperty('protocol');
-    $prop->setAccessible(true);
-    $prop->setValue($this->server, $protocolSpy); // Inject spy
-
-    // Expectations
-    $protocolSpy->shouldReceive('bindTransport')->with($transport)->once();
-    $transport->shouldReceive('listen')->once();
-    $transport->shouldReceive('on', 'once', 'removeListener', 'close')->withAnyArgs(); // Allow listeners
-    $transport->shouldReceive('emit')->withAnyArgs()->byDefault(); // Allow emit
-    $this->loop->shouldReceive('run')->once()->andReturnUsing(fn () => $transport->emit('close'));
-    $protocolSpy->shouldReceive('unbindTransport')->once(); // Expect unbind on close
-
-    $this->server->listen($transport);
-    // Mockery verifies expectations
 });

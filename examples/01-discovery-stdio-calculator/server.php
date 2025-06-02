@@ -56,7 +56,7 @@ class StderrLogger extends AbstractLogger
 }
 
 try {
-    $logger = new StderrLogger;
+    $logger = new StderrLogger();
     $logger->info('Starting MCP Stdio Calculator Server...');
 
     $server = Server::make()
@@ -66,7 +66,7 @@ try {
 
     $server->discover(__DIR__, ['.']);
 
-    $transport = new StdioServerTransport;
+    $transport = new StdioServerTransport();
 
     $server->listen($transport);
 

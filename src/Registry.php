@@ -107,10 +107,10 @@ class Registry
 
     private function initializeCollections(): void
     {
-        $this->tools = new ArrayObject;
-        $this->resources = new ArrayObject;
-        $this->prompts = new ArrayObject;
-        $this->resourceTemplates = new ArrayObject;
+        $this->tools = new ArrayObject();
+        $this->resources = new ArrayObject();
+        $this->prompts = new ArrayObject();
+        $this->resourceTemplates = new ArrayObject();
 
         $this->manualToolNames = [];
         $this->manualResourceUris = [];

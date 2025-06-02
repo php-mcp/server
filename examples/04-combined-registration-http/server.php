@@ -58,10 +58,10 @@ class StderrLogger extends AbstractLogger
 }
 
 try {
-    $logger = new StderrLogger;
+    $logger = new StderrLogger();
     $logger->info('Starting MCP Combined Registration (HTTP) Server...');
 
-    $container = new BasicContainer;
+    $container = new BasicContainer();
     $container->set(LoggerInterface::class, $logger); // ManualHandlers needs LoggerInterface
 
     $server = Server::make()

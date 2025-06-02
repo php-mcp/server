@@ -55,4 +55,4 @@ class ArrayItems extends Schema
             default: $default,
         );
     }
-} 
+}

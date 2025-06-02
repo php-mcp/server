@@ -32,25 +32,27 @@ class ClientStateManager
         $this->cachePrefix = $clientDataPrefix;
         $this->cacheTtl = max(60, $cacheTtl);
 
-        $this->cache ??= new ArrayCache;
+        $this->cache ??= new ArrayCache();
     }
 
     private function getClientStateCacheKey(string $clientId): string
     {
-        return $this->cachePrefix.$clientId;
+        return $this->cachePrefix . $clientId;
     }
 
     private function getResourceSubscribersCacheKey(string $uri): string
     {
-        return self::GLOBAL_RESOURCE_SUBSCRIBERS_KEY_PREFIX.sha1($uri);
+        return self::GLOBAL_RESOURCE_SUBSCRIBERS_KEY_PREFIX . sha1($uri);
     }
 
     private function getActiveClientsCacheKey(): string
     {
-        return $this->cachePrefix.self::GLOBAL_ACTIVE_CLIENTS_KEY;
+        return $this->cachePrefix . self::GLOBAL_ACTIVE_CLIENTS_KEY;
     }
 
-    /** Fetches or creates a ClientState object for a client. */
+    /**
+     * Fetches or creates a ClientState object for a client.
+     */
     private function getClientState(string $clientId, bool $createIfNotFound = false): ?ClientState
     {
         $key = $this->getClientStateCacheKey($clientId);
@@ -76,7 +78,9 @@ class ClientStateManager
         return null;
     }
 
-    /** Saves a ClientState object to the cache. */
+    /**
+     * Saves a ClientState object to the cache.
+     */
     private function saveClientState(string $clientId, ClientState $state): bool
     {
         $key = $this->getClientStateCacheKey($clientId);
@@ -92,8 +96,9 @@ class ClientStateManager
         }
     }
 
-    // --- Initialization ---
-
+    /**
+     * Checks if a client has been initialized.
+     */
     public function isInitialized(string $clientId): bool
     {
         $state = $this->getClientState($clientId);
@@ -101,6 +106,9 @@ class ClientStateManager
         return $state !== null && $state->isInitialized;
     }
 
+    /**
+     * Marks a client as initialized.
+     */
     public function markInitialized(string $clientId): void
     {
         $state = $this->getClientState($clientId, true);
@@ -116,6 +124,9 @@ class ClientStateManager
         }
     }
 
+    /**
+     * Stores client information.
+     */
     public function storeClientInfo(array $clientInfo, string $protocolVersion, string $clientId): void
     {
         $state = $this->getClientState($clientId, true);
@@ -127,18 +138,25 @@ class ClientStateManager
         }
     }
 
+    /**
+     * Gets client information.
+     */
     public function getClientInfo(string $clientId): ?array
     {
         return $this->getClientState($clientId)?->clientInfo;
     }
 
+    /**
+     * Gets the protocol version for a client.
+     */
     public function getProtocolVersion(string $clientId): ?string
     {
         return $this->getClientState($clientId)?->protocolVersion;
     }
 
-    // --- Subscriptions ---
-
+    /**
+     * Adds a resource subscription for a client.
+     */
     public function addResourceSubscription(string $clientId, string $uri): void
     {
         $clientState = $this->getClientState($clientId, true);
@@ -165,6 +183,9 @@ class ClientStateManager
         }
     }
 
+    /**
+     * Removes a resource subscription for a client.
+     */
     public function removeResourceSubscription(string $clientId, string $uri): void
     {
         $clientState = $this->getClientState($clientId);
@@ -198,6 +219,9 @@ class ClientStateManager
         }
     }
 
+    /**
+     * Removes all resource subscriptions for a client.
+     */
     public function removeAllResourceSubscriptions(string $clientId): void
     {
         $clientState = $this->getClientState($clientId);
@@ -230,7 +254,11 @@ class ClientStateManager
         }
     }
 
-    /** @return array<string> Client IDs subscribed to the URI */
+    /**
+     * Gets the client IDs subscribed to a resource.
+     *
+     * @return string[] Client IDs subscribed to the URI
+     */
     public function getResourceSubscribers(string $uri): array
     {
         $resourceSubKey = $this->getResourceSubscribersCacheKey($uri);
@@ -245,6 +273,9 @@ class ClientStateManager
         }
     }
 
+    /**
+     * Checks if a client is subscribed to a resource.
+     */
     public function isSubscribedToResource(string $clientId, string $uri): bool
     {
         $resourceSubKey = $this->getResourceSubscribersCacheKey($uri);
@@ -260,8 +291,9 @@ class ClientStateManager
         }
     }
 
-    // --- Message Queue ---
-
+    /**
+     * Queues a message for a client.
+     */
     public function queueMessage(string $clientId, Message|array $message): void
     {
         $state = $this->getClientState($clientId, true);
@@ -289,6 +321,9 @@ class ClientStateManager
         }
     }
 
+    /**
+     * Queues a message for all active clients.
+     */
     public function queueMessageForAll(Message|array $message): void
     {
         $clients = $this->getActiveClients();
@@ -298,7 +333,11 @@ class ClientStateManager
         }
     }
 
-    /** @return array<array> */
+    /**
+     * Gets the queued messages for a client.
+     *
+     * @return array<array> Queued messages
+     */
     public function getQueuedMessages(string $clientId): array
     {
         $state = $this->getClientState($clientId);
@@ -313,8 +352,6 @@ class ClientStateManager
 
         return $messages;
     }
-
-    // --- Log Level Management ---
 
     /**
      * Sets the requested log level for a specific client.
@@ -348,8 +385,9 @@ class ClientStateManager
         return $this->getClientState($clientId)?->requestedLogLevel;
     }
 
-    // --- Client Management ---
-
+    /**
+     * Cleans up a client's state.
+     */
     public function cleanupClient(string $clientId, bool $removeFromActiveList = true): void
     {
         $this->removeAllResourceSubscriptions($clientId);
@@ -377,7 +415,9 @@ class ClientStateManager
         $this->logger->info('Client state cleaned up.', ['client_id' => $clientId]);
     }
 
-    /** Updates the global active client list with current timestamp */
+    /**
+     * Updates the global active client list with current timestamp
+     */
     private function updateGlobalActiveClientTimestamp(string $clientId): void
     {
         try {
@@ -391,7 +431,9 @@ class ClientStateManager
         }
     }
 
-    /** Updates client's own lastActivityTimestamp AND the global list */
+    /**
+     * Updates client's own lastActivityTimestamp AND the global list
+     */
     public function updateClientActivity(string $clientId): void
     {
         $state = $this->getClientState($clientId, true);
@@ -403,7 +445,11 @@ class ClientStateManager
         $this->updateGlobalActiveClientTimestamp($clientId);
     }
 
-    /** @return array<string> Client IDs from the global active list */
+    /**
+     * Gets the active clients from the global active list.
+     *
+     * @return string[] Client IDs from the global active list
+     */
     public function getActiveClients(int $inactiveThreshold = 300): array
     {
         try {
@@ -451,7 +497,9 @@ class ClientStateManager
         }
     }
 
-    /** Retrieves the last activity timestamp from the global list. */
+    /**
+     * Retrieves the last activity timestamp from the global list.
+     */
     public function getLastActivityTime(string $clientId): ?int
     {
         try {
@@ -461,7 +509,10 @@ class ClientStateManager
             $lastSeen = $activeClients[$clientId] ?? null;
 
             return is_int($lastSeen) ? $lastSeen : null;
-        } catch (Throwable $e) { /* log error */ return null;
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to get last activity time.', ['clientId' => $clientId, 'exception' => $e]);
+
+            return null;
         }
     }
 }

@@ -12,13 +12,11 @@ use PhpMcp\Server\Tests\Mocks\SupportStubs\SchemaAttributeTestStub;
 use PhpMcp\Server\Tests\Mocks\SupportStubs\DocBlockArrayTestStub;
 use ReflectionMethod;
 
-// --- Setup ---
 beforeEach(function () {
     $this->docBlockParserMock = Mockery::mock(DocBlockParser::class);
     $this->schemaGenerator = new SchemaGenerator($this->docBlockParserMock);
 });
 
-// --- Helper Function for Mocking ---
 function setupDocBlockExpectations(Mockery\MockInterface $parserMock, ReflectionMethod $method): void
 {
     $docComment = $method->getDocComment() ?: '';
@@ -29,7 +27,7 @@ function setupDocBlockExpectations(Mockery\MockInterface $parserMock, Reflection
     if ($realDocBlock) {
         foreach ($realDocBlock->getTagsByName('param') as $tag) {
             if ($tag instanceof Param && $tag->getVariableName()) {
-                $realParamTags['$'.$tag->getVariableName()] = $tag;
+                $realParamTags['$' . $tag->getVariableName()] = $tag;
             }
         }
     }
@@ -38,7 +36,7 @@ function setupDocBlockExpectations(Mockery\MockInterface $parserMock, Reflection
     // Set expectations for each parameter based on whether it has a real tag
     foreach ($method->getParameters() as $rp) {
         $paramName = $rp->getName();
-        $tagName = '$'.$paramName;
+        $tagName = '$' . $paramName;
         $tag = $realParamTags[$tagName] ?? null;
 
         // Mock the calls the generator will make for this specific parameter
@@ -50,7 +48,6 @@ function setupDocBlockExpectations(Mockery\MockInterface $parserMock, Reflection
     }
 }
 
-// --- Test Cases ---
 
 test('generates empty schema for method with no parameters', function () {
     $method = new ReflectionMethod(SchemaGeneratorTestStub::class, 'noParams');
@@ -58,7 +55,7 @@ test('generates empty schema for method with no parameters', function () {
 
     $schema = $this->schemaGenerator->fromMethodParameters($method);
 
-    expect($schema)->toEqual(['type' => 'object', 'properties' => new \stdClass]);
+    expect($schema)->toEqual(['type' => 'object', 'properties' => new \stdClass()]);
     expect($schema)->not->toHaveKey('required');
 });
 
@@ -220,12 +217,12 @@ test('generates schema with string format constraints from Schema attribute', fu
 
     expect($schema['properties']['email'])->toHaveKey('format')
         ->and($schema['properties']['email']['format'])->toBe('email');
-    
+
     expect($schema['properties']['password'])->toHaveKey('minLength')
         ->and($schema['properties']['password']['minLength'])->toBe(8);
     expect($schema['properties']['password'])->toHaveKey('pattern')
         ->and($schema['properties']['password']['pattern'])->toBe('^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$');
-    
+
     // Regular parameter should not have format constraints
     expect($schema['properties']['code'])->not->toHaveKey('format');
     expect($schema['properties']['code'])->not->toHaveKey('minLength');
@@ -316,20 +313,20 @@ test('generates schema with nested constraints from Schema attribute', function 
     // Check top level properties exist
     expect($schema['properties']['order'])->toHaveKey('properties');
     expect($schema['properties']['order']['properties'])->toHaveKeys(['customer', 'items']);
-    
+
     // Check customer properties
     $customer = $schema['properties']['order']['properties']['customer'];
     expect($customer)->toHaveKey('properties');
     expect($customer['properties'])->toHaveKeys(['id', 'name']);
     expect($customer['properties']['id'])->toHaveKey('pattern');
     expect($customer['required'])->toContain('id');
-    
+
     // Check items properties
     $items = $schema['properties']['order']['properties']['items'];
     expect($items)->toHaveKey('minItems')
         ->and($items['minItems'])->toBe(1);
     expect($items)->toHaveKey('items');
-    
+
     // Check items schema
     $itemsSchema = $items['items'];
     expect($itemsSchema)->toHaveKey('properties');
@@ -378,19 +375,19 @@ test('parses simple array[] syntax correctly', function () {
     // Check each parameter type is correctly inferred
     expect($schema['properties']['strings'])->toHaveKey('items')
         ->and($schema['properties']['strings']['items']['type'])->toBe('string');
-        
+
     expect($schema['properties']['integers'])->toHaveKey('items')
         ->and($schema['properties']['integers']['items']['type'])->toBe('integer');
-        
+
     expect($schema['properties']['booleans'])->toHaveKey('items')
         ->and($schema['properties']['booleans']['items']['type'])->toBe('boolean');
-        
+
     expect($schema['properties']['floats'])->toHaveKey('items')
         ->and($schema['properties']['floats']['items']['type'])->toBe('number');
-        
+
     expect($schema['properties']['objects'])->toHaveKey('items')
         ->and($schema['properties']['objects']['items']['type'])->toBe('object');
-        
+
     expect($schema['properties']['dateTimeInstances'])->toHaveKey('items')
         ->and($schema['properties']['dateTimeInstances']['items']['type'])->toBe('object');
 });
@@ -404,19 +401,19 @@ test('parses array<T> generic syntax correctly', function () {
     // Check each parameter type is correctly inferred
     expect($schema['properties']['strings'])->toHaveKey('items')
         ->and($schema['properties']['strings']['items']['type'])->toBe('string');
-        
+
     expect($schema['properties']['integers'])->toHaveKey('items')
         ->and($schema['properties']['integers']['items']['type'])->toBe('integer');
-        
+
     expect($schema['properties']['booleans'])->toHaveKey('items')
         ->and($schema['properties']['booleans']['items']['type'])->toBe('boolean');
-        
+
     expect($schema['properties']['floats'])->toHaveKey('items')
         ->and($schema['properties']['floats']['items']['type'])->toBe('number');
-        
+
     expect($schema['properties']['objects'])->toHaveKey('items')
         ->and($schema['properties']['objects']['items']['type'])->toBe('object');
-        
+
     expect($schema['properties']['dateTimeInstances'])->toHaveKey('items')
         ->and($schema['properties']['dateTimeInstances']['items']['type'])->toBe('object');
 });
@@ -433,7 +430,7 @@ test('parses nested array syntax correctly', function () {
         ->and($schema['properties']['nestedStringArrays']['items']['type'])->toBe('array')
         ->and($schema['properties']['nestedStringArrays']['items'])->toHaveKey('items')
         ->and($schema['properties']['nestedStringArrays']['items']['items']['type'])->toBe('string');
-        
+
     // Check for nested arrays with array<array<int>> syntax
     expect($schema['properties']['nestedIntArrays'])->toHaveKey('items')
         ->and($schema['properties']['nestedIntArrays']['items'])->toHaveKey('type')
@@ -458,13 +455,13 @@ test('parses object-like array syntax correctly', function () {
     expect($schema['properties']['person'])->toHaveKey('required')
         ->and($schema['properties']['person']['required'])->toContain('name')
         ->and($schema['properties']['person']['required'])->toContain('age');
-        
+
     // Object with nested array property
     expect($schema['properties']['article'])->toHaveKey('properties')
         ->and($schema['properties']['article']['properties'])->toHaveKey('tags')
         ->and($schema['properties']['article']['properties']['tags']['type'])->toBe('array')
         ->and($schema['properties']['article']['properties']['tags']['items']['type'])->toBe('string');
-        
+
     // Complex object with nested object and array
     expect($schema['properties']['order'])->toHaveKey('properties')
         ->and($schema['properties']['order']['properties'])->toHaveKeys(['user', 'items']);

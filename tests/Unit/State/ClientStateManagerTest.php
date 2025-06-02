@@ -431,7 +431,7 @@ it('can get last activity time', function () {
 it('gracefully handles cache exception', function () {
     $clientStateKey = getClientStateKey(TEST_CLIENT_ID_CSM);
     $this->cache->shouldReceive('get')->once()->with($clientStateKey)
-        ->andThrow(new class extends \Exception implements CacheInvalidArgumentException {});
+        ->andThrow(new class () extends \Exception implements CacheInvalidArgumentException {});
     $this->logger->shouldReceive('error')->once()->with(Mockery::pattern('/Error fetching client state from cache/'), Mockery::any());
 
     expect($this->stateManagerWithCache->getClientInfo(TEST_CLIENT_ID_CSM))->toBeNull();

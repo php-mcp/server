@@ -8,13 +8,12 @@ use JsonException;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\Exception\ProtocolException;
-use PhpMcp\Server\JsonRpc\Message;
 use PhpMcp\Server\JsonRpc\Notification;
 use PhpMcp\Server\JsonRpc\Request;
 use PhpMcp\Server\JsonRpc\Response;
 use PhpMcp\Server\State\ClientStateManager;
+use PhpMcp\Server\Support\RequestProcessor;
 use Psr\Log\LoggerInterface;
-use React\EventLoop\LoopInterface;
 use React\Promise\PromiseInterface;
 use Throwable;
 
@@ -30,16 +29,25 @@ use function React\Promise\reject;
 class Protocol
 {
     protected ?ServerTransportInterface $transport = null;
+    protected LoggerInterface $logger;
 
     /** Stores listener references for proper removal */
     protected array $listeners = [];
 
     public function __construct(
-        protected readonly Processor $processor,
+        protected readonly Configuration $configuration,
+        protected readonly Registry $registry,
         protected readonly ClientStateManager $clientStateManager,
-        protected readonly LoggerInterface $logger,
-        protected readonly LoopInterface $loop
-    ) {}
+        protected ?RequestProcessor $requestProcessor = null,
+    ) {
+        $this->requestProcessor ??= new RequestProcessor(
+            $configuration,
+            $registry,
+            $clientStateManager,
+        );
+
+        $this->logger = $configuration->logger;
+    }
 
     /**
      * Binds this handler to a transport instance by attaching event listeners.
@@ -106,11 +114,9 @@ class Protocol
                 throw McpServerException::invalidRequest('Invalid MCP/JSON-RPC message structure.');
             }
 
-            $responseToSend = $this->processor->process($parsedMessage, $clientId);
-
+            $responseToSend = $this->requestProcessor->process($parsedMessage, $clientId);
         } catch (JsonException $e) {
             $this->logger->error("JSON Parse Error for client {$clientId}", ['error' => $e->getMessage()]);
-            // ID is null for Parse Error according to JSON-RPC 2.0 spec
             $responseToSend = Response::error(McpServerException::parseError($e->getMessage())->toJsonRpcError(), null);
         } catch (McpServerException $e) {
             $this->logger->warning("MCP Exception during processing for client {$clientId}", ['code' => $e->getCode(), 'error' => $e->getMessage()]);
@@ -125,30 +131,30 @@ class Protocol
         if ($responseToSend instanceof Response) {
             $this->sendResponse($clientId, $responseToSend);
         } elseif ($parsedMessage instanceof Request && $responseToSend === null) {
-            // Should not happen if Processor is correct, but safeguard
             $this->logger->error('Processor failed to return a Response for a Request', ['clientId' => $clientId, 'method' => $parsedMessage->method, 'id' => $parsedMessage->id]);
             $responseToSend = Response::error(McpServerException::internalError('Processing failed to generate a response.')->toJsonRpcError(), $parsedMessage->id);
             $this->sendResponse($clientId, $responseToSend);
         }
-        // If $parsedMessage was a Notification, $responseToSend should be null, and we send nothing.
     }
 
-    /** Safely gets the request ID from potentially parsed or raw message data */
+    /**
+     * Safely gets the request ID from potentially parsed or raw message data
+     */
     private function getRequestId(Request|Notification|null $parsed, ?array $rawData): string|int|null
     {
         if ($parsed instanceof Request) {
             return $parsed->id;
         }
-        // Attempt fallback to raw data if parsing failed but JSON decoded
         if (is_array($rawData) && isset($rawData['id']) && (is_string($rawData['id']) || is_int($rawData['id']))) {
             return $rawData['id'];
         }
 
-        // Null ID for parse errors or notifications
         return null;
     }
 
-    /** Sends a Response object via the transport */
+    /**
+     * Sends a Response object via the transport
+     */
     private function sendResponse(string $clientId, Response $response): void
     {
         if ($this->transport === null) {
@@ -161,10 +167,7 @@ class Protocol
             $responseData = $response->toArray();
             $jsonResponse = json_encode($responseData, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-            // Frame the message (e.g., add newline for stdio) - Transport *should* handle framing?
-            // Let's assume transport needs the raw JSON string for now. Framing added here.
-            // TODO: Revisit if framing should be transport's responsibility. For now, add newline.
-            $framedMessage = $jsonResponse."\n";
+            $framedMessage = $jsonResponse . "\n";
 
             $this->transport->sendToClientAsync($clientId, $framedMessage)
                 ->catch(
@@ -178,10 +181,8 @@ class Protocol
                 );
 
             $this->logger->debug('Sent response', ['clientId' => $clientId, 'frame' => $framedMessage]);
-
         } catch (JsonException $e) {
             $this->logger->error('Failed to encode response to JSON.', ['clientId' => $clientId, 'responseId' => $response->id, 'error' => $e->getMessage()]);
-            // We can't send *this* error back easily if encoding failed.
         } catch (Throwable $e) {
             $this->logger->error('Unexpected error during response preparation/sending.', ['clientId' => $clientId, 'responseId' => $response->id, 'exception' => $e]);
         }
@@ -189,8 +190,6 @@ class Protocol
 
     /**
      * Sends a Notification object via the transport to a specific client.
-     *
-     * (Primarily used internally or by advanced framework integrations)
      */
     public function sendNotification(string $clientId, Notification $notification): PromiseInterface
     {
@@ -201,37 +200,41 @@ class Protocol
         }
         try {
             $jsonNotification = json_encode($notification->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            $framedMessage = $jsonNotification."\n"; // Add framing
+            $framedMessage = $jsonNotification . "\n";
             $this->logger->debug('Sending notification', ['clientId' => $clientId, 'method' => $notification->method]);
 
             return $this->transport->sendToClientAsync($clientId, $framedMessage);
         } catch (JsonException $e) {
             $this->logger->error('Failed to encode notification to JSON.', ['clientId' => $clientId, 'method' => $notification->method, 'error' => $e->getMessage()]);
 
-            return reject(new McpServerException('Failed to encode notification: '.$e->getMessage(), 0, $e));
+            return reject(new McpServerException('Failed to encode notification: ' . $e->getMessage(), 0, $e));
         } catch (Throwable $e) {
             $this->logger->error('Unexpected error sending notification.', ['clientId' => $clientId, 'method' => $notification->method, 'exception' => $e]);
 
-            return reject(new McpServerException('Failed to send notification: '.$e->getMessage(), 0, $e));
+            return reject(new McpServerException('Failed to send notification: ' . $e->getMessage(), 0, $e));
         }
     }
 
-    // --- Transport Event Handlers ---
-
-    /** Handles 'client_connected' event from the transport */
+    /**
+     * Handles 'client_connected' event from the transport
+     */
     public function handleClientConnected(string $clientId): void
     {
         $this->logger->info('Client connected', ['clientId' => $clientId]);
     }
 
-    /** Handles 'client_disconnected' event from the transport */
+    /**
+     * Handles 'client_disconnected' event from the transport
+     */
     public function handleClientDisconnected(string $clientId, ?string $reason = null): void
     {
         $this->logger->info('Client disconnected', ['clientId' => $clientId, 'reason' => $reason ?? 'N/A']);
         $this->clientStateManager->cleanupClient($clientId);
     }
 
-    /** Handles 'error' event from the transport */
+    /**
+     * Handles 'error' event from the transport
+     */
     public function handleTransportError(Throwable $error, ?string $clientId = null): void
     {
         $context = ['error' => $error->getMessage(), 'exception_class' => get_class($error)];
@@ -240,16 +243,14 @@ class Protocol
             $context['clientId'] = $clientId;
             $this->logger->error('Transport error for client', $context);
             $this->clientStateManager->cleanupClient($clientId);
-            // Should we close the transport here? Depends if error is fatal for the client only or the whole transport.
-            // If the transport can recover or handles other clients, maybe not. Let transport decide?
         } else {
             $this->logger->error('General transport error', $context);
-            // This might be fatal, perhaps signal the main loop to stop?
-            // Or maybe just log it. For now, log only.
         }
     }
 
-    /** Parses raw array into Request or Notification */
+    /**
+     * Parses raw array into Request or Notification
+     */
     private function parseMessageData(array $data): Request|Notification|null
     {
         try {
@@ -261,9 +262,9 @@ class Protocol
                 }
             }
         } catch (ProtocolException $e) {
-            throw McpServerException::invalidRequest('Invalid JSON-RPC structure: '.$e->getMessage(), $e);
+            throw McpServerException::invalidRequest('Invalid JSON-RPC structure: ' . $e->getMessage(), $e);
         } catch (Throwable $e) {
-            throw new ProtocolException('Unexpected error parsing message structure: '.$e->getMessage(), McpServerException::CODE_PARSE_ERROR, null, $e);
+            throw new ProtocolException('Unexpected error parsing message structure: ' . $e->getMessage(), McpServerException::CODE_PARSE_ERROR, null, $e);
         }
 
         throw McpServerException::invalidRequest("Message must contain a 'method' field.");

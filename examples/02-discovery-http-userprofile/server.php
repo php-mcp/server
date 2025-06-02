@@ -55,11 +55,11 @@ class StderrLogger extends AbstractLogger
 }
 
 try {
-    $logger = new StderrLogger;
+    $logger = new StderrLogger();
     $logger->info('Starting MCP HTTP User Profile Server...');
 
     // --- Setup DI Container for DI in McpElements class ---
-    $container = new BasicContainer;
+    $container = new BasicContainer();
     $container->set(LoggerInterface::class, $logger);
 
     $server = Server::make()

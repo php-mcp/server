@@ -106,7 +106,7 @@ class SchemaValidator
     private function getJsonSchemaValidator(): Validator
     {
         if ($this->jsonSchemaValidator === null) {
-            $this->jsonSchemaValidator = new Validator;
+            $this->jsonSchemaValidator = new Validator();
             // Potentially configure resolver here if needed later
         }
 
@@ -121,7 +121,7 @@ class SchemaValidator
         if (is_array($data)) {
             // Check if it's an associative array (keys are not sequential numbers 0..N-1)
             if (! empty($data) && array_keys($data) !== range(0, count($data) - 1)) {
-                $obj = new \stdClass;
+                $obj = new \stdClass();
                 foreach ($data as $key => $value) {
                     $obj->{$key} = $this->convertDataForValidator($value);
                 }
@@ -133,7 +133,7 @@ class SchemaValidator
             }
         } elseif (is_object($data) && $data instanceof \stdClass) {
             // Deep copy/convert stdClass objects as well
-            $obj = new \stdClass;
+            $obj = new \stdClass();
             foreach (get_object_vars($data) as $key => $value) {
                 $obj->{$key} = $this->convertDataForValidator($value);
             }
