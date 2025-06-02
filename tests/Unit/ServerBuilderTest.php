@@ -20,26 +20,18 @@ use ReflectionClass;
 
 class DummyHandlerClass
 {
-    public function handle()
-    {
-    }
+    public function handle() {}
 }
 class DummyInvokableClass
 {
-    public function __invoke()
-    {
-    }
+    public function __invoke() {}
 }
 class HandlerWithDeps
 {
-    public function __construct(public LoggerInterface $log)
-    {
-    }
+    public function __construct(public LoggerInterface $log) {}
 
     #[McpTool(name: 'depTool')]
-    public function run()
-    {
-    }
+    public function run() {}
 }
 
 beforeEach(function () {
@@ -54,8 +46,6 @@ function getBuilderProperty(ServerBuilder $builder, string $propertyName)
 
     return $property->getValue($builder);
 }
-
-// --- Configuration Method Tests ---
 
 it('sets server info', function () {
     $this->builder->withServerInfo('MyServer', '1.2.3');
@@ -100,8 +90,6 @@ it('sets loop', function () {
     $this->builder->withLoop($loop);
     expect(getBuilderProperty($this->builder, 'loop'))->toBe($loop);
 });
-
-// --- Manual Registration Storage Tests ---
 
 it('stores manual tool registration data', function () {
     $handler = [DummyHandlerClass::class, 'handle'];
@@ -149,8 +137,6 @@ it('stores manual prompt registration data', function () {
     expect($manualPrompts[0]['name'])->toBe($name);
 });
 
-// --- Build Method Validation Tests ---
-
 it('throws exception if build called without server info', function () {
     $this->builder
         // ->withDiscoveryPaths($this->tempBasePath) // No longer needed
@@ -169,8 +155,6 @@ it('throws exception for empty server name or version', function ($name, $versio
         ['Server', ''],
         [' ', '1.0'],
     ]);
-
-// --- Default Dependency Resolution Tests ---
 
 it('resolves default Logger correctly when building', function () {
     $server = $this->builder
@@ -239,8 +223,7 @@ it('successfully creates Server with defaults', function () {
     expect($config->loop)->toBeInstanceOf(LoopInterface::class);
     expect($config->container)->toBe($container);
     expect($config->capabilities)->toBeInstanceOf(Capabilities::class);
-
-}); // REMOVED skip
+});
 
 it('successfully creates Server with custom dependencies', function () {
     $myLoop = Mockery::mock(LoopInterface::class);
@@ -265,8 +248,7 @@ it('successfully creates Server with custom dependencies', function () {
     expect($config->cache)->toBe($myCache);
     expect($config->capabilities)->toBe($myCaps);
     expect($server->getRegistry()->allPrompts()->count())->toBe(1);
-
-}); // REMOVED skip
+});
 
 it('throws DefinitionException if manual tool registration fails', function () {
     $container = new BasicContainer();
@@ -275,10 +257,8 @@ it('throws DefinitionException if manual tool registration fails', function () {
     $this->builder
         ->withServerInfo('FailRegServer', '1.0')
         ->withContainer($container)
-        // Use a method that doesn't exist on the mock class
         ->withTool([DummyHandlerClass::class, 'nonExistentMethod'], 'badTool')
         ->build();
-
 })->throws(DefinitionException::class, '1 error(s) occurred during manual element registration');
 
 it('throws DefinitionException if manual resource registration fails', function () {
@@ -290,5 +270,4 @@ it('throws DefinitionException if manual resource registration fails', function 
         ->withContainer($container)
         ->withResource([DummyHandlerClass::class, 'handle'], 'invalid-uri-no-scheme') // Invalid URI
         ->build();
-
 })->throws(DefinitionException::class, '1 error(s) occurred during manual element registration');

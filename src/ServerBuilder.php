@@ -9,6 +9,7 @@ use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\Model\Capabilities;
 use PhpMcp\Server\State\ClientStateManager;
+use PhpMcp\Server\Support\HandlerResolver;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -44,9 +45,7 @@ final class ServerBuilder
 
     private array $manualPrompts = [];
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     /**
      * Sets the server's identity. Required.
@@ -208,16 +207,16 @@ final class ServerBuilder
         // Register Tools
         foreach ($this->manualTools as $data) {
             try {
-                $methodRefl = $this->validateAndGetReflectionMethod($data['handler']);
+                $resolvedHandler = HandlerResolver::resolve($data['handler']);
                 $def = Definitions\ToolDefinition::fromReflection(
-                    $methodRefl,
+                    $resolvedHandler['reflectionMethod'],
                     $data['name'],
                     $data['description'],
                     $docBlockParser,
                     $schemaGenerator
                 );
                 $registry->registerTool($def, true);
-                $logger->debug("Registered manual tool '{$def->getName()}'");
+                $logger->debug("Registered manual tool '{$def->getName()}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual tool', ['handler' => $data['handler'], 'name' => $data['name'], 'exception' => $e]);
@@ -227,9 +226,9 @@ final class ServerBuilder
         // Register Resources
         foreach ($this->manualResources as $data) {
             try {
-                $methodRefl = $this->validateAndGetReflectionMethod($data['handler']);
+                $resolvedHandler = HandlerResolver::resolve($data['handler']);
                 $def = Definitions\ResourceDefinition::fromReflection(
-                    $methodRefl,
+                    $resolvedHandler['reflectionMethod'],
                     $data['name'],
                     $data['description'],
                     $data['uri'],
@@ -239,7 +238,7 @@ final class ServerBuilder
                     $docBlockParser
                 );
                 $registry->registerResource($def, true);
-                $logger->debug("Registered manual resource '{$def->getUri()}'");
+                $logger->debug("Registered manual resource '{$def->getUri()}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual resource', ['handler' => $data['handler'], 'uri' => $data['uri'], 'exception' => $e]);
@@ -249,9 +248,9 @@ final class ServerBuilder
         // Register Templates
         foreach ($this->manualResourceTemplates as $data) {
             try {
-                $methodRefl = $this->validateAndGetReflectionMethod($data['handler']);
+                $resolvedHandler = HandlerResolver::resolve($data['handler']);
                 $def = Definitions\ResourceTemplateDefinition::fromReflection(
-                    $methodRefl,
+                    $resolvedHandler['reflectionMethod'],
                     $data['name'],
                     $data['description'],
                     $data['uriTemplate'],
@@ -260,7 +259,7 @@ final class ServerBuilder
                     $docBlockParser
                 );
                 $registry->registerResourceTemplate($def, true);
-                $logger->debug("Registered manual template '{$def->getUriTemplate()}'");
+                $logger->debug("Registered manual template '{$def->getUriTemplate()}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual template', ['handler' => $data['handler'], 'uriTemplate' => $data['uriTemplate'], 'exception' => $e]);
@@ -270,15 +269,15 @@ final class ServerBuilder
         // Register Prompts
         foreach ($this->manualPrompts as $data) {
             try {
-                $methodRefl = $this->validateAndGetReflectionMethod($data['handler']);
+                $resolvedHandler = HandlerResolver::resolve($data['handler']);
                 $def = Definitions\PromptDefinition::fromReflection(
-                    $methodRefl,
+                    $resolvedHandler['reflectionMethod'],
                     $data['name'],
                     $data['description'],
                     $docBlockParser
                 );
                 $registry->registerPrompt($def, true);
-                $logger->debug("Registered manual prompt '{$def->getName()}'");
+                $logger->debug("Registered manual prompt '{$def->getName()}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual prompt', ['handler' => $data['handler'], 'name' => $data['name'], 'exception' => $e]);
@@ -290,57 +289,5 @@ final class ServerBuilder
         }
 
         $logger->debug('Manual element registration complete.');
-    }
-
-    /**
-     * Gets a reflection method from a handler.
-     *
-     * @throws \InvalidArgumentException If the handler is invalid.
-     */
-    private function validateAndGetReflectionMethod(array|string $handler): \ReflectionMethod
-    {
-        $className = null;
-        $methodName = null;
-
-        if (is_array($handler)) {
-            if (count($handler) !== 2 || ! is_string($handler[0]) || ! is_string($handler[1])) {
-                throw new \InvalidArgumentException('Invalid array handler format. Expected [ClassName::class, \'methodName\'].');
-            }
-            [$className, $methodName] = $handler;
-            if (! class_exists($className)) {
-                throw new \InvalidArgumentException("Class '{$className}' not found for array handler.");
-            }
-            if (! method_exists($className, $methodName)) {
-                throw new \InvalidArgumentException("Method '{$methodName}' not found in class '{$className}' for array handler.");
-            }
-        } elseif (is_string($handler) && class_exists($handler)) {
-            $className = $handler;
-            $methodName = '__invoke';
-            if (! method_exists($className, $methodName)) {
-                throw new \InvalidArgumentException("Invokable class '{$className}' must have a public '__invoke' method.");
-            }
-        } else {
-            throw new \InvalidArgumentException('Invalid handler format. Expected [ClassName::class, \'methodName\'] or InvokableClassName::class string.');
-        }
-
-        try {
-            $reflectionMethod = new \ReflectionMethod($className, $methodName);
-            if ($reflectionMethod->isStatic()) {
-                throw new \InvalidArgumentException("Handler method '{$className}::{$methodName}' cannot be static.");
-            }
-            if (! $reflectionMethod->isPublic()) {
-                throw new \InvalidArgumentException("Handler method '{$className}::{$methodName}' must be public.");
-            }
-            if ($reflectionMethod->isAbstract()) {
-                throw new \InvalidArgumentException("Handler method '{$className}::{$methodName}' cannot be abstract.");
-            }
-            if ($reflectionMethod->isConstructor() || $reflectionMethod->isDestructor()) {
-                throw new \InvalidArgumentException("Handler method '{$className}::{$methodName}' cannot be a constructor or destructor.");
-            }
-
-            return $reflectionMethod;
-        } catch (\ReflectionException $e) {
-            throw new \InvalidArgumentException("Reflection error for handler '{$className}::{$methodName}': {$e->getMessage()}", 0, $e);
-        }
     }
 }
