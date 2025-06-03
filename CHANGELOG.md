@@ -2,6 +2,17 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v2.2.0 - 2025-06-03
+
+### What's Changed
+
+* feat(pagination): Added configuration for a server-wide pagination limit, enabling more controlled data retrieval for list-based MCP operations. This limit is utilized by the `RequestProcessor`.
+* feat(handlers): Introduced `HandlerResolver` to provide more robust validation and resolution mechanisms for MCP element handlers, improving the reliability of element registration and invocation.
+* refactor(server): Modified the server listening mechanism to allow initialization and transport binding without an immediately blocking event loop. This enhances flexibility for embedding the server or managing its lifecycle in diverse application environments.
+* refactor(core): Performed general cleanup and enhancements to the internal architecture and dependencies, contributing to improved code maintainability and overall system stability.
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/2.1.0...2.2.0
+
 ## v2.1.0 - 2025-05-17
 
 ### What's Changed
@@ -120,6 +131,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
    
