@@ -18,19 +18,19 @@ const DISCOVERED_CACHE_KEY = 'mcp_server_discovered_elements';
 
 function createTestTool(string $name = 'test-tool'): ToolDefinition
 {
-    return new ToolDefinition('TestClass', 'toolMethod', $name, 'Desc '.$name, ['type' => 'object']);
+    return new ToolDefinition('TestClass', 'toolMethod', $name, 'Desc ' . $name, ['type' => 'object']);
 }
 function createTestResource(string $uri = 'test://res', string $name = 'test-res'): ResourceDefinition
 {
-    return new ResourceDefinition('TestClass', 'resourceMethod', $uri, $name, 'Desc '.$name, 'text/plain', 100, []);
+    return new ResourceDefinition('TestClass', 'resourceMethod', $uri, $name, 'Desc ' . $name, 'text/plain', 100, []);
 }
 function createTestPrompt(string $name = 'test-prompt'): PromptDefinition
 {
-    return new PromptDefinition('TestClass', 'promptMethod', $name, 'Desc '.$name, []);
+    return new PromptDefinition('TestClass', 'promptMethod', $name, 'Desc ' . $name, []);
 }
 function createTestTemplate(string $uriTemplate = 'tmpl://{id}', string $name = 'test-tmpl'): ResourceTemplateDefinition
 {
-    return new ResourceTemplateDefinition('TestClass', 'templateMethod', $uriTemplate, $name, 'Desc '.$name, 'application/json', []);
+    return new ResourceTemplateDefinition('TestClass', 'templateMethod', $uriTemplate, $name, 'Desc ' . $name, 'application/json', []);
 }
 
 beforeEach(function () {
@@ -38,10 +38,9 @@ beforeEach(function () {
     $this->logger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
     /** @var MockInterface&CacheInterface */
     $this->cache = Mockery::mock(CacheInterface::class);
-
+    /** @var MockInterface&ClientStateManager */
     $this->clientStateManager = Mockery::mock(ClientStateManager::class)->shouldIgnoreMissing();
 
-    // Default cache behaviors
     $this->cache->allows('get')->with(DISCOVERED_CACHE_KEY)->andReturn(null)->byDefault();
     $this->cache->allows('set')->with(DISCOVERED_CACHE_KEY, Mockery::any())->andReturn(true)->byDefault();
     $this->cache->allows('delete')->with(DISCOVERED_CACHE_KEY)->andReturn(true)->byDefault();
@@ -316,7 +315,7 @@ it('ignores non-array cache data', function () {
     $this->cache->shouldReceive('get')->with(DISCOVERED_CACHE_KEY)->once()->andReturn('invalid string data');
 
     // Act
-    $registry = new Registry($this->logger, $this->cache, $this->clientStateManager); // Load happens here
+    $registry = new Registry($this->logger, $this->cache, $this->clientStateManager);
 
     // Assert
     expect($registry->discoveryRanOrCached())->toBeFalse(); // Marked loaded
@@ -330,7 +329,7 @@ it('ignores cache on hydration error', function () {
     $this->cache->shouldReceive('get')->with(DISCOVERED_CACHE_KEY)->once()->andReturn($cachedData);
 
     // Act
-    $registry = new Registry($this->logger, $this->cache, $this->clientStateManager); // Load happens here
+    $registry = new Registry($this->logger, $this->cache, $this->clientStateManager);
 
     // Assert
     expect($registry->discoveryRanOrCached())->toBeFalse();
@@ -385,8 +384,7 @@ it('default notifiers send messages via ClientStateManager', function () {
     $resource = createTestResource('notify://res');
     $prompt = createTestPrompt('notify-prompt');
 
-    // Set expectations on the ClientStateManager mock
-    $this->clientStateManager->shouldReceive('queueMessageForAll')->times(3)->with(Mockery::type(Notification::class));
+    $this->clientStateManager->shouldReceive('queueMessageForAll')->times(3)->with(Mockery::type('string'));
 
     // Act
     $this->registry->registerTool($tool);

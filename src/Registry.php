@@ -28,7 +28,6 @@ class Registry
 
     private ?ClientStateManager $clientStateManager = null;
 
-    // Main collections hold BOTH manual and discovered/cached elements
     /** @var ArrayObject<string, ToolDefinition> */
     private ArrayObject $tools;
 
@@ -41,7 +40,6 @@ class Registry
     /** @var ArrayObject<string, ResourceTemplateDefinition> */
     private ArrayObject $resourceTemplates;
 
-    // Track keys/names of MANUALLY registered elements
     /** @var array<string, true> */
     private array $manualToolNames = [];
 
@@ -56,7 +54,6 @@ class Registry
 
     private bool $discoveredElementsLoaded = false;
 
-    // --- Notification Callbacks ---
     /** @var callable|null */
     private $notifyToolsChanged = null;
 
@@ -151,8 +148,6 @@ class Registry
         };
     }
 
-    // --- Notifier Methods ---
-
     public function setToolsChangedNotifier(?callable $notifier): void
     {
         $this->notifyToolsChanged = $notifier;
@@ -167,8 +162,6 @@ class Registry
     {
         $this->notifyPromptsChanged = $notifier;
     }
-
-    // --- Registration Methods ---
 
     public function registerTool(ToolDefinition $tool, bool $isManual = false): void
     {
@@ -195,7 +188,7 @@ class Registry
         }
 
         if (! $exists && $this->notifyToolsChanged) {
-            ($this->notifyToolsChanged)();
+            ($this->notifyToolsChanged)($tool);
         }
     }
 
@@ -276,8 +269,6 @@ class Registry
             ($this->notifyPromptsChanged)();
         }
     }
-
-    // --- Cache Handling Methods ---
 
     public function loadDiscoveredElementsFromCache(bool $force = false): void
     {
@@ -428,7 +419,6 @@ class Registry
     {
         $this->logger->debug('Clearing discovered elements...', ['deleteCacheFile' => $deleteFromCache]);
 
-        // Clear cache file if requested
         if ($deleteFromCache && $this->cache !== null) {
             try {
                 $this->cache->delete(self::DISCOVERED_ELEMENTS_CACHE_KEY);
@@ -438,7 +428,6 @@ class Registry
             }
         }
 
-        // Clear internal collections of non-manual items
         $clearCount = 0;
 
         foreach ($this->tools as $name => $tool) {
@@ -466,11 +455,9 @@ class Registry
             }
         }
 
-        $this->discoveredElementsLoaded = false; // Mark as needing discovery/cache load again
+        $this->discoveredElementsLoaded = false;
         $this->logger->debug("Removed {$clearCount} discovered elements from internal registry.");
     }
-
-    // --- Finder Methods ---
 
     public function findTool(string $name): ?ToolDefinition
     {
@@ -512,8 +499,6 @@ class Registry
 
         return null;
     }
-
-    // --- Getter Methods ---
 
     /** @return ArrayObject<string, ToolDefinition> */
     public function allTools(): ArrayObject

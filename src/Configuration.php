@@ -26,6 +26,7 @@ class Configuration
      * @param  CacheInterface|null  $cache  Optional PSR-16 Cache instance for registry/state.
      * @param  ContainerInterface  $container  PSR-11 DI Container for resolving handlers/dependencies.
      * @param  int  $definitionCacheTtl  TTL in seconds for cached definitions (if cache is provided).
+     * @param  int  $paginationLimit  Maximum number of items to return for list methods.
      */
     public function __construct(
         public readonly string $serverName,
@@ -36,5 +37,6 @@ class Configuration
         public readonly ?CacheInterface $cache,
         public readonly ContainerInterface $container,
         public readonly int $definitionCacheTtl = 3600,
+        public readonly int $paginationLimit = 50,
     ) {}
 }

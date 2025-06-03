@@ -4,7 +4,7 @@ namespace PhpMcp\Server\Tests\Unit; // Ensure namespace matches if you moved Con
 
 use Mockery;
 use PhpMcp\Server\Configuration;
-use PhpMcp\Server\Model\Capabilities; // Import the Capabilities model
+use PhpMcp\Server\Model\Capabilities;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
@@ -17,7 +17,6 @@ beforeEach(function () {
     $this->loop = Mockery::mock(LoopInterface::class);
     $this->cache = Mockery::mock(CacheInterface::class);
     $this->container = Mockery::mock(ContainerInterface::class);
-    // Create a default Capabilities object for testing
     $this->capabilities = Capabilities::forServer();
 });
 
@@ -27,53 +26,66 @@ afterEach(function () {
 
 it('constructs configuration object with all properties', function () {
     $ttl = 1800;
-    // Pass the capabilities object to the constructor
+    $paginationLimit = 100;
     $config = new Configuration(
         serverName: $this->name,
         serverVersion: $this->version,
-        capabilities: $this->capabilities, // Pass capabilities
+        capabilities: $this->capabilities,
         logger: $this->logger,
         loop: $this->loop,
         cache: $this->cache,
         container: $this->container,
-        definitionCacheTtl: $ttl
+        definitionCacheTtl: $ttl,
+        paginationLimit: $paginationLimit
     );
 
     expect($config->serverName)->toBe($this->name);
     expect($config->serverVersion)->toBe($this->version);
-    expect($config->capabilities)->toBe($this->capabilities); // Assert capabilities
+    expect($config->capabilities)->toBe($this->capabilities);
     expect($config->logger)->toBe($this->logger);
     expect($config->loop)->toBe($this->loop);
     expect($config->cache)->toBe($this->cache);
     expect($config->container)->toBe($this->container);
     expect($config->definitionCacheTtl)->toBe($ttl);
+    expect($config->paginationLimit)->toBe($paginationLimit);
 });
 
 it('constructs configuration object with default TTL', function () {
-    // Pass capabilities object
     $config = new Configuration(
         serverName: $this->name,
         serverVersion: $this->version,
-        capabilities: $this->capabilities, // Pass capabilities
+        capabilities: $this->capabilities,
         logger: $this->logger,
         loop: $this->loop,
         cache: $this->cache,
         container: $this->container
-        // No TTL provided
     );
 
     expect($config->definitionCacheTtl)->toBe(3600); // Default value
 });
 
-it('constructs configuration object with null cache', function () {
-    // Pass capabilities object
+it('constructs configuration object with default pagination limit', function () {
     $config = new Configuration(
         serverName: $this->name,
         serverVersion: $this->version,
-        capabilities: $this->capabilities, // Pass capabilities
+        capabilities: $this->capabilities,
         logger: $this->logger,
         loop: $this->loop,
-        cache: null, // Explicitly null cache
+        cache: $this->cache,
+        container: $this->container
+    );
+
+    expect($config->paginationLimit)->toBe(50); // Default value
+});
+
+it('constructs configuration object with null cache', function () {
+    $config = new Configuration(
+        serverName: $this->name,
+        serverVersion: $this->version,
+        capabilities: $this->capabilities,
+        logger: $this->logger,
+        loop: $this->loop,
+        cache: null,
         container: $this->container
     );
 
@@ -81,7 +93,6 @@ it('constructs configuration object with null cache', function () {
 });
 
 it('constructs configuration object with specific capabilities', function () {
-    // Create specific capabilities
     $customCaps = Capabilities::forServer(
         resourcesSubscribe: true,
         loggingEnabled: true,
@@ -91,7 +102,7 @@ it('constructs configuration object with specific capabilities', function () {
     $config = new Configuration(
         serverName: $this->name,
         serverVersion: $this->version,
-        capabilities: $customCaps, // Pass custom capabilities
+        capabilities: $customCaps,
         logger: $this->logger,
         loop: $this->loop,
         cache: null,

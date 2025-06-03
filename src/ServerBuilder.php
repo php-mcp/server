@@ -34,7 +34,9 @@ final class ServerBuilder
 
     private ?LoopInterface $loop = null;
 
-    private ?int $definitionCacheTtl = 3600; // Default TTL
+    private ?int $definitionCacheTtl = 3600;
+
+    private ?int $paginationLimit = 50;
 
     // Temporary storage for manual registrations
     private array $manualTools = [];
@@ -64,6 +66,16 @@ final class ServerBuilder
     public function withCapabilities(Capabilities $capabilities): self
     {
         $this->capabilities = $capabilities;
+
+        return $this;
+    }
+
+    /**
+     * Configures the server's pagination limit.
+     */
+    public function withPaginationLimit(int $paginationLimit): self
+    {
+        $this->paginationLimit = $paginationLimit;
 
         return $this;
     }
@@ -176,7 +188,8 @@ final class ServerBuilder
             loop: $loop,
             cache: $cache,
             container: $container,
-            definitionCacheTtl: $this->definitionCacheTtl ?? 3600
+            definitionCacheTtl: $this->definitionCacheTtl ?? 3600,
+            paginationLimit: $this->paginationLimit ?? 50
         );
 
         $clientStateManager = new ClientStateManager($configuration->logger, $configuration->cache, 'mcp_state_', $configuration->definitionCacheTtl);
