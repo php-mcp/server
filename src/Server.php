@@ -10,6 +10,7 @@ use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DiscoveryException;
+use PhpMcp\Server\State\ClientStateManager;
 use PhpMcp\Server\Support\Discoverer;
 use Throwable;
 
@@ -39,8 +40,8 @@ class Server
         protected readonly Configuration $configuration,
         protected readonly Registry $registry,
         protected readonly Protocol $protocol,
-    ) {
-    }
+        protected readonly ClientStateManager $clientStateManager,
+    ) {}
 
     public static function make(): ServerBuilder
     {
@@ -120,7 +121,7 @@ class Server
      * @throws LogicException If called after already listening.
      * @throws Throwable If transport->listen() fails immediately.
      */
-    public function listen(ServerTransportInterface $transport): void
+    public function listen(ServerTransportInterface $transport, bool $runLoop = true): void
     {
         if ($this->isListening) {
             throw new LogicException('Server is already listening via a transport.');
@@ -153,26 +154,30 @@ class Server
 
             $this->isListening = true;
 
-            $this->configuration->loop->run(); // BLOCKING
+            if ($runLoop) {
+                $this->configuration->loop->run();
 
+                $this->endListen($transport); // If the loop ends, we need to clean up
+            }
         } catch (Throwable $e) {
             $this->configuration->logger->critical('Failed to start listening or event loop crashed.', ['exception' => $e]);
-            if ($this->isListening) {
-                $protocol->unbindTransport();
-                $transport->removeListener('close', $closeHandlerCallback); // Remove listener
-                $transport->close();
-            }
-            $this->isListening = false;
+            $this->endListen($transport);
             throw $e;
-        } finally {
-            if ($this->isListening) {
-                $protocol->unbindTransport();
-                $transport->removeListener('close', $closeHandlerCallback);
-                $transport->close();
-            }
-            $this->isListening = false;
-            $this->configuration->logger->info("Server '{$this->configuration->serverName}' listener shut down.");
         }
+    }
+
+    public function endListen(ServerTransportInterface $transport): void
+    {
+        $protocol = $this->getProtocol();
+
+        if ($this->isListening) {
+            $protocol->unbindTransport();
+            $transport->removeAllListeners('close');
+            $transport->close();
+        }
+
+        $this->isListening = false;
+        $this->configuration->logger->info("Server '{$this->configuration->serverName}' listener shut down.");
     }
 
     /**
@@ -214,5 +219,10 @@ class Server
     public function getProtocol(): Protocol
     {
         return $this->protocol;
+    }
+
+    public function getClientStateManager(): ClientStateManager
+    {
+        return $this->clientStateManager;
     }
 }

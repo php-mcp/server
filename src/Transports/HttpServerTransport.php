@@ -19,10 +19,11 @@ use React\Http\Message\Response;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 use React\Socket\SocketServer;
-use React\Stream\ThroughStream; // For SSE
+use React\Stream\ThroughStream;
 use React\Stream\WritableStreamInterface;
 use Throwable;
 
+use function React\Promise\resolve;
 use function React\Promise\reject;
 
 /**
@@ -67,8 +68,8 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
     ) {
         $this->logger = new NullLogger();
         $this->loop = Loop::get();
-        $this->ssePath = '/'.trim($mcpPathPrefix, '/').'/sse';
-        $this->messagePath = '/'.trim($mcpPathPrefix, '/').'/message';
+        $this->ssePath = '/' . trim($mcpPathPrefix, '/') . '/sse';
+        $this->messagePath = '/' . trim($mcpPathPrefix, '/') . '/message';
     }
 
     public function setLogger(LoggerInterface $logger): void
@@ -121,7 +122,6 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
             $this->listening = true;
             $this->closing = false;
             $this->emit('ready');
-
         } catch (Throwable $e) {
             $this->logger->error("Failed to start listener on {$listenAddress}", ['exception' => $e]);
             throw new TransportException("Failed to start HTTP listener on {$listenAddress}: {$e->getMessage()}", 0, $e);
@@ -156,7 +156,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
     /** Handles a new SSE connection request */
     private function handleSseRequest(ServerRequestInterface $request): Response
     {
-        $clientId = 'sse_'.bin2hex(random_bytes(16));
+        $clientId = 'sse_' . bin2hex(random_bytes(16));
         $this->logger->info('New SSE connection', ['clientId' => $clientId]);
 
         $sseStream = new ThroughStream();
@@ -172,7 +172,6 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
             unset($this->activeSseStreams[$clientId]);
             $this->emit('error', [new TransportException("SSE Stream Error: {$error->getMessage()}", 0, $error), $clientId]);
             $this->emit('client_disconnected', [$clientId, 'SSE stream error']);
-            // Don't close the whole transport, just this stream
         });
 
         $this->activeSseStreams[$clientId] = $sseStream;
@@ -202,7 +201,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
                 'Content-Type' => 'text/event-stream',
                 'Cache-Control' => 'no-cache',
                 'Connection' => 'keep-alive',
-                'X-Accel-Buffering' => 'no', // Important for Nginx proxying
+                'X-Accel-Buffering' => 'no',
                 'Access-Control-Allow-Origin' => '*',
             ],
             $sseStream
@@ -258,11 +257,10 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
             return reject(new TransportException("Cannot send message: SSE stream for client '{$clientId}' is not writable."));
         }
 
-        // For SSE, the 'rawFramedMessage' should be the JSON payload. We frame it here.
         $jsonData = trim($rawFramedMessage);
 
         if ($jsonData === '') {
-            return \React\Promise\resolve(null);
+            return resolve(null);
         }
 
         $deferred = new Deferred();
@@ -276,7 +274,6 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
                 $this->logger->debug('SSE stream drained.', ['clientId' => $clientId]);
                 $deferred->resolve(null);
             });
-            // Add a timeout?
         }
 
         return $deferred->promise();
@@ -293,7 +290,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
         if ($id !== null) {
             $frame .= "id: {$id}\n";
         }
-        // Handle multi-line data
+
         $lines = explode("\n", $data);
         foreach ($lines as $line) {
             $frame .= "data: {$line}\n";

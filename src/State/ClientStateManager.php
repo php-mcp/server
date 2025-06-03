@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PhpMcp\Server\State;
 
 use PhpMcp\Server\Defaults\ArrayCache;
-use PhpMcp\Server\JsonRpc\Message;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use Throwable;
@@ -294,37 +293,21 @@ class ClientStateManager
     /**
      * Queues a message for a client.
      */
-    public function queueMessage(string $clientId, Message|array $message): void
+    public function queueMessage(string $clientId, string $message): void
     {
         $state = $this->getClientState($clientId, true);
         if (! $state) {
             return;
         }
 
-        $newMessages = [];
-        if (is_array($message)) {
-            foreach ($message as $singleMessage) {
-                if ($singleMessage instanceof Message) {
-                    $newMessages[] = $singleMessage->toArray();
-                }
-            }
-        } elseif ($message instanceof Message) {
-            $newMessages[] = $message->toArray();
-        }
-
-        if (! empty($newMessages)) {
-            foreach ($newMessages as $msgData) {
-                $state->addMessageToQueue($msgData);
-            }
-
-            $this->saveClientState($clientId, $state);
-        }
+        $state->addMessageToQueue($message);
+        $this->saveClientState($clientId, $state);
     }
 
     /**
      * Queues a message for all active clients.
      */
-    public function queueMessageForAll(Message|array $message): void
+    public function queueMessageForAll(string $message): void
     {
         $clients = $this->getActiveClients();
 
@@ -336,7 +319,7 @@ class ClientStateManager
     /**
      * Gets the queued messages for a client.
      *
-     * @return array<array> Queued messages
+     * @return array<string> Queued messages
      */
     public function getQueuedMessages(string $clientId): array
     {

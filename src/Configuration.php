@@ -36,6 +36,5 @@ class Configuration
         public readonly ?CacheInterface $cache,
         public readonly ContainerInterface $container,
         public readonly int $definitionCacheTtl = 3600,
-    ) {
-    }
+    ) {}
 }

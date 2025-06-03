@@ -185,7 +185,7 @@ final class ServerBuilder
 
         $this->performManualRegistrations($registry, $configuration->logger);
 
-        $server = new Server($configuration, $registry, $protocol);
+        $server = new Server($configuration, $registry, $protocol, $clientStateManager);
 
         return $server;
     }
