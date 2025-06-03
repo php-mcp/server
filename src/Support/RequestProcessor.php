@@ -229,7 +229,7 @@ class RequestProcessor
     private function handleToolList(array $params): ListToolsResult
     {
         $cursor = $params['cursor'] ?? null;
-        $limit = 50; // $this->configuration->paginationLimit ?? 50;
+        $limit = $this->configuration->paginationLimit;
         $offset = $this->decodeCursor($cursor);
         $allItems = $this->registry->allTools()->getArrayCopy();
         $pagedItems = array_slice($allItems, $offset, $limit);
@@ -241,7 +241,7 @@ class RequestProcessor
     private function handleResourcesList(array $params): ListResourcesResult
     {
         $cursor = $params['cursor'] ?? null;
-        $limit = 50; // $this->configuration->paginationLimit ?? 50;
+        $limit = $this->configuration->paginationLimit;
         $offset = $this->decodeCursor($cursor);
         $allItems = $this->registry->allResources()->getArrayCopy();
         $pagedItems = array_slice($allItems, $offset, $limit);
@@ -253,7 +253,7 @@ class RequestProcessor
     private function handleResourceTemplateList(array $params): ListResourceTemplatesResult
     {
         $cursor = $params['cursor'] ?? null;
-        $limit = 50; // $this->configuration->paginationLimit ?? 50;
+        $limit = $this->configuration->paginationLimit;
         $offset = $this->decodeCursor($cursor);
         $allItems = $this->registry->allResourceTemplates()->getArrayCopy();
         $pagedItems = array_slice($allItems, $offset, $limit);
@@ -265,7 +265,7 @@ class RequestProcessor
     private function handlePromptsList(array $params): ListPromptsResult
     {
         $cursor = $params['cursor'] ?? null;
-        $limit = 50; // $this->configuration->paginationLimit ?? 50;
+        $limit = $this->configuration->paginationLimit;
         $offset = $this->decodeCursor($cursor);
         $allItems = $this->registry->allPrompts()->getArrayCopy();
         $pagedItems = array_slice($allItems, $offset, $limit);

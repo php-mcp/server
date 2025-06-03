@@ -82,8 +82,8 @@ it('can clear all resource subscriptions for a client', function () {
 
 it('can add a message to the queue', function () {
     $state = new ClientState(TEST_CLIENT_ID_FOR_STATE);
-    $message1 = ['jsonrpc' => '2.0', 'method' => 'notify1'];
-    $message2 = ['jsonrpc' => '2.0', 'id' => 1, 'result' => []];
+    $message1 = json_encode(['jsonrpc' => '2.0', 'method' => 'notify1']);
+    $message2 = json_encode(['jsonrpc' => '2.0', 'id' => 1, 'result' => []]);
 
     $state->addMessageToQueue($message1);
     expect($state->messageQueue)->toHaveCount(1);
@@ -96,8 +96,8 @@ it('can add a message to the queue', function () {
 
 it('can consume all messages from the queue', function () {
     $state = new ClientState(TEST_CLIENT_ID_FOR_STATE);
-    $message1 = ['method' => 'msg1'];
-    $message2 = ['method' => 'msg2'];
+    $message1 = json_encode(['method' => 'msg1']);
+    $message2 = json_encode(['method' => 'msg2']);
 
     $state->addMessageToQueue($message1);
     $state->addMessageToQueue($message2);
