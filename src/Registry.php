@@ -123,21 +123,30 @@ class Registry
         $this->notifyToolsChanged = function () {
             if ($this->clientStateManager) {
                 $notification = Notification::make('notifications/tools/list_changed');
-                $this->clientStateManager->queueMessageForAll($notification);
+                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+                if ($framedMessage !== false) {
+                    $this->clientStateManager->queueMessageForAll($framedMessage);
+                }
             }
         };
 
         $this->notifyResourcesChanged = function () {
             if ($this->clientStateManager) {
                 $notification = Notification::make('notifications/resources/list_changed');
-                $this->clientStateManager->queueMessageForAll($notification);
+                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+                if ($framedMessage !== false) {
+                    $this->clientStateManager->queueMessageForAll($framedMessage);
+                }
             }
         };
 
         $this->notifyPromptsChanged = function () {
             if ($this->clientStateManager) {
                 $notification = Notification::make('notifications/prompts/list_changed');
-                $this->clientStateManager->queueMessageForAll($notification);
+                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+                if ($framedMessage !== false) {
+                    $this->clientStateManager->queueMessageForAll($framedMessage);
+                }
             }
         };
     }
@@ -174,7 +183,7 @@ class Registry
         }
 
         if ($exists) {
-            $this->logger->warning('MCP Registry: Replacing existing '.($wasManual ? 'manual' : 'discovered')." tool '{$toolName}' with ".($isManual ? 'manual' : 'discovered').' definition.');
+            $this->logger->warning('MCP Registry: Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " tool '{$toolName}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
         }
 
         $this->tools[$toolName] = $tool;
@@ -202,7 +211,7 @@ class Registry
             return;
         }
         if ($exists) {
-            $this->logger->warning('MCP Registry: Replacing existing '.($wasManual ? 'manual' : 'discovered')." resource '{$uri}' with ".($isManual ? 'manual' : 'discovered').' definition.');
+            $this->logger->warning('MCP Registry: Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " resource '{$uri}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
         }
 
         $this->resources[$uri] = $resource;
@@ -229,7 +238,7 @@ class Registry
             return;
         }
         if ($exists) {
-            $this->logger->warning('MCP Registry: Replacing existing '.($wasManual ? 'manual' : 'discovered')." template '{$uriTemplate}' with ".($isManual ? 'manual' : 'discovered').' definition.');
+            $this->logger->warning('MCP Registry: Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " template '{$uriTemplate}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
         }
 
         $this->resourceTemplates[$uriTemplate] = $template;
@@ -253,7 +262,7 @@ class Registry
             return;
         }
         if ($exists) {
-            $this->logger->warning('MCP Registry: Replacing existing '.($wasManual ? 'manual' : 'discovered')." prompt '{$promptName}' with ".($isManual ? 'manual' : 'discovered').' definition.');
+            $this->logger->warning('MCP Registry: Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " prompt '{$promptName}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
         }
 
         $this->prompts[$promptName] = $prompt;
@@ -339,7 +348,6 @@ class Registry
                 $this->logger->debug("MCP Registry: Loaded {$loadCount} elements from cache.");
 
                 $this->discoveredElementsLoaded = true;
-
             } elseif ($cached !== null) {
                 $this->logger->warning('MCP Registry: Invalid data type found in cache, ignoring.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'type' => gettype($cached)]);
             } else {
@@ -365,7 +373,10 @@ class Registry
         }
 
         $discoveredData = [
-            'tools' => [], 'resources' => [], 'prompts' => [], 'resourceTemplates' => [],
+            'tools' => [],
+            'resources' => [],
+            'prompts' => [],
+            'resourceTemplates' => [],
         ];
 
         foreach ($this->tools as $name => $tool) {

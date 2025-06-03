@@ -18,16 +18,16 @@ class ClientState
     public ?string $protocolVersion = null;
 
     /** @var array<string, true> URIs this client is subscribed to. Key is URI, value is true. */
-    public array $subscriptions = []; // This is the client's *view* of its subscriptions
+    public array $subscriptions = [];
 
-    /** @var array<array> Queued outgoing messages for this client. */
+    /** @var array<string> Queued outgoing framed messages for this client. */
     public array $messageQueue = [];
 
     public int $lastActivityTimestamp;
 
     public ?string $requestedLogLevel = null;
 
-    public function __construct(string $clientId) // clientId not stored here, used as cache key
+    public function __construct(protected string $clientId)
     {
         $this->lastActivityTimestamp = time();
     }
@@ -47,12 +47,12 @@ class ClientState
         $this->subscriptions = [];
     }
 
-    public function addMessageToQueue(array $messageData): void
+    public function addMessageToQueue(string $message): void
     {
-        $this->messageQueue[] = $messageData;
+        $this->messageQueue[] = $message;
     }
 
-    /** @return array<array> */
+    /** @return array<string> */
     public function consumeMessageQueue(): array
     {
         $messages = $this->messageQueue;

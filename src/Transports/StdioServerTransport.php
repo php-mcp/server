@@ -65,8 +65,8 @@ class StdioServerTransport implements LoggerAwareInterface, LoopAwareInterface, 
         protected $outputStreamResource = STDOUT
     ) {
         if (str_contains(PHP_OS, 'WIN') && ($this->inputStreamResource === STDIN && $this->outputStreamResource === STDOUT)) {
-            $message = 'STDIN and STDOUT are not supported as input and output stream resources'.
-                'on Windows due to PHP\'s limitations with non blocking pipes.'.
+            $message = 'STDIN and STDOUT are not supported as input and output stream resources' .
+                'on Windows due to PHP\'s limitations with non blocking pipes.' .
                 'Please use WSL or HttpServerTransport, or if you are advanced, provide your own stream resources.';
 
             throw new TransportException($message);
@@ -181,9 +181,8 @@ class StdioServerTransport implements LoggerAwareInterface, LoopAwareInterface, 
      */
     public function sendToClientAsync(string $clientId, string $rawFramedMessage): PromiseInterface
     {
-        // For stdio, clientId is always the same, but we check anyway
         if ($clientId !== self::CLIENT_ID) {
-            $this->logger->error("StdioTransport: Attempted to send message to invalid clientId '{$clientId}'.");
+            $this->logger->error("Attempted to send message to invalid clientId '{$clientId}'.");
 
             return reject(new TransportException("Invalid clientId '{$clientId}' for Stdio transport."));
         }
@@ -199,9 +198,9 @@ class StdioServerTransport implements LoggerAwareInterface, LoopAwareInterface, 
             $deferred->resolve(null);
         } else {
             // Handle backpressure: resolve the promise once the stream drains
-            $this->logger->debug('StdioTransport: STDOUT buffer full, waiting for drain.');
+            $this->logger->debug('STDOUT buffer full, waiting for drain.');
             $this->stdout->once('drain', function () use ($deferred) {
-                $this->logger->debug('StdioTransport: STDOUT drained.');
+                $this->logger->debug('STDOUT drained.');
                 $deferred->resolve(null);
             });
         }
@@ -223,9 +222,6 @@ class StdioServerTransport implements LoggerAwareInterface, LoopAwareInterface, 
 
         $this->stdin?->close();
         $this->stdout?->close();
-
-        // Remove signal handlers if possible/needed - Loop usually handles this on stop
-        // $this->loop->removeSignal(...)
 
         $this->stdin = null;
         $this->stdout = null;
