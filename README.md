@@ -223,6 +223,7 @@ You can get a server builder instance by either calling `new ServerBuilder` or m
 *   **`withContainer(ContainerInterface $container)`**: Optional. PSR-11 container for resolving *your handler classes*. Defaults to `BasicContainer`.
 *   **`withLoop(LoopInterface $loop)`**: Optional. ReactPHP event loop. Defaults to `Loop::get()`.
 *   **`withCapabilities(Capabilities $capabilities)`**: Optional. Configure advertised capabilities (e.g., resource subscriptions). Use `Capabilities::forServer(...)`.
+*   **`withPaginationLimit(int $paginationLimit)`: Optional. Configures the server's pagination limit for list requests.
 *   `withTool(...)`, `withResource(...)`, etc.: Optional manual registration.
 
 ## Running the Server (Transports)
