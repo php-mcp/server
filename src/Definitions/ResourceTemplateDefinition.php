@@ -56,14 +56,14 @@ class ResourceTemplateDefinition
         if (! preg_match(self::URI_TEMPLATE_PATTERN, $this->uriTemplate)) {
             throw new \InvalidArgumentException(
                 "Resource URI template '{$this->uriTemplate}' is invalid. URI templates must match the pattern "
-                .self::URI_TEMPLATE_PATTERN.' (valid scheme followed by :// and path with placeholder(s) in curly braces).'
+                    . self::URI_TEMPLATE_PATTERN . ' (valid scheme followed by :// and path with placeholder(s) in curly braces).'
             );
         }
 
         if (! preg_match(self::RESOURCE_NAME_PATTERN, $this->name)) {
             throw new \InvalidArgumentException(
-                "Resource name '{$this->name}' is invalid. Resource names must match the pattern ".self::RESOURCE_NAME_PATTERN
-                .' (alphanumeric characters, underscores, and hyphens only).'
+                "Resource name '{$this->name}' is invalid. Resource names must match the pattern " . self::RESOURCE_NAME_PATTERN
+                    . ' (alphanumeric characters, underscores, and hyphens only).'
             );
         }
     }
@@ -169,11 +169,15 @@ class ResourceTemplateDefinition
         $docBlock = $docBlockParser->parseDocBlock($method->getDocComment() ?: null);
         $description = $overrideDescription ?? $docBlockParser->getSummary($docBlock) ?? null;
 
+        $name = $overrideName ?? ($method->getName() === '__invoke'
+            ? $method->getDeclaringClass()->getShortName()
+            : $method->getName());
+
         return new self(
             className: $method->getDeclaringClass()->getName(),
             methodName: $method->getName(),
             uriTemplate: $uriTemplate,
-            name: $overrideName ?? $method->getName(),
+            name: $name,
             description: $description,
             mimeType: $mimeType,
             annotations: $annotations

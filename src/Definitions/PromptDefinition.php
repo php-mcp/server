@@ -44,8 +44,8 @@ class PromptDefinition
     {
         if (! preg_match(self::PROMPT_NAME_PATTERN, $this->promptName)) {
             throw new \InvalidArgumentException(
-                "Prompt name '{$this->promptName}' is invalid. Prompt names must match the pattern ".self::PROMPT_NAME_PATTERN
-                .' (alphanumeric characters, underscores, and hyphens only).'
+                "Prompt name '{$this->promptName}' is invalid. Prompt names must match the pattern " . self::PROMPT_NAME_PATTERN
+                    . ' (alphanumeric characters, underscores, and hyphens only).'
             );
         }
     }
@@ -98,7 +98,7 @@ class PromptDefinition
         }
         if (! empty($this->arguments)) {
             $data['arguments'] = array_map(
-                fn (PromptArgumentDefinition $arg) => $arg->toArray(),
+                fn(PromptArgumentDefinition $arg) => $arg->toArray(),
                 $this->arguments
             );
         }
@@ -141,6 +141,7 @@ class PromptDefinition
     ): self {
         $className = $method->getDeclaringClass()->getName();
         $methodName = $method->getName();
+        $promptName = $overrideName ?? ($methodName === '__invoke' ? $method->getDeclaringClass()->getShortName() : $methodName);
         $docBlock = $docBlockParser->parseDocBlock($method->getDocComment() ?: null);
         $description = $overrideDescription ?? $docBlockParser->getSummary($docBlock) ?? null;
 
@@ -155,14 +156,14 @@ class PromptDefinition
             }
 
             // Correctly get the specific Param tag using the '$' prefix
-            $paramTag = $paramTags['$'.$param->getName()] ?? null;
+            $paramTag = $paramTags['$' . $param->getName()] ?? null;
             $arguments[] = PromptArgumentDefinition::fromReflection($param, $paramTag);
         }
 
         return new self(
             className: $className,
             methodName: $methodName,
-            promptName: $overrideName ?? $methodName,
+            promptName: $promptName,
             description: $description,
             arguments: $arguments
         );

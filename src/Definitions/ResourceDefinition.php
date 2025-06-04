@@ -58,15 +58,15 @@ class ResourceDefinition
     {
         if (! preg_match(self::URI_PATTERN, $this->uri)) {
             throw new \InvalidArgumentException(
-                "Resource URI '{$this->uri}' is invalid. URIs must match the pattern ".self::URI_PATTERN
-                .' (valid scheme followed by :// and optional path).'
+                "Resource URI '{$this->uri}' is invalid. URIs must match the pattern " . self::URI_PATTERN
+                    . ' (valid scheme followed by :// and optional path).'
             );
         }
 
         if (! preg_match(self::RESOURCE_NAME_PATTERN, $this->name)) {
             throw new \InvalidArgumentException(
-                "Resource name '{$this->name}' is invalid. Resource names must match the pattern ".self::RESOURCE_NAME_PATTERN
-                .' (alphanumeric characters, underscores, and hyphens only).'
+                "Resource name '{$this->name}' is invalid. Resource names must match the pattern " . self::RESOURCE_NAME_PATTERN
+                    . ' (alphanumeric characters, underscores, and hyphens only).'
             );
         }
     }
@@ -178,11 +178,15 @@ class ResourceDefinition
         $docBlock = $docBlockParser->parseDocBlock($method->getDocComment() ?: null);
         $description = $overrideDescription ?? $docBlockParser->getSummary($docBlock) ?? null;
 
+        $name = $overrideName ?? ($method->getName() === '__invoke'
+            ? $method->getDeclaringClass()->getShortName()
+            : $method->getName());
+
         return new self(
             className: $method->getDeclaringClass()->getName(),
             methodName: $method->getName(),
             uri: $uri,
-            name: $overrideName ?? $method->getName(),
+            name: $name,
             description: $description,
             mimeType: $mimeType,
             size: $size,
