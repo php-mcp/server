@@ -11,10 +11,8 @@ use PhpMcp\Server\Tests\Mocks\DiscoveryStubs\AllElementsStub;
 use PhpMcp\Server\Tests\Mocks\DiscoveryStubs\ToolOnlyStub;
 use ReflectionMethod;
 
-// --- Constructor Validation Tests ---
-
 test('constructor validates tool name pattern', function (string $toolName, bool $shouldFail) {
-    $action = fn () => new ToolDefinition(
+    $action = fn() => new ToolDefinition(
         className: AllElementsStub::class,
         methodName: 'templateMethod',
         toolName: $toolName,
@@ -46,7 +44,6 @@ test('fromReflection creates definition with explicit name and description', fun
     // Arrange
     $reflectionMethod = new ReflectionMethod(AllElementsStub::class, 'templateMethod');
     $attribute = new McpTool(name: 'explicit-tool-name', description: 'Explicit Description');
-    // Schema needs to match AllElementsStub::templateMethod parameters
     $expectedSchema = ['type' => 'object', 'properties' => ['id' => ['type' => 'string']]];
     $docComment = $reflectionMethod->getDocComment() ?: null;
 
@@ -79,7 +76,7 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     $docComment = $reflectionMethod->getDocComment() ?: null;
 
     // Read the actual summary from the stub file to make the test robust
-    $stubContent = file_get_contents(__DIR__.'/../../Mocks/DiscoveryStubs/AllElementsStub.php');
+    $stubContent = file_get_contents(__DIR__ . '/../../Mocks/DiscoveryStubs/AllElementsStub.php');
     preg_match('/\/\*\*(.*?)\*\/\s+public function templateMethod/s', $stubContent, $matches);
     $actualDocComment = isset($matches[1]) ? trim(preg_replace('/^\s*\*\s?/?m', '', $matches[1])) : '';
     $expectedSummary = explode("\n", $actualDocComment)[0] ?? null; // First line is summary
@@ -103,6 +100,28 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     expect($definition->getClassName())->toBe(AllElementsStub::class);
     expect($definition->getMethodName())->toBe('templateMethod');
     expect($definition->getInputSchema())->toBe($expectedSchema);
+});
+
+test('fromReflection uses class short name as default tool name for invokable classes', function () {
+    $reflectionMethod = new ReflectionMethod(ToolOnlyStub::class, '__invoke');
+
+    $docComment = $reflectionMethod->getDocComment() ?: null;
+
+    $this->docBlockParser->shouldReceive('parseDocBlock')->once()->with($docComment)->andReturn(null);
+    $this->schemaGenerator->shouldReceive('fromMethodParameters')->once()->with($reflectionMethod)->andReturn(['type' => 'object']);
+
+    $definition = ToolDefinition::fromReflection(
+        $reflectionMethod,
+        null,
+        "Some description",
+        $this->docBlockParser,
+        $this->schemaGenerator
+    );
+
+    expect($definition->getName())->toBe('ToolOnlyStub');
+    expect($definition->getClassName())->toBe(ToolOnlyStub::class);
+    expect($definition->getMethodName())->toBe('__invoke');
+    expect($definition->getInputSchema())->toBe(['type' => 'object']);
 });
 
 test('fromReflection handles missing docblock summary', function () {

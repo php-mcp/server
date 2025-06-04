@@ -12,7 +12,7 @@ use PhpMcp\Server\Definitions\PromptDefinition;
 use PhpMcp\Server\Definitions\ResourceDefinition;
 use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
 use PhpMcp\Server\Definitions\ToolDefinition;
-use PhpMcp\Server\Exceptions\McpException;
+use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\Registry;
 use Psr\Log\LoggerInterface;
 use ReflectionAttribute;
@@ -64,7 +64,7 @@ class Discoverer
             $finder = new Finder();
             $absolutePaths = [];
             foreach ($directories as $dir) {
-                $path = rtrim($basePath, '/').'/'.ltrim($dir, '/');
+                $path = rtrim($basePath, '/') . '/' . ltrim($dir, '/');
                 if (is_dir($path)) {
                     $absolutePaths[] = $path;
                 }
@@ -84,7 +84,6 @@ class Discoverer
             foreach ($finder as $file) {
                 $this->processFile($file, $discoveredCount);
             }
-
         } catch (Throwable $e) {
             $this->logger->error('Error during file finding process for MCP discovery', [
                 'exception' => $e->getMessage(),
@@ -149,8 +148,10 @@ class Discoverer
 
             if (! $processedViaClassAttribute) {
                 foreach ($reflectionClass->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-                    if ($method->getDeclaringClass()->getName() !== $reflectionClass->getName() ||
-                        $method->isStatic() || $method->isAbstract() || $method->isConstructor() || $method->isDestructor() || $method->getName() === '__invoke') {
+                    if (
+                        $method->getDeclaringClass()->getName() !== $reflectionClass->getName() ||
+                        $method->isStatic() || $method->isAbstract() || $method->isConstructor() || $method->isDestructor() || $method->getName() === '__invoke'
+                    ) {
                         continue;
                     }
                     $attributeTypes = [McpTool::class, McpResource::class, McpPrompt::class, McpResourceTemplate::class];
@@ -166,7 +167,6 @@ class Discoverer
                     }
                 }
             }
-
         } catch (ReflectionException $e) {
             $this->logger->error('Reflection error processing file for MCP discovery', ['file' => $filePath, 'class' => $className, 'exception' => $e->getMessage()]);
         } catch (Throwable $e) {
@@ -211,7 +211,7 @@ class Discoverer
 
                 case McpResource::class:
                     if (! isset($instance->uri)) {
-                        throw new McpException("McpResource attribute on {$className}::{$methodName} requires a 'uri'.");
+                        throw new McpServerException("McpResource attribute on {$className}::{$methodName} requires a 'uri'.");
                     }
                     $definition = ResourceDefinition::fromReflection(
                         $method,
@@ -240,7 +240,7 @@ class Discoverer
 
                 case McpResourceTemplate::class:
                     if (! isset($instance->uriTemplate)) {
-                        throw new McpException("McpResourceTemplate attribute on {$className}::{$methodName} requires a 'uriTemplate'.");
+                        throw new McpServerException("McpResourceTemplate attribute on {$className}::{$methodName} requires a 'uriTemplate'.");
                     }
                     $definition = ResourceTemplateDefinition::fromReflection(
                         $method,
@@ -255,8 +255,7 @@ class Discoverer
                     $discoveredCount['resourceTemplates']++;
                     break;
             }
-
-        } catch (McpException $e) {
+        } catch (McpServerException $e) {
             $this->logger->error("Failed to process MCP attribute on {$className}::{$methodName}", ['attribute' => $attributeClassName, 'exception' => $e->getMessage(), 'trace' => $e->getPrevious() ? $e->getPrevious()->getTraceAsString() : $e->getTraceAsString()]);
         } catch (Throwable $e) {
             $this->logger->error("Unexpected error processing attribute on {$className}::{$methodName}", ['attribute' => $attributeClassName, 'exception' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
@@ -344,7 +343,7 @@ class Discoverer
                     for ($j = $i + 1; $j < $tokenCount; $j++) {
                         if (is_array($tokens[$j]) && $tokens[$j][0] === T_STRING) {
                             $className = $tokens[$j][1];
-                            $potentialClasses[] = $namespace ? $namespace.'\\'.$className : $className;
+                            $potentialClasses[] = $namespace ? $namespace . '\\' . $className : $className;
                             $i = $j;
                             break;
                         }

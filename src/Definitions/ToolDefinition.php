@@ -45,8 +45,8 @@ class ToolDefinition
     {
         if (! preg_match(self::TOOL_NAME_PATTERN, $this->toolName)) {
             throw new \InvalidArgumentException(
-                "Tool name '{$this->toolName}' is invalid. Tool names must match the pattern ".self::TOOL_NAME_PATTERN
-                .' (alphanumeric characters, underscores, and hyphens only).'
+                "Tool name '{$this->toolName}' is invalid. Tool names must match the pattern " . self::TOOL_NAME_PATTERN
+                    . ' (alphanumeric characters, underscores, and hyphens only).'
             );
         }
     }
@@ -137,10 +137,14 @@ class ToolDefinition
         $description = $overrideDescription ?? $docBlockParser->getSummary($docBlock) ?? null;
         $inputSchema = $schemaGenerator->fromMethodParameters($method);
 
+        $toolName = $overrideName ?? ($method->getName() === '__invoke'
+            ? $method->getDeclaringClass()->getShortName()
+            : $method->getName());
+
         return new self(
             className: $method->getDeclaringClass()->getName(),
             methodName: $method->getName(),
-            toolName: $overrideName ?? $method->getName(),
+            toolName: $toolName,
             description: $description,
             inputSchema: $inputSchema,
         );
