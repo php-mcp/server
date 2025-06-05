@@ -10,6 +10,7 @@ use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\Model\Capabilities;
 use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Support\HandlerResolver;
+use PhpMcp\Server\Support\RequestProcessor;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -192,14 +193,15 @@ final class ServerBuilder
             paginationLimit: $this->paginationLimit ?? 50
         );
 
-        $sessionManager = new SessionManager($configuration->logger, $configuration->cache, $configuration->definitionCacheTtl);
-        $registry = new Registry($configuration->logger, $configuration->cache, $sessionManager);
-        $protocol = new Protocol($configuration, $registry, $sessionManager);
+        $sessionManager = new SessionManager($logger, $cache, $configuration->definitionCacheTtl);
+        $registry = new Registry($logger, $cache, $sessionManager);
+        $requestProcessor = new RequestProcessor($configuration, $registry, $sessionManager);
+        $protocol = new Protocol($logger, $requestProcessor);
 
         $registry->disableNotifications();
-        
-        $this->performManualRegistrations($registry, $configuration->logger);
-        
+
+        $this->performManualRegistrations($registry, $logger);
+
         $registry->enableNotifications();
 
         $server = new Server($configuration, $registry, $protocol, $sessionManager);
