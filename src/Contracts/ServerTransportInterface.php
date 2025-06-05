@@ -16,10 +16,10 @@ use Throwable;
  *
  * --- Expected Emitted Events ---
  * 'ready': () - Optional: Fired when listening starts successfully.
- * 'client_connected': (string $clientId) - New client connection (e.g., SSE).
- * 'message': (string $rawJsonRpcFrame, string $clientId) - Complete message received from a client.
- * 'client_disconnected': (string $clientId, ?string $reason) - Client connection closed.
- * 'error': (Throwable $error, ?string $clientId) - Error occurred (general transport error if clientId is null).
+ * 'client_connected': (string $sessionId) - New client connection (e.g., SSE).
+ * 'message': (string $rawJsonRpcFrame, string $sessionId) - Complete message received from a client.
+ * 'client_disconnected': (string $sessionId, ?string $reason) - Client connection closed.
+ * 'error': (Throwable $error, ?string $sessionId) - Error occurred (general transport error if sessionId is null).
  * 'close': (?string $reason) - Transport listener stopped completely.
  */
 interface ServerTransportInterface extends EventEmitterInterface
@@ -38,11 +38,11 @@ interface ServerTransportInterface extends EventEmitterInterface
      * or formatted as an SSE event for HTTP transports). Framing is the responsibility of the caller
      * (typically the Protocol) as it depends on the transport type.
      *
-     * @param  string  $clientId  Target client identifier ("stdio" is conventionally used for stdio transport).
+     * @param  string  $sessionId  Target session identifier ("stdio" is conventionally used for stdio transport).
      * @param  string  $rawFramedMessage  Message string ready for transport.
      * @return PromiseInterface<void> Resolves on successful send/queue, rejects on specific send error.
      */
-    public function sendToClientAsync(string $clientId, string $rawFramedMessage): PromiseInterface;
+    public function sendToClientAsync(string $sessionId, string $rawFramedMessage): PromiseInterface;
 
     /**
      * Stops the transport listener gracefully and closes all active connections.
