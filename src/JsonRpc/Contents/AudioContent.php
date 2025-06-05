@@ -16,8 +16,7 @@ class AudioContent extends Content
     public function __construct(
         protected string $data,
         protected string $mimeType
-    ) {
-    }
+    ) {}
 
     /**
      * Get the audio data.
@@ -71,8 +70,12 @@ class AudioContent extends Content
             throw new \InvalidArgumentException("Audio file not found: {$path}");
         }
 
-        $data = base64_encode(file_get_contents($path));
-        $detectedMime = $mimeType ?? mime_content_type($path) ?? 'audio/mpeg';
+        $content = file_get_contents($path);
+        if ($content === false) {
+            throw new \RuntimeException("Could not read audio file: {$path}");
+        }
+        $data = base64_encode($content);
+        $detectedMime = $mimeType ?? mime_content_type($path) ?: 'application/octet-stream';
 
         return new static($data, $detectedMime);
     }
