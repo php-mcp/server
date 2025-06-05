@@ -11,7 +11,7 @@ use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
 use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\JsonRpc\Notification;
-use PhpMcp\Server\State\ClientStateManager;
+use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Support\UriTemplateMatcher;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
@@ -21,12 +21,6 @@ use Throwable;
 class Registry
 {
     private const DISCOVERED_ELEMENTS_CACHE_KEY = 'mcp_server_discovered_elements';
-
-    private ?CacheInterface $cache;
-
-    private LoggerInterface $logger;
-
-    private ?ClientStateManager $clientStateManager = null;
 
     /** @var ArrayObject<string, ToolDefinition> */
     private ArrayObject $tools;
@@ -58,14 +52,10 @@ class Registry
 
 
     public function __construct(
-        LoggerInterface $logger,
-        ?CacheInterface $cache = null,
-        ?ClientStateManager $clientStateManager = null
+        protected LoggerInterface $logger,
+        protected ?CacheInterface $cache = null,
+        protected ?SessionManager $sessionManager = null
     ) {
-        $this->logger = $logger;
-        $this->cache = $cache;
-        $this->clientStateManager = $clientStateManager;
-
         $this->initializeCollections();
 
         if ($this->cache) {
@@ -110,45 +100,38 @@ class Registry
 
     public function enableNotifications(): void
     {
-        $this->notificationsEnabled = true;
+        $this->notifyToolsChanged = function () {
+            if ($this->sessionManager) {
+                $notification = Notification::make('notifications/tools/list_changed');
+                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+                if ($framedMessage !== false) {
+                    $this->sessionManager->queueMessageForAll($framedMessage);
+                }
+            }
+        };
+
+        $this->notifyResourcesChanged = function () {
+            if ($this->sessionManager) {
+                $notification = Notification::make('notifications/resources/list_changed');
+                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+                if ($framedMessage !== false) {
+                    $this->sessionManager->queueMessageForAll($framedMessage);
+                }
+            }
+        };
+
+        $this->notifyPromptsChanged = function () {
+            if ($this->sessionManager) {
+                $notification = Notification::make('notifications/prompts/list_changed');
+                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+                if ($framedMessage !== false) {
+                    $this->sessionManager->queueMessageForAll($framedMessage);
+                }
+            }
+        };
     }
 
-    public function disableNotifications(): void
-    {
-        $this->notificationsEnabled = false;
-    }
-
-    public function notifyToolsListChanged(): void
-    {
-        if (!$this->notificationsEnabled || !$this->clientStateManager) {
-            return;
-        }
-        $notification = Notification::make('notifications/tools/list_changed');
-
-        $framedMessage = json_encode($notification, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-        if ($framedMessage === false || $framedMessage === "\n") {
-            $this->logger->error('Failed to encode notification for queuing.', ['method' => $notification->method]);
-            return;
-        }
-        $this->clientStateManager->queueMessageForAll($framedMessage);
-    }
-
-    public function notifyResourcesListChanged(): void
-    {
-        if (!$this->notificationsEnabled || !$this->clientStateManager) {
-            return;
-        }
-        $notification = Notification::make('notifications/resources/list_changed');
-
-        $framedMessage = json_encode($notification, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-        if ($framedMessage === false || $framedMessage === "\n") {
-            $this->logger->error('Failed to encode notification for queuing.', ['method' => $notification->method]);
-            return;
-        }
-        $this->clientStateManager->queueMessageForAll($framedMessage);
-    }
-
-    public function notifyPromptsListChanged(): void
+    public function setToolsChangedNotifier(?callable $notifier): void
     {
         if (!$this->notificationsEnabled || !$this->clientStateManager) {
             return;

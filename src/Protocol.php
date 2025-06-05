@@ -11,7 +11,7 @@ use PhpMcp\Server\Exception\ProtocolException;
 use PhpMcp\Server\JsonRpc\Notification;
 use PhpMcp\Server\JsonRpc\Request;
 use PhpMcp\Server\JsonRpc\Response;
-use PhpMcp\Server\State\ClientStateManager;
+use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Support\RequestProcessor;
 use Psr\Log\LoggerInterface;
 use React\Promise\PromiseInterface;
@@ -37,13 +37,13 @@ class Protocol
     public function __construct(
         protected readonly Configuration $configuration,
         protected readonly Registry $registry,
-        protected readonly ClientStateManager $clientStateManager,
+        protected readonly SessionManager $sessionManager,
         protected ?RequestProcessor $requestProcessor = null,
     ) {
         $this->requestProcessor ??= new RequestProcessor(
             $configuration,
             $registry,
-            $clientStateManager,
+            $sessionManager,
         );
 
         $this->logger = $configuration->logger;
@@ -229,7 +229,7 @@ class Protocol
     public function handleClientDisconnected(string $clientId, ?string $reason = null): void
     {
         $this->logger->info('Client disconnected', ['clientId' => $clientId, 'reason' => $reason ?? 'N/A']);
-        $this->clientStateManager->cleanupClient($clientId);
+        $this->sessionManager->deleteSession($clientId);
     }
 
     /**
@@ -242,7 +242,7 @@ class Protocol
         if ($clientId) {
             $context['clientId'] = $clientId;
             $this->logger->error('Transport error for client', $context);
-            $this->clientStateManager->cleanupClient($clientId);
+            $this->sessionManager->deleteSession($clientId);
         } else {
             $this->logger->error('General transport error', $context);
         }

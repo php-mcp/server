@@ -22,7 +22,7 @@ use PhpMcp\Server\JsonRpc\Results\ListResourceTemplatesResult;
 use PhpMcp\Server\JsonRpc\Results\ListToolsResult;
 use PhpMcp\Server\JsonRpc\Results\ReadResourceResult;
 use PhpMcp\Server\Registry;
-use PhpMcp\Server\State\ClientStateManager;
+use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Support\ArgumentPreparer;
 use PhpMcp\Server\Support\SchemaValidator;
 use PhpMcp\Server\Traits\ResponseFormatter;
@@ -39,13 +39,7 @@ class RequestProcessor
 {
     use ResponseFormatter;
 
-    protected const SUPPORTED_PROTOCOL_VERSIONS = ['2024-11-05'];
-
-    protected Configuration $configuration;
-
-    protected Registry $registry;
-
-    protected ClientStateManager $clientStateManager;
+    protected const SUPPORTED_PROTOCOL_VERSIONS = ['2025-03-26', '2024-11-05'];
 
     protected LoggerInterface $logger;
 
@@ -56,15 +50,12 @@ class RequestProcessor
     protected ArgumentPreparer $argumentPreparer;
 
     public function __construct(
-        Configuration $configuration,
-        Registry $registry,
-        ClientStateManager $clientStateManager,
+        protected Configuration $configuration,
+        protected Registry $registry,
+        protected SessionManager $sessionManager,
         ?SchemaValidator $schemaValidator = null,
         ?ArgumentPreparer $argumentPreparer = null
     ) {
-        $this->configuration = $configuration;
-        $this->registry = $registry;
-        $this->clientStateManager = $clientStateManager;
         $this->container = $configuration->container;
         $this->logger = $configuration->logger;
 
@@ -154,7 +145,7 @@ class RequestProcessor
 
     private function validateClientInitialized(string $clientId): void
     {
-        if (! $this->clientStateManager->isInitialized($clientId)) {
+        if (! $this->sessionManager->isSessionInitialized($clientId)) {
             throw McpServerException::invalidRequest('Client not initialized.');
         }
     }
@@ -198,7 +189,7 @@ class RequestProcessor
             throw McpServerException::invalidParams("Missing or invalid 'clientInfo' parameter.");
         }
 
-        $this->clientStateManager->storeClientInfo($clientInfo, $serverProtocolVersion, $clientId);
+        $this->sessionManager->storeClientInfo($clientId, $clientInfo);
 
         $serverInfo = [
             'name' => $this->configuration->serverName,
@@ -220,7 +211,7 @@ class RequestProcessor
 
     private function handleNotificationInitialized(array $params, string $clientId): EmptyResult
     {
-        $this->clientStateManager->markInitialized($clientId);
+        $this->sessionManager->initializeSession($clientId);
 
         return new EmptyResult();
     }
@@ -405,7 +396,7 @@ class RequestProcessor
 
         $this->validateCapabilityEnabled('resources/subscribe');
 
-        $this->clientStateManager->addResourceSubscription($clientId, $uri);
+        $this->sessionManager->addResourceSubscription($clientId, $uri);
 
         return new EmptyResult();
     }
@@ -419,7 +410,7 @@ class RequestProcessor
 
         $this->validateCapabilityEnabled('resources/unsubscribe');
 
-        $this->clientStateManager->removeResourceSubscription($clientId, $uri);
+        $this->sessionManager->removeResourceSubscription($clientId, $uri);
 
         return new EmptyResult();
     }
@@ -496,7 +487,7 @@ class RequestProcessor
 
         $this->validateCapabilityEnabled('logging');
 
-        $this->clientStateManager->setClientRequestedLogLevel($clientId, strtolower($level));
+        $this->sessionManager->setLogLevel($clientId, strtolower($level));
 
         $this->logger->info("Processor: Client '{$clientId}' requested log level set to '{$level}'.");
 
