@@ -10,7 +10,6 @@ it('instantiates with correct properties', function () {
     $name = 'test-template-name';
     $description = 'This is a test template description.';
     $mimeType = 'application/json';
-    $annotations = ['group' => 'files'];
 
     // Act
     $attribute = new McpResourceTemplate(
@@ -18,7 +17,6 @@ it('instantiates with correct properties', function () {
         name: $name,
         description: $description,
         mimeType: $mimeType,
-        annotations: $annotations
     );
 
     // Assert
@@ -26,7 +24,6 @@ it('instantiates with correct properties', function () {
     expect($attribute->name)->toBe($name);
     expect($attribute->description)->toBe($description);
     expect($attribute->mimeType)->toBe($mimeType);
-    expect($attribute->annotations)->toBe($annotations);
 });
 
 it('instantiates with null values for name and description', function () {
@@ -36,7 +33,6 @@ it('instantiates with null values for name and description', function () {
         name: null,
         description: null,
         mimeType: null,
-        annotations: []
     );
 
     // Assert
@@ -44,7 +40,6 @@ it('instantiates with null values for name and description', function () {
     expect($attribute->name)->toBeNull();
     expect($attribute->description)->toBeNull();
     expect($attribute->mimeType)->toBeNull();
-    expect($attribute->annotations)->toBe([]);
 });
 
 it('instantiates with missing optional arguments', function () {
@@ -57,5 +52,4 @@ it('instantiates with missing optional arguments', function () {
     expect($attribute->name)->toBeNull();
     expect($attribute->description)->toBeNull();
     expect($attribute->mimeType)->toBeNull();
-    expect($attribute->annotations)->toBe([]);
 });

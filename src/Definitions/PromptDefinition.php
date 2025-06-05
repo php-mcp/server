@@ -5,8 +5,7 @@ namespace PhpMcp\Server\Definitions;
 use PhpMcp\Server\Support\DocBlockParser;
 
 /**
- * Represents a discovered MCP Prompt or Prompt Template.
- * Aligns with MCP 'Prompt' structure for listing and 'GetPromptResult' for getting.
+ * Describes a prompt or prompt template.
  */
 class PromptDefinition
 {
@@ -19,9 +18,9 @@ class PromptDefinition
     /**
      * @param  class-string  $className  The fully qualified class name containing the prompt generation logic.
      * @param  string  $methodName  The name of the PHP method implementing the prompt generation.
-     * @param  string  $promptName  The designated name of the MCP prompt (used in 'prompts/get').
-     * @param  string|null  $description  A description of what this prompt provides.
-     * @param  PromptArgumentDefinition[]  $arguments  Definitions of arguments used for templating. Empty if not a template.
+     * @param  string  $promptName   The name of the prompt or prompt template.
+     * @param  string|null  $description An optional description of what this prompt provides
+     * @param  PromptArgumentDefinition[]  $arguments  A list of arguments to use for templating the prompt. Empty if not a template.
      *
      * @throws \InvalidArgumentException If the prompt name doesn't match the required pattern.
      */
@@ -48,34 +47,6 @@ class PromptDefinition
                     . ' (alphanumeric characters, underscores, and hyphens only).'
             );
         }
-    }
-
-    public function getClassName(): string
-    {
-        return $this->className;
-    }
-
-    public function getMethodName(): string
-    {
-        return $this->methodName;
-    }
-
-    public function getName(): string
-    {
-        return $this->promptName;
-    }
-
-    public function getDescription(): ?string
-    {
-        return $this->description;
-    }
-
-    /**
-     * @return list<PromptArgumentDefinition>
-     */
-    public function getArguments(): array
-    {
-        return $this->arguments;
     }
 
     public function isTemplate(): bool
@@ -146,16 +117,14 @@ class PromptDefinition
         $description = $overrideDescription ?? $docBlockParser->getSummary($docBlock) ?? null;
 
         $arguments = [];
-        $paramTags = $docBlockParser->getParamTags($docBlock); // Get all param tags first
+        $paramTags = $docBlockParser->getParamTags($docBlock);
         foreach ($method->getParameters() as $param) {
             $reflectionType = $param->getType();
 
-            // Basic DI check (heuristic)
             if ($reflectionType instanceof \ReflectionNamedType && ! $reflectionType->isBuiltin()) {
                 continue;
             }
 
-            // Correctly get the specific Param tag using the '$' prefix
             $paramTag = $paramTags['$' . $param->getName()] ?? null;
             $arguments[] = PromptArgumentDefinition::fromReflection($param, $paramTag);
         }
