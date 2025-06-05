@@ -10,7 +10,7 @@ use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DiscoveryException;
-use PhpMcp\Server\State\ClientStateManager;
+use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Support\Discoverer;
 use Throwable;
 
@@ -40,7 +40,7 @@ class Server
         protected readonly Configuration $configuration,
         protected readonly Registry $registry,
         protected readonly Protocol $protocol,
-        protected readonly ClientStateManager $clientStateManager,
+        protected readonly SessionManager $sessionManager,
     ) {}
 
     public static function make(): ServerBuilder
@@ -221,8 +221,8 @@ class Server
         return $this->protocol;
     }
 
-    public function getClientStateManager(): ClientStateManager
+    public function getSessionManager(): SessionManager
     {
-        return $this->clientStateManager;
+        return $this->sessionManager;
     }
 }

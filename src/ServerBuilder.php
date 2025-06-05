@@ -8,7 +8,7 @@ use PhpMcp\Server\Defaults\BasicContainer;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\Model\Capabilities;
-use PhpMcp\Server\State\ClientStateManager;
+use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Support\HandlerResolver;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
@@ -192,9 +192,9 @@ final class ServerBuilder
             paginationLimit: $this->paginationLimit ?? 50
         );
 
-        $clientStateManager = new ClientStateManager($configuration->logger, $configuration->cache, 'mcp_state_', $configuration->definitionCacheTtl);
-        $registry = new Registry($configuration->logger, $configuration->cache, $clientStateManager);
-        $protocol = new Protocol($configuration, $registry, $clientStateManager);
+        $sessionManager = new SessionManager($configuration->logger, $configuration->cache, $configuration->definitionCacheTtl);
+        $registry = new Registry($configuration->logger, $configuration->cache, $sessionManager);
+        $protocol = new Protocol($configuration, $registry, $sessionManager);
 
         $registry->disableNotifications();
         
@@ -202,7 +202,7 @@ final class ServerBuilder
         
         $registry->enableNotifications();
 
-        $server = new Server($configuration, $registry, $protocol, $clientStateManager);
+        $server = new Server($configuration, $registry, $protocol, $sessionManager);
 
         return $server;
     }
