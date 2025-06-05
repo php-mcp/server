@@ -7,31 +7,27 @@ namespace PhpMcp\Server\JsonRpc\Contents;
  */
 class ResourceContent extends Content
 {
+
     /**
-     * Create a new ResourceContent instance.
+     * Create a new Resource instance.
      *
-     * @param  EmbeddedResource  $resource  The embedded resource
+     * @param  string  $uri  The URI of the resource
+     * @param  string  $mimeType  The MIME type of the resource
+     * @param  string|null  $text  The text content if available
+     * @param  string|null  $blob  Base64-encoded binary data if available
      */
     public function __construct(
-        protected EmbeddedResource $resource
+        public readonly string $uri,
+        public readonly string $mimeType,
+        public readonly ?string $text = null,
+        public readonly ?string $blob = null
     ) {
+        // Validate that either text or blob is provided, but not both
+        if (($text === null && $blob === null) || ($text !== null && $blob !== null)) {
+            throw new \InvalidArgumentException('Either text OR blob must be provided for a resource.');
+        }
     }
 
-    /**
-     * Get the resource.
-     */
-    public function getResource(): EmbeddedResource
-    {
-        return $this->resource;
-    }
-
-    /**
-     * Get the content type.
-     */
-    public function getType(): string
-    {
-        return 'resource';
-    }
 
     /**
      * Convert the content to an array.
@@ -40,14 +36,33 @@ class ResourceContent extends Content
      */
     public function toArray(): array
     {
-        return [
-            'type' => 'resource',
-            'resource' => $this->resource->toArray(),
+        $resource = [
+            'uri' => $this->uri,
+            'mimeType' => $this->mimeType,
         ];
+
+        if ($this->text !== null) {
+            $resource['text'] = $this->text;
+        } elseif ($this->blob !== null) {
+            $resource['blob'] = $this->blob;
+        }
+
+        return $resource;
     }
 
     /**
-     * Create a new ResourceContent from a file path.
+     * Determines if the given MIME type is likely to be text-based.
+     *
+     * @param  string  $mimeType  The MIME type to check
+     */
+    private static function isTextMimeType(string $mimeType): bool
+    {
+        return str_starts_with($mimeType, 'text/') ||
+            in_array($mimeType, ['application/json', 'application/xml', 'application/javascript', 'application/yaml']);
+    }
+
+    /**
+     * Create a new EmbeddedResource from a file path.
      *
      * @param  string  $uri  The URI for the resource
      * @param  string  $path  Path to the file
@@ -57,7 +72,18 @@ class ResourceContent extends Content
      */
     public static function fromFile(string $uri, string $path, ?string $mimeType = null): static
     {
-        return new static(EmbeddedResource::fromFile($uri, $path, $mimeType));
+        if (! file_exists($path)) {
+            throw new \InvalidArgumentException("File not found: {$path}");
+        }
+
+        $detectedMime = $mimeType ?? mime_content_type($path) ?? 'application/octet-stream';
+        $content = file_get_contents($path);
+
+        if (self::isTextMimeType($detectedMime)) {
+            return new static($uri, $detectedMime, $content);
+        } else {
+            return new static($uri, $detectedMime, null, base64_encode($content));
+        }
     }
 
     /**
@@ -71,7 +97,17 @@ class ResourceContent extends Content
      */
     public static function fromStream(string $uri, $stream, string $mimeType): static
     {
-        return new static(EmbeddedResource::fromStream($uri, $stream, $mimeType));
+        if (! is_resource($stream) || get_resource_type($stream) !== 'stream') {
+            throw new \InvalidArgumentException('Expected a stream resource');
+        }
+
+        $content = stream_get_contents($stream);
+
+        if (self::isTextMimeType($mimeType)) {
+            return new static($uri, $mimeType, $content);
+        } else {
+            return new static($uri, $mimeType, null, base64_encode($content));
+        }
     }
 
     /**
@@ -85,30 +121,10 @@ class ResourceContent extends Content
      */
     public static function fromSplFileInfo(string $uri, \SplFileInfo $file, ?string $mimeType = null): static
     {
-        return new static(EmbeddedResource::fromSplFileInfo($uri, $file, $mimeType));
-    }
+        if (! $file->isReadable()) {
+            throw new \InvalidArgumentException("File is not readable: {$file->getPathname()}");
+        }
 
-    /**
-     * Create a text resource content.
-     *
-     * @param  string  $uri  The URI for the resource
-     * @param  string  $text  The text content
-     * @param  string  $mimeType  MIME type of the content
-     */
-    public static function text(string $uri, string $text, string $mimeType = 'text/plain'): static
-    {
-        return new static(new EmbeddedResource($uri, $mimeType, $text));
-    }
-
-    /**
-     * Create a binary resource content.
-     *
-     * @param  string  $uri  The URI for the resource
-     * @param  string  $binaryData  The binary data (will be base64 encoded)
-     * @param  string  $mimeType  MIME type of the content
-     */
-    public static function binary(string $uri, string $binaryData, string $mimeType): static
-    {
-        return new static(new EmbeddedResource($uri, $mimeType, null, base64_encode($binaryData)));
+        return self::fromFile($uri, $file->getPathname(), $mimeType);
     }
 }

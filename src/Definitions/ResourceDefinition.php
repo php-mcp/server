@@ -3,6 +3,7 @@
 namespace PhpMcp\Server\Definitions;
 
 use PhpMcp\Server\Attributes\McpResource;
+use PhpMcp\Server\Model\Annotations;
 use PhpMcp\Server\Support\DocBlockParser;
 use ReflectionMethod;
 
@@ -31,8 +32,8 @@ class ResourceDefinition
      * @param  string  $name  A human-readable name for this resource.
      * @param  string|null  $description  A description of what this resource represents.
      * @param  string|null  $mimeType  The MIME type of this resource, if known.
-     * @param  int|null  $size  The size of the resource content in bytes, if known.
-     * @param  array<string, mixed>  $annotations  Optional annotations (audience, priority).
+     * @param  ?Annotations  $annotations  Optional annotations describing the resource.
+     * @param  int|null  $size  The size of the raw resource content, in bytes (i.e., before base64 encoding or any tokenization), if known
      *
      * @throws \InvalidArgumentException If the URI doesn't match the required pattern.
      */
@@ -43,8 +44,8 @@ class ResourceDefinition
         public readonly string $name,
         public readonly ?string $description,
         public readonly ?string $mimeType,
+        public readonly ?Annotations $annotations,
         public readonly ?int $size,
-        public readonly array $annotations = [] // Follows Annotated base type
     ) {
         $this->validate();
     }
@@ -71,50 +72,10 @@ class ResourceDefinition
         }
     }
 
-    public function getClassName(): string
-    {
-        return $this->className;
-    }
-
-    public function getMethodName(): string
-    {
-        return $this->methodName;
-    }
-
-    public function getUri(): string
-    {
-        return $this->uri;
-    }
-
-    public function getName(): string
-    {
-        return $this->name;
-    }
-
-    public function getDescription(): ?string
-    {
-        return $this->description;
-    }
-
-    public function getMimeType(): ?string
-    {
-        return $this->mimeType;
-    }
-
-    public function getSize(): ?int
-    {
-        return $this->size;
-    }
-
-    public function getAnnotations(): array
-    {
-        return $this->annotations;
-    }
-
     /**
      * Formats the definition into the structure expected by MCP's 'resources/list'.
      *
-     * @return array{uri: string, name: string, description?: string, mimeType?: string, size?: int, annotations?: array<string, mixed>}
+     * @return array{uri: string, name: string, description?: string, mimeType?: string, size?: int, annotations?: array}
      */
     public function toArray(): array
     {
@@ -128,11 +89,11 @@ class ResourceDefinition
         if ($this->mimeType !== null) {
             $data['mimeType'] = $this->mimeType;
         }
+        if ($this->annotations !== null) {
+            $data['annotations'] = $this->annotations->toArray();
+        }
         if ($this->size !== null) {
             $data['size'] = $this->size;
-        }
-        if (! empty($this->annotations)) {
-            $data['annotations'] = $this->annotations;
         }
 
         return $data;
@@ -146,6 +107,8 @@ class ResourceDefinition
      */
     public static function fromArray(array $data): static
     {
+        $annotations = isset($data['annotations']) ? Annotations::fromArray($data['annotations']) : null;
+
         return new self(
             className: $data['className'],
             methodName: $data['methodName'],
@@ -153,8 +116,8 @@ class ResourceDefinition
             name: $data['name'],
             description: $data['description'],
             mimeType: $data['mimeType'],
+            annotations: $annotations,
             size: $data['size'],
-            annotations: $data['annotations'] ?? []
         );
     }
 
@@ -171,8 +134,8 @@ class ResourceDefinition
         ?string $overrideDescription,
         string $uri,
         ?string $mimeType,
+        ?Annotations $annotations,
         ?int $size,
-        ?array $annotations,
         DocBlockParser $docBlockParser
     ): self {
         $docBlock = $docBlockParser->parseDocBlock($method->getDocComment() ?: null);
@@ -189,8 +152,8 @@ class ResourceDefinition
             name: $name,
             description: $description,
             mimeType: $mimeType,
+            annotations: $annotations,
             size: $size,
-            annotations: $annotations
         );
     }
 }

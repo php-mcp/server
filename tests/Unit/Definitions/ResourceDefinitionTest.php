@@ -13,7 +13,7 @@ use ReflectionMethod;
 // --- Constructor Validation Tests ---
 
 test('constructor validates resource name pattern', function (string $resourceName, bool $shouldFail) {
-    $action = fn () => new ResourceDefinition(
+    $action = fn() => new ResourceDefinition(
         className: AllElementsStub::class,
         methodName: 'resourceMethod',
         uri: 'file:///valid/uri',
@@ -21,7 +21,6 @@ test('constructor validates resource name pattern', function (string $resourceNa
         description: 'Desc',
         mimeType: 'text/plain',
         size: 100,
-        annotations: []
     );
 
     if ($shouldFail) {
@@ -38,7 +37,7 @@ test('constructor validates resource name pattern', function (string $resourceNa
 ]);
 
 test('constructor validates URI pattern', function (string $uri, bool $shouldFail) {
-    $action = fn () => new ResourceDefinition(
+    $action = fn() => new ResourceDefinition(
         className: AllElementsStub::class,
         methodName: 'resourceMethod',
         uri: $uri,
@@ -46,7 +45,6 @@ test('constructor validates URI pattern', function (string $uri, bool $shouldFai
         description: 'Desc',
         mimeType: 'text/plain',
         size: 100,
-        annotations: []
     );
 
     if ($shouldFail) {
@@ -81,7 +79,6 @@ test('fromReflection creates definition with explicit values from attribute', fu
         description: 'Explicit Description',
         mimeType: 'application/json',
         size: 1234,
-        annotations: ['audience' => 'model']
     );
     $docComment = $reflectionMethod->getDocComment() ?: null;
 
@@ -95,7 +92,6 @@ test('fromReflection creates definition with explicit values from attribute', fu
         $attribute->uri,
         $attribute->mimeType,
         $attribute->size,
-        $attribute->annotations,
         $this->docBlockParser
     );
 
@@ -107,7 +103,6 @@ test('fromReflection creates definition with explicit values from attribute', fu
     expect($definition->getMethodName())->toBe('resourceMethod');
     expect($definition->getMimeType())->toBe('application/json');
     expect($definition->getSize())->toBe(1234);
-    expect($definition->getAnnotations())->toBe(['audience' => 'model']);
 });
 
 test('fromReflection uses method name and docblock summary as defaults', function () {
@@ -117,7 +112,7 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     $docComment = $reflectionMethod->getDocComment() ?: null;
 
     // Read the actual summary from the stub file
-    $stubContent = file_get_contents(__DIR__.'/../../Mocks/DiscoveryStubs/AllElementsStub.php');
+    $stubContent = file_get_contents(__DIR__ . '/../../Mocks/DiscoveryStubs/AllElementsStub.php');
     preg_match('/\/\*\*(.*?)\*\/\s+public function resourceMethod/s', $stubContent, $matches);
     $actualDocComment = isset($matches[1]) ? trim(preg_replace('/^\s*\*\s?/?m', '', $matches[1])) : '';
     $expectedSummary = explode("\n", $actualDocComment)[0] ?? null;
@@ -133,7 +128,6 @@ test('fromReflection uses method name and docblock summary as defaults', functio
         $attribute->uri,
         $attribute->mimeType,
         $attribute->size,
-        $attribute->annotations,
         $this->docBlockParser
     );
 
@@ -145,7 +139,6 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     expect($definition->getMethodName())->toBe('resourceMethod');
     expect($definition->getMimeType())->toBeNull();
     expect($definition->getSize())->toBeNull();
-    expect($definition->getAnnotations())->toBe([]);
 });
 
 test('fromReflection handles missing docblock summary', function () {
@@ -165,7 +158,6 @@ test('fromReflection handles missing docblock summary', function () {
         $attribute->uri,
         $attribute->mimeType,
         $attribute->size,
-        $attribute->annotations,
         $this->docBlockParser
     );
 
@@ -188,7 +180,6 @@ test('can be serialized and unserialized correctly via toArray/fromArray', funct
         description: 'Testing serialization',
         mimeType: 'image/jpeg',
         size: 9876,
-        annotations: ['p' => 1]
     );
 
     // Act
@@ -201,14 +192,12 @@ test('can be serialized and unserialized correctly via toArray/fromArray', funct
         'description' => $original->getDescription(),
         'mimeType' => $original->getMimeType(),
         'size' => $original->getSize(),
-        'annotations' => $original->getAnnotations(),
     ];
     $reconstructed = ResourceDefinition::fromArray($internalArray);
 
     // Assert
     expect($reconstructed)->toEqual($original);
     expect($reconstructed->getSize())->toBe($original->getSize());
-    expect($reconstructed->getAnnotations())->toBe($original->getAnnotations());
 });
 
 test('toArray produces correct MCP format', function () {
@@ -221,7 +210,6 @@ test('toArray produces correct MCP format', function () {
         description: 'MCP Description',
         mimeType: 'text/markdown',
         size: 555,
-        annotations: ['a' => 'b']
     );
     $definitionMinimal = new ResourceDefinition(
         className: ResourceOnlyStub::class,
@@ -231,7 +219,6 @@ test('toArray produces correct MCP format', function () {
         description: null,
         mimeType: null,
         size: null,
-        annotations: []
     );
 
     // Act
@@ -245,11 +232,10 @@ test('toArray produces correct MCP format', function () {
         'description' => 'MCP Description',
         'mimeType' => 'text/markdown',
         'size' => 555,
-        'annotations' => ['a' => 'b'],
     ]);
     expect($arrayMinimal)->toBe([
         'uri' => 'mcp://minimal',
         'name' => 'mcp-minimal',
     ]);
-    expect($arrayMinimal)->not->toHaveKeys(['description', 'mimeType', 'size', 'annotations']);
+    expect($arrayMinimal)->not->toHaveKeys(['description', 'mimeType', 'size']);
 });

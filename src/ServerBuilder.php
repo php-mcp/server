@@ -127,9 +127,9 @@ final class ServerBuilder
     /**
      * Manually registers a tool handler.
      */
-    public function withTool(array|string $handler, ?string $name = null, ?string $description = null): self
+    public function withTool(array|string $handler, ?string $name = null, ?string $description = null, ?array $annotations = null): self
     {
-        $this->manualTools[] = compact('handler', 'name', 'description');
+        $this->manualTools[] = compact('handler', 'name', 'description', 'annotations');
 
         return $this;
     }
@@ -137,9 +137,9 @@ final class ServerBuilder
     /**
      * Manually registers a resource handler.
      */
-    public function withResource(array|string $handler, string $uri, ?string $name = null, ?string $description = null, ?string $mimeType = null, ?int $size = null, array $annotations = []): self
+    public function withResource(array|string $handler, string $uri, ?string $name = null, ?string $description = null, ?string $mimeType = null, ?int $size = null): self
     {
-        $this->manualResources[] = compact('handler', 'uri', 'name', 'description', 'mimeType', 'size', 'annotations');
+        $this->manualResources[] = compact('handler', 'uri', 'name', 'description', 'mimeType', 'size');
 
         return $this;
     }
@@ -147,9 +147,9 @@ final class ServerBuilder
     /**
      * Manually registers a resource template handler.
      */
-    public function withResourceTemplate(array|string $handler, string $uriTemplate, ?string $name = null, ?string $description = null, ?string $mimeType = null, array $annotations = []): self
+    public function withResourceTemplate(array|string $handler, string $uriTemplate, ?string $name = null, ?string $description = null, ?string $mimeType = null): self
     {
-        $this->manualResourceTemplates[] = compact('handler', 'uriTemplate', 'name', 'description', 'mimeType', 'annotations');
+        $this->manualResourceTemplates[] = compact('handler', 'uriTemplate', 'name', 'description', 'mimeType');
 
         return $this;
     }
@@ -231,6 +231,7 @@ final class ServerBuilder
                     $resolvedHandler['reflectionMethod'],
                     $data['name'],
                     $data['description'],
+                    $data['annotations'],
                     $docBlockParser,
                     $schemaGenerator
                 );

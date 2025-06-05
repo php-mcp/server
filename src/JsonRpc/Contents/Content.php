@@ -10,11 +10,6 @@ use JsonSerializable;
 abstract class Content implements JsonSerializable
 {
     /**
-     * Get the content type.
-     */
-    abstract public function getType(): string;
-
-    /**
      * Convert the content to an array.
      */
     abstract public function toArray(): array;

@@ -6,8 +6,7 @@ use phpDocumentor\Reflection\DocBlock\Tags\Param;
 use ReflectionParameter;
 
 /**
- * Represents a defined argument for an MCP Prompt template.
- * Compliant with MCP 'PromptArgument'.
+ * Describes an argument that a prompt can accept.
  */
 class PromptArgumentDefinition
 {
@@ -20,23 +19,7 @@ class PromptArgumentDefinition
         public readonly string $name,
         public readonly ?string $description,
         public readonly bool $required = false
-    ) {
-    }
-
-    public function getName(): string
-    {
-        return $this->name;
-    }
-
-    public function getDescription(): ?string
-    {
-        return $this->description;
-    }
-
-    public function isRequired(): bool
-    {
-        return $this->required;
-    }
+    ) {}
 
     /**
      * Formats the definition into the structure expected by MCP's 'Prompt.arguments'.
@@ -48,10 +31,11 @@ class PromptArgumentDefinition
         $data = [
             'name' => $this->name,
         ];
+
         if ($this->description !== null) {
             $data['description'] = $this->description;
         }
-        // 'required' defaults to false, only include if true for brevity? Schema doesn't specify default. Let's include it.
+
         $data['required'] = $this->required;
 
         return $data;

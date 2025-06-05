@@ -12,14 +12,13 @@ use ReflectionMethod;
 // --- Constructor Validation Tests ---
 
 test('constructor validates template name pattern', function (string $templateName, bool $shouldFail) {
-    $action = fn () => new ResourceTemplateDefinition(
+    $action = fn() => new ResourceTemplateDefinition(
         className: AllElementsStub::class,
         methodName: 'templateMethod',
         uriTemplate: 'user://{userId}/profile',
         name: $templateName,
         description: 'Desc',
         mimeType: 'application/json',
-        annotations: []
     );
 
     if ($shouldFail) {
@@ -36,14 +35,13 @@ test('constructor validates template name pattern', function (string $templateNa
 ]);
 
 test('constructor validates URI template pattern', function (string $uriTemplate, bool $shouldFail) {
-    $action = fn () => new ResourceTemplateDefinition(
+    $action = fn() => new ResourceTemplateDefinition(
         className: AllElementsStub::class,
         methodName: 'templateMethod',
         uriTemplate: $uriTemplate,
         name: 'valid-name',
         description: 'Desc',
         mimeType: 'application/json',
-        annotations: []
     );
 
     if ($shouldFail) {
@@ -78,7 +76,6 @@ test('fromReflection creates definition with explicit values from attribute', fu
         name: 'explicit-tmpl-name',
         description: 'Explicit Description',
         mimeType: 'application/xml',
-        annotations: ['priority' => 10]
     );
     $docComment = $reflectionMethod->getDocComment() ?: null;
 
@@ -92,7 +89,6 @@ test('fromReflection creates definition with explicit values from attribute', fu
         $attribute->description,
         $attribute->uriTemplate,
         $attribute->mimeType,
-        $attribute->annotations,
         $this->docBlockParser
     );
 
@@ -103,7 +99,6 @@ test('fromReflection creates definition with explicit values from attribute', fu
     expect($definition->getClassName())->toBe(AllElementsStub::class);
     expect($definition->getMethodName())->toBe('templateMethod');
     expect($definition->getMimeType())->toBe('application/xml');
-    expect($definition->getAnnotations())->toBe(['priority' => 10]);
 });
 
 test('fromReflection uses method name and docblock summary as defaults', function () {
@@ -113,7 +108,7 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     $docComment = $reflectionMethod->getDocComment() ?: null;
 
     // Read the actual summary from the stub file
-    $stubContent = file_get_contents(__DIR__.'/../../Mocks/DiscoveryStubs/AllElementsStub.php');
+    $stubContent = file_get_contents(__DIR__ . '/../../Mocks/DiscoveryStubs/AllElementsStub.php');
     preg_match('/\/\*\*(.*?)\*\/\s+public function templateMethod/s', $stubContent, $matches);
     $actualDocComment = isset($matches[1]) ? trim(preg_replace('/^\s*\*\s?/?m', '', $matches[1])) : '';
     $expectedSummary = explode("\n", $actualDocComment)[0] ?? null;
@@ -129,7 +124,6 @@ test('fromReflection uses method name and docblock summary as defaults', functio
         $attribute->description,
         $attribute->uriTemplate,
         $attribute->mimeType,
-        $attribute->annotations,
         $this->docBlockParser
     );
 
@@ -140,7 +134,6 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     expect($definition->getClassName())->toBe(AllElementsStub::class);
     expect($definition->getMethodName())->toBe('templateMethod');
     expect($definition->getMimeType())->toBeNull();
-    expect($definition->getAnnotations())->toBe([]);
 });
 
 test('fromReflection handles missing docblock summary', function () {
@@ -161,7 +154,6 @@ test('fromReflection handles missing docblock summary', function () {
         $attribute->description,
         $attribute->uriTemplate,
         $attribute->mimeType,
-        $attribute->annotations,
         $this->docBlockParser
     );
 
@@ -183,7 +175,6 @@ test('can be serialized and unserialized correctly via toArray/fromArray', funct
         name: 'serial-tmpl',
         description: 'Testing serialization',
         mimeType: 'text/csv',
-        annotations: ['test' => true]
     );
 
     // Act
@@ -195,13 +186,11 @@ test('can be serialized and unserialized correctly via toArray/fromArray', funct
         'name' => $original->getName(),
         'description' => $original->getDescription(),
         'mimeType' => $original->getMimeType(),
-        'annotations' => $original->getAnnotations(),
     ];
     $reconstructed = ResourceTemplateDefinition::fromArray($internalArray);
 
     // Assert
     expect($reconstructed)->toEqual($original);
-    expect($reconstructed->getAnnotations())->toBe($original->getAnnotations());
 });
 
 test('toArray produces correct MCP format', function () {
@@ -213,7 +202,6 @@ test('toArray produces correct MCP format', function () {
         name: 'mcp-tmpl',
         description: 'MCP Description',
         mimeType: 'application/vnd.api+json',
-        annotations: ['version' => '1.0']
     );
     $definitionMinimal = new ResourceTemplateDefinition(
         className: AllElementsStub::class,
@@ -222,7 +210,6 @@ test('toArray produces correct MCP format', function () {
         name: 'mcp-minimal',
         description: null,
         mimeType: null,
-        annotations: []
     );
 
     // Act
@@ -235,11 +222,10 @@ test('toArray produces correct MCP format', function () {
         'name' => 'mcp-tmpl',
         'description' => 'MCP Description',
         'mimeType' => 'application/vnd.api+json',
-        'annotations' => ['version' => '1.0'],
     ]);
     expect($arrayMinimal)->toBe([
         'uriTemplate' => 'mcp://minimal/{key}',
         'name' => 'mcp-minimal',
     ]);
-    expect($arrayMinimal)->not->toHaveKeys(['description', 'mimeType', 'annotations']);
+    expect($arrayMinimal)->not->toHaveKeys(['description', 'mimeType']);
 });

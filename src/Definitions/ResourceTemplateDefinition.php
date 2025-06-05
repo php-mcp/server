@@ -2,7 +2,7 @@
 
 namespace PhpMcp\Server\Definitions;
 
-use PhpMcp\Server\Attributes\McpResourceTemplate;
+use PhpMcp\Server\Model\Annotations;
 use PhpMcp\Server\Support\DocBlockParser;
 use ReflectionMethod;
 
@@ -30,7 +30,7 @@ class ResourceTemplateDefinition
      * @param  string  $name  A human-readable name for the template type.
      * @param  string|null  $description  A description of what this template is for.
      * @param  string|null  $mimeType  Optional default MIME type for resources matching this template.
-     * @param  array<string, mixed>  $annotations  Optional annotations (audience, priority).
+     * @param  ?Annotations  $annotations  Optional annotations describing the resource template.
      *
      * @throws \InvalidArgumentException If the URI template doesn't match the required pattern.
      */
@@ -41,7 +41,7 @@ class ResourceTemplateDefinition
         public readonly string $name,
         public readonly ?string $description,
         public readonly ?string $mimeType,
-        public readonly array $annotations = []
+        public readonly ?Annotations $annotations,
     ) {
         $this->validate();
     }
@@ -68,45 +68,10 @@ class ResourceTemplateDefinition
         }
     }
 
-    public function getClassName(): string
-    {
-        return $this->className;
-    }
-
-    public function getMethodName(): string
-    {
-        return $this->methodName;
-    }
-
-    public function getUriTemplate(): string
-    {
-        return $this->uriTemplate;
-    }
-
-    public function getName(): string
-    {
-        return $this->name;
-    }
-
-    public function getDescription(): ?string
-    {
-        return $this->description;
-    }
-
-    public function getMimeType(): ?string
-    {
-        return $this->mimeType;
-    }
-
-    public function getAnnotations(): array
-    {
-        return $this->annotations;
-    }
-
     /**
      * Formats the definition into the structure expected by MCP's 'resources/templates/list'.
      *
-     * @return array{uriTemplate: string, name: string, description?: string, mimeType?: string, annotations?: array<string, mixed>}
+     * @return array{uriTemplate: string, name: string, description?: string, mimeType?: string, annotations?: array}
      */
     public function toArray(): array
     {
@@ -120,10 +85,9 @@ class ResourceTemplateDefinition
         if ($this->mimeType !== null) {
             $data['mimeType'] = $this->mimeType;
         }
-        if (! empty($this->annotations)) {
-            $data['annotations'] = $this->annotations;
+        if ($this->annotations !== null) {
+            $data['annotations'] = $this->annotations->toArray();
         }
-
         return $data;
     }
 
@@ -135,6 +99,7 @@ class ResourceTemplateDefinition
      */
     public static function fromArray(array $data): static
     {
+        $annotations = isset($data['annotations']) ? Annotations::fromArray($data['annotations']) : null;
         return new self(
             className: $data['className'],
             methodName: $data['methodName'],
@@ -142,7 +107,7 @@ class ResourceTemplateDefinition
             name: $data['name'],
             description: $data['description'] ?? null,
             mimeType: $data['mimeType'] ?? null,
-            annotations: $data['annotations'] ?? []
+            annotations: $annotations,
         );
     }
 
@@ -154,7 +119,6 @@ class ResourceTemplateDefinition
      * @param  string|null  $overrideDescription  The description for the resource.
      * @param  string  $uriTemplate  The URI template for the resource.
      * @param  string|null  $mimeType  The MIME type for the resource.
-     * @param  array<string, mixed>|null  $annotations  The annotations for the resource.
      * @param  DocBlockParser  $docBlockParser  Utility to parse docblocks.
      */
     public static function fromReflection(
@@ -163,7 +127,7 @@ class ResourceTemplateDefinition
         ?string $overrideDescription,
         string $uriTemplate,
         ?string $mimeType,
-        ?array $annotations,
+        ?Annotations $annotations,
         DocBlockParser $docBlockParser
     ): self {
         $docBlock = $docBlockParser->parseDocBlock($method->getDocComment() ?: null);
@@ -180,7 +144,7 @@ class ResourceTemplateDefinition
             name: $name,
             description: $description,
             mimeType: $mimeType,
-            annotations: $annotations
+            annotations: $annotations,
         );
     }
 }
