@@ -39,7 +39,7 @@ class RequestProcessor
 {
     use ResponseFormatter;
 
-    protected const SUPPORTED_PROTOCOL_VERSIONS = ['2025-03-26', '2024-11-05'];
+    protected const SUPPORTED_PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26'];
 
     protected LoggerInterface $logger;
 
@@ -63,7 +63,7 @@ class RequestProcessor
         $this->argumentPreparer = $argumentPreparer ?? new ArgumentPreparer($this->configuration->logger);
     }
 
-    public function process(Request|Notification $message, string $clientId): ?Response
+    public function process(Request|Notification $message, string $sessionId): ?Response
     {
         $method = $message->method;
         $params = $message->params;
@@ -74,15 +74,15 @@ class RequestProcessor
             $result = null;
 
             if ($method === 'initialize') {
-                $result = $this->handleInitialize($params, $clientId);
+                $result = $this->handleInitialize($params, $sessionId);
             } elseif ($method === 'ping') {
-                $result = $this->handlePing($clientId);
+                $result = $this->handlePing($sessionId);
             } elseif ($method === 'notifications/initialized') {
-                $this->handleNotificationInitialized($params, $clientId);
+                $this->handleNotificationInitialized($params, $sessionId);
 
                 return null;
             } else {
-                $this->validateClientInitialized($clientId);
+                $this->validateSessionInitialized($sessionId);
                 [$type, $action] = $this->parseMethod($method);
                 $this->validateCapabilityEnabled($type);
 
@@ -95,8 +95,8 @@ class RequestProcessor
                     'resources' => match ($action) {
                         'list' => $this->handleResourcesList($params),
                         'read' => $this->handleResourceRead($params),
-                        'subscribe' => $this->handleResourceSubscribe($params, $clientId),
-                        'unsubscribe' => $this->handleResourceUnsubscribe($params, $clientId),
+                        'subscribe' => $this->handleResourceSubscribe($params, $sessionId),
+                        'unsubscribe' => $this->handleResourceUnsubscribe($params, $sessionId),
                         'templates/list' => $this->handleResourceTemplateList($params),
                         default => throw McpServerException::methodNotFound($method),
                     },
@@ -106,7 +106,7 @@ class RequestProcessor
                         default => throw McpServerException::methodNotFound($method),
                     },
                     'logging' => match ($action) {
-                        'setLevel' => $this->handleLoggingSetLevel($params, $clientId),
+                        'setLevel' => $this->handleLoggingSetLevel($params, $sessionId),
                         default => throw McpServerException::methodNotFound($method),
                     },
                     default => throw McpServerException::methodNotFound($method),
@@ -143,10 +143,10 @@ class RequestProcessor
         return [$method, ''];
     }
 
-    private function validateClientInitialized(string $clientId): void
+    private function validateSessionInitialized(string $sessionId): void
     {
-        if (! $this->sessionManager->isSessionInitialized($clientId)) {
-            throw McpServerException::invalidRequest('Client not initialized.');
+        if (! $this->sessionManager->isSessionInitialized($sessionId)) {
+            throw McpServerException::invalidRequest('Client session not initialized.');
         }
     }
 
@@ -169,15 +169,15 @@ class RequestProcessor
         }
     }
 
-    private function handleInitialize(array $params, string $clientId): InitializeResult
+    private function handleInitialize(array $params, string $sessionId): InitializeResult
     {
-        $clientProtocolVersion = $params['protocolVersion'] ?? null;
-        if (! $clientProtocolVersion) {
+        $protocolVersion = $params['protocolVersion'] ?? null;
+        if (! $protocolVersion) {
             throw McpServerException::invalidParams("Missing 'protocolVersion' parameter.");
         }
 
-        if (! in_array($clientProtocolVersion, self::SUPPORTED_PROTOCOL_VERSIONS)) {
-            $this->logger->warning("Client requested unsupported protocol version: {$clientProtocolVersion}", [
+        if (! in_array($protocolVersion, self::SUPPORTED_PROTOCOL_VERSIONS)) {
+            $this->logger->warning("Unsupported protocol version: {$protocolVersion}", [
                 'supportedVersions' => self::SUPPORTED_PROTOCOL_VERSIONS,
             ]);
         }
@@ -189,7 +189,7 @@ class RequestProcessor
             throw McpServerException::invalidParams("Missing or invalid 'clientInfo' parameter.");
         }
 
-        $this->sessionManager->storeClientInfo($clientId, $clientInfo);
+        $this->sessionManager->storeClientInfo($sessionId, $clientInfo);
 
         $serverInfo = [
             'name' => $this->configuration->serverName,
@@ -204,14 +204,14 @@ class RequestProcessor
         return new InitializeResult($serverInfo, $serverProtocolVersion, $responseCapabilities, $instructions);
     }
 
-    private function handlePing(string $clientId): EmptyResult
+    private function handlePing(string $sessionId): EmptyResult
     {
         return new EmptyResult();
     }
 
-    private function handleNotificationInitialized(array $params, string $clientId): EmptyResult
+    private function handleNotificationInitialized(array $params, string $sessionId): EmptyResult
     {
-        $this->sessionManager->initializeSession($clientId);
+        $this->sessionManager->initializeSession($sessionId);
 
         return new EmptyResult();
     }
@@ -387,7 +387,7 @@ class RequestProcessor
         }
     }
 
-    private function handleResourceSubscribe(array $params, string $clientId): EmptyResult
+    private function handleResourceSubscribe(array $params, string $sessionId): EmptyResult
     {
         $uri = $params['uri'] ?? null;
         if (! is_string($uri) || empty($uri)) {
@@ -396,12 +396,12 @@ class RequestProcessor
 
         $this->validateCapabilityEnabled('resources/subscribe');
 
-        $this->sessionManager->addResourceSubscription($clientId, $uri);
+        $this->sessionManager->addResourceSubscription($sessionId, $uri);
 
         return new EmptyResult();
     }
 
-    private function handleResourceUnsubscribe(array $params, string $clientId): EmptyResult
+    private function handleResourceUnsubscribe(array $params, string $sessionId): EmptyResult
     {
         $uri = $params['uri'] ?? null;
         if (! is_string($uri) || empty($uri)) {
@@ -410,7 +410,7 @@ class RequestProcessor
 
         $this->validateCapabilityEnabled('resources/unsubscribe');
 
-        $this->sessionManager->removeResourceSubscription($clientId, $uri);
+        $this->sessionManager->removeResourceSubscription($sessionId, $uri);
 
         return new EmptyResult();
     }
@@ -467,7 +467,7 @@ class RequestProcessor
         }
     }
 
-    private function handleLoggingSetLevel(array $params, string $clientId): EmptyResult
+    private function handleLoggingSetLevel(array $params, string $sessionId): EmptyResult
     {
         $level = $params['level'] ?? null;
         $validLevels = [
@@ -487,9 +487,9 @@ class RequestProcessor
 
         $this->validateCapabilityEnabled('logging');
 
-        $this->sessionManager->setLogLevel($clientId, strtolower($level));
+        $this->sessionManager->setLogLevel($sessionId, strtolower($level));
 
-        $this->logger->info("Processor: Client '{$clientId}' requested log level set to '{$level}'.");
+        $this->logger->info("Log level set to '{$level}'.", ['sessionId' => $sessionId]);
 
         return new EmptyResult();
     }
