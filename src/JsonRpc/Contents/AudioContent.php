@@ -2,6 +2,8 @@
 
 namespace PhpMcp\Server\JsonRpc\Contents;
 
+use PhpMcp\Server\Model\Annotations;
+
 /**
  * Represents audio content in MCP.
  */
@@ -12,10 +14,12 @@ class AudioContent extends Content
      *
      * @param  string  $data  Base64-encoded audio data
      * @param  string  $mimeType  The MIME type of the audio
+     * @param  ?Annotations  $annotations  Optional annotations describing the content
      */
     public function __construct(
         protected string $data,
-        protected string $mimeType
+        protected string $mimeType,
+        protected ?Annotations $annotations = null
     ) {}
 
     /**
@@ -35,6 +39,14 @@ class AudioContent extends Content
     }
 
     /**
+     * Get the annotations.
+     */
+    public function getAnnotations(): ?Annotations
+    {
+        return $this->annotations;
+    }
+
+    /**
      * Get the content type.
      */
     public function getType(): string
@@ -45,15 +57,21 @@ class AudioContent extends Content
     /**
      * Convert the content to an array.
      *
-     * @return array{type: string, data: string, mimeType: string}
+     * @return array{type: string, data: string, mimeType: string, annotations?: array}
      */
     public function toArray(): array
     {
-        return [
+        $result = [
             'type' => 'audio',
             'data' => $this->data,
             'mimeType' => $this->mimeType,
         ];
+
+        if ($this->annotations !== null) {
+            $result['annotations'] = $this->annotations->toArray();
+        }
+
+        return $result;
     }
 
     /**
@@ -61,10 +79,11 @@ class AudioContent extends Content
      *
      * @param  string  $path  Path to the audio file
      * @param  string|null  $mimeType  Optional MIME type override
+     * @param  ?Annotations  $annotations  Optional annotations describing the content
      *
      * @throws \InvalidArgumentException If the file doesn't exist
      */
-    public static function fromFile(string $path, ?string $mimeType = null): static
+    public static function fromFile(string $path, ?string $mimeType = null, ?Annotations $annotations = null): static
     {
         if (! file_exists($path)) {
             throw new \InvalidArgumentException("Audio file not found: {$path}");
@@ -77,7 +96,7 @@ class AudioContent extends Content
         $data = base64_encode($content);
         $detectedMime = $mimeType ?? mime_content_type($path) ?: 'application/octet-stream';
 
-        return new static($data, $detectedMime);
+        return new static($data, $detectedMime, $annotations);
     }
 
     /**
@@ -85,9 +104,10 @@ class AudioContent extends Content
      *
      * @param  string  $binaryData  Raw binary audio data
      * @param  string  $mimeType  MIME type of the audio
+     * @param  ?Annotations  $annotations  Optional annotations describing the content
      */
-    public static function fromBinary(string $binaryData, string $mimeType): static
+    public static function fromBinary(string $binaryData, string $mimeType, ?Annotations $annotations = null): static
     {
-        return new static(base64_encode($binaryData), $mimeType);
+        return new static(base64_encode($binaryData), $mimeType, $annotations);
     }
 }

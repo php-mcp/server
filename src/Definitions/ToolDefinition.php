@@ -3,6 +3,7 @@
 namespace PhpMcp\Server\Definitions;
 
 use PhpMcp\Server\Attributes\McpTool;
+use PhpMcp\Server\Model\ToolAnnotations;
 use PhpMcp\Server\Support\DocBlockParser;
 use PhpMcp\Server\Support\SchemaGenerator;
 use ReflectionMethod;
@@ -32,6 +33,7 @@ class ToolDefinition
         public readonly string $toolName,
         public readonly ?string $description,
         public readonly array $inputSchema,
+        public readonly ?ToolAnnotations $annotations
     ) {
         $this->validate();
     }
@@ -51,36 +53,6 @@ class ToolDefinition
         }
     }
 
-    public function getClassName(): string
-    {
-        return $this->className;
-    }
-
-    public function getMethodName(): string
-    {
-        return $this->methodName;
-    }
-
-    public function getName(): string
-    {
-        return $this->toolName;
-    }
-
-    public function getDescription(): ?string
-    {
-        return $this->description;
-    }
-
-    /**
-     * Gets the JSON schema defining the tool's input arguments.
-     *
-     * @return array<string, mixed>
-     */
-    public function getInputSchema(): array
-    {
-        return $this->inputSchema;
-    }
-
     /**
      * Convert the tool definition to MCP format.
      */
@@ -98,6 +70,10 @@ class ToolDefinition
             $result['inputSchema'] = $this->inputSchema;
         }
 
+        if ($this->annotations !== null) {
+            $result['annotations'] = $this->annotations->toArray();
+        }
+
         return $result;
     }
 
@@ -113,8 +89,9 @@ class ToolDefinition
             className: $data['className'],
             methodName: $data['methodName'],
             toolName: $data['toolName'],
-            description: $data['description'],
-            inputSchema: $data['inputSchema'],
+            description: $data['description'] ?? null,
+            inputSchema: $data['inputSchema'] ?? [],
+            annotations: $data['annotations'] ?? null,
         );
     }
 
@@ -130,13 +107,13 @@ class ToolDefinition
         ReflectionMethod $method,
         ?string $overrideName,
         ?string $overrideDescription,
+        ?ToolAnnotations $annotations,
         DocBlockParser $docBlockParser,
         SchemaGenerator $schemaGenerator
     ): self {
         $docBlock = $docBlockParser->parseDocBlock($method->getDocComment() ?? null);
         $description = $overrideDescription ?? $docBlockParser->getSummary($docBlock) ?? null;
         $inputSchema = $schemaGenerator->fromMethodParameters($method);
-
         $toolName = $overrideName ?? ($method->getName() === '__invoke'
             ? $method->getDeclaringClass()->getShortName()
             : $method->getName());
@@ -147,6 +124,7 @@ class ToolDefinition
             toolName: $toolName,
             description: $description,
             inputSchema: $inputSchema,
+            annotations: $annotations,
         );
     }
 }

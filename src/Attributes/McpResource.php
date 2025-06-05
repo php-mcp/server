@@ -3,6 +3,7 @@
 namespace PhpMcp\Server\Attributes;
 
 use Attribute;
+use PhpMcp\Server\Model\Annotations;
 
 /**
  * Marks a PHP class as representing or handling a specific MCP Resource instance.
@@ -17,7 +18,7 @@ final class McpResource
      * @param  ?string  $description  An optional description of the resource. Defaults to class DocBlock summary.
      * @param  ?string  $mimeType  The MIME type, if known and constant for this resource.
      * @param  ?int  $size  The size in bytes, if known and constant.
-     * @param  array<string, mixed>  $annotations  Optional annotations following the MCP spec (e.g., ['audience' => ['user'], 'priority' => 0.5]).
+     * @param  Annotations|null  $annotations  Optional annotations describing the resource.
      */
     public function __construct(
         public string $uri,
@@ -25,7 +26,6 @@ final class McpResource
         public ?string $description = null,
         public ?string $mimeType = null,
         public ?int $size = null,
-        public array $annotations = [],
-    ) {
-    }
+        public ?Annotations $annotations = null,
+    ) {}
 }

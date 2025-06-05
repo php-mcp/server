@@ -444,12 +444,11 @@ class RequestProcessor
             $instance = $this->container->get($definition->getClassName());
             $methodName = $definition->getMethodName();
 
-            // Prepare arguments for the prompt generator method
             $args = $this->argumentPreparer->prepareMethodArguments(
                 $instance,
                 $methodName,
                 $arguments,
-                [] // No input schema for prompts
+                []
             );
 
             $promptGenerationResult = $instance->{$methodName}(...$args);

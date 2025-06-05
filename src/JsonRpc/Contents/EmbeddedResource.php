@@ -16,93 +16,20 @@ class EmbeddedResource
      * @param  string|null  $blob  Base64-encoded binary data if available
      */
     public function __construct(
-        protected string $uri,
-        protected string $mimeType,
-        protected ?string $text = null,
-        protected ?string $blob = null
-    ) {
-        // Validate that either text or blob is provided, but not both
-        if (($text === null && $blob === null) || ($text !== null && $blob !== null)) {
-            throw new \InvalidArgumentException('Either text OR blob must be provided for a resource.');
-        }
-    }
-
-    /**
-     * Get the URI.
-     */
-    public function getUri(): string
-    {
-        return $this->uri;
-    }
-
-    /**
-     * Get the MIME type.
-     */
-    public function getMimeType(): string
-    {
-        return $this->mimeType;
-    }
-
-    /**
-     * Get the text content.
-     */
-    public function getText(): ?string
-    {
-        return $this->text;
-    }
-
-    /**
-     * Get the binary data.
-     */
-    public function getBlob(): ?string
-    {
-        return $this->blob;
-    }
-
-    /**
-     * Check if the resource has text content.
-     */
-    public function hasText(): bool
-    {
-        return $this->text !== null;
-    }
-
-    /**
-     * Check if the resource has binary content.
-     */
-    public function hasBlob(): bool
-    {
-        return $this->blob !== null;
-    }
+        public readonly ResourceContent $resource
+    ) {}
 
     /**
      * Convert the resource to an array.
      */
     public function toArray(): array
     {
-        $resource = [
-            'uri' => $this->uri,
-            'mimeType' => $this->mimeType,
+        $resource = $this->resource->toArray();
+
+        return [
+            'type' => 'resource',
+            'resource' => $resource,
         ];
-
-        if ($this->text !== null) {
-            $resource['text'] = $this->text;
-        } elseif ($this->blob !== null) {
-            $resource['blob'] = $this->blob;
-        }
-
-        return $resource;
-    }
-
-    /**
-     * Determines if the given MIME type is likely to be text-based.
-     *
-     * @param  string  $mimeType  The MIME type to check
-     */
-    private static function isTextMimeType(string $mimeType): bool
-    {
-        return str_starts_with($mimeType, 'text/') ||
-               in_array($mimeType, ['application/json', 'application/xml', 'application/javascript', 'application/yaml']);
     }
 
     /**
@@ -116,19 +43,7 @@ class EmbeddedResource
      */
     public static function fromFile(string $uri, string $path, ?string $mimeType = null): static
     {
-        if (! file_exists($path)) {
-            throw new \InvalidArgumentException("File not found: {$path}");
-        }
-
-        $detectedMime = $mimeType ?? mime_content_type($path) ?? 'application/octet-stream';
-        $content = file_get_contents($path);
-
-        // Decide if we should use text or blob based on the mime type
-        if (self::isTextMimeType($detectedMime)) {
-            return new static($uri, $detectedMime, $content);
-        } else {
-            return new static($uri, $detectedMime, null, base64_encode($content));
-        }
+        return new static(ResourceContent::fromFile($uri, $path, $mimeType));
     }
 
     /**
@@ -142,18 +57,7 @@ class EmbeddedResource
      */
     public static function fromStream(string $uri, $stream, string $mimeType): static
     {
-        if (! is_resource($stream) || get_resource_type($stream) !== 'stream') {
-            throw new \InvalidArgumentException('Expected a stream resource');
-        }
-
-        $content = stream_get_contents($stream);
-
-        // Determine if this is text based on mime type
-        if (self::isTextMimeType($mimeType)) {
-            return new static($uri, $mimeType, $content);
-        } else {
-            return new static($uri, $mimeType, null, base64_encode($content));
-        }
+        return new static(ResourceContent::fromStream($uri, $stream, $mimeType));
     }
 
     /**
@@ -167,10 +71,6 @@ class EmbeddedResource
      */
     public static function fromSplFileInfo(string $uri, \SplFileInfo $file, ?string $mimeType = null): static
     {
-        if (! $file->isReadable()) {
-            throw new \InvalidArgumentException("File is not readable: {$file->getPathname()}");
-        }
-
-        return self::fromFile($uri, $file->getPathname(), $mimeType);
+        return new static(ResourceContent::fromSplFileInfo($uri, $file, $mimeType));
     }
 }

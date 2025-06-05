@@ -185,7 +185,7 @@ class Discoverer
      *
      * @param  ReflectionMethod  $method  The target method (e.g., regular method or __invoke).
      * @param  array  $discoveredCount  Pass by reference to update counts.
-     * @param  ReflectionAttribute  $attribute  The ReflectionAttribute instance found (on method or class).
+     * @param  ReflectionAttribute<McpTool|McpResource|McpPrompt|McpResourceTemplate>  $attribute  The ReflectionAttribute instance found (on method or class).
      */
     private function processMethod(ReflectionMethod $method, array &$discoveredCount, ReflectionAttribute $attribute): void
     {
@@ -200,8 +200,9 @@ class Discoverer
                 case McpTool::class:
                     $definition = ToolDefinition::fromReflection(
                         $method,
-                        $instance->name ?? null,
-                        $instance->description ?? null,
+                        $instance->name,
+                        $instance->description,
+                        $instance->annotations,
                         $this->docBlockParser,
                         $this->schemaGenerator
                     );
@@ -215,12 +216,12 @@ class Discoverer
                     }
                     $definition = ResourceDefinition::fromReflection(
                         $method,
-                        $instance->name ?? null,
-                        $instance->description ?? null,
+                        $instance->name,
+                        $instance->description,
                         $instance->uri,
-                        $instance->mimeType ?? null,
-                        $instance->size ?? null,
-                        $instance->annotations ?? [],
+                        $instance->mimeType,
+                        $instance->annotations,
+                        $instance->size,
                         $this->docBlockParser
                     );
                     $this->registry->registerResource($definition);
@@ -230,8 +231,8 @@ class Discoverer
                 case McpPrompt::class:
                     $definition = PromptDefinition::fromReflection(
                         $method,
-                        $instance->name ?? null,
-                        $instance->description ?? null,
+                        $instance->name,
+                        $instance->description,
                         $this->docBlockParser
                     );
                     $this->registry->registerPrompt($definition);
@@ -244,11 +245,11 @@ class Discoverer
                     }
                     $definition = ResourceTemplateDefinition::fromReflection(
                         $method,
-                        $instance->name ?? null,
-                        $instance->description ?? null,
+                        $instance->name,
+                        $instance->description,
                         $instance->uriTemplate,
-                        $instance->mimeType ?? null,
-                        $instance->annotations ?? [],
+                        $instance->mimeType,
+                        $instance->annotations,
                         $this->docBlockParser
                     );
                     $this->registry->registerResourceTemplate($definition);

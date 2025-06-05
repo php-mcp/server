@@ -2,7 +2,7 @@
 
 namespace PhpMcp\Server\JsonRpc\Results;
 
-use Codewithkyrian\LaravelMcp\JsonRpc\Types\EmbeddedResource;
+use PhpMcp\Server\JsonRpc\Contents\ResourceContent;
 use PhpMcp\Server\JsonRpc\Result;
 
 class ReadResourceResult extends Result
@@ -10,17 +10,16 @@ class ReadResourceResult extends Result
     /**
      * Create a new ReadResourceResult.
      *
-     * @param  EmbeddedResource[]  $contents  The contents of the resource
+     * @param  ResourceContent[]  $contents  The contents of the resource
      */
     public function __construct(
         protected array $contents
-    ) {
-    }
+    ) {}
 
     /**
      * Get the contents of the resource.
      *
-     * @return EmbeddedResource[]
+     * @return ResourceContent[]
      */
     public function getContents(): array
     {
@@ -33,7 +32,7 @@ class ReadResourceResult extends Result
     public function toArray(): array
     {
         return [
-            'contents' => array_map(fn ($resource) => $resource->toArray(), $this->contents),
+            'contents' => array_map(fn($resource) => $resource->toArray(), $this->contents),
         ];
     }
 }

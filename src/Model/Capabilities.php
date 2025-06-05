@@ -27,8 +27,7 @@ class Capabilities
         public readonly bool $loggingEnabled = false,
         public readonly ?string $instructions = null,
         public readonly ?array $experimental = null
-    ) {
-    }
+    ) {}
 
     /**
      * Factory method to create a Capabilities instance for the server.

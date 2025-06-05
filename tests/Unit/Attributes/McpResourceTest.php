@@ -11,7 +11,6 @@ it('instantiates with correct properties', function () {
     $description = 'This is a test resource description.';
     $mimeType = 'text/plain';
     $size = 1024;
-    $annotations = ['priority' => 5];
 
     // Act
     $attribute = new McpResource(
@@ -20,7 +19,6 @@ it('instantiates with correct properties', function () {
         description: $description,
         mimeType: $mimeType,
         size: $size,
-        annotations: $annotations
     );
 
     // Assert
@@ -29,7 +27,6 @@ it('instantiates with correct properties', function () {
     expect($attribute->description)->toBe($description);
     expect($attribute->mimeType)->toBe($mimeType);
     expect($attribute->size)->toBe($size);
-    expect($attribute->annotations)->toBe($annotations);
 });
 
 it('instantiates with null values for name and description', function () {
@@ -40,7 +37,6 @@ it('instantiates with null values for name and description', function () {
         description: null,
         mimeType: null,
         size: null,
-        annotations: []
     );
 
     // Assert
@@ -49,7 +45,6 @@ it('instantiates with null values for name and description', function () {
     expect($attribute->description)->toBeNull();
     expect($attribute->mimeType)->toBeNull();
     expect($attribute->size)->toBeNull();
-    expect($attribute->annotations)->toBe([]);
 });
 
 it('instantiates with missing optional arguments', function () {
@@ -63,5 +58,4 @@ it('instantiates with missing optional arguments', function () {
     expect($attribute->description)->toBeNull();
     expect($attribute->mimeType)->toBeNull();
     expect($attribute->size)->toBeNull();
-    expect($attribute->annotations)->toBe([]);
 });
