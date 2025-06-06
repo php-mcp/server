@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Contracts;
 
 use Evenement\EventEmitterInterface;
+use PhpMcp\Server\JsonRpc\Messages\BatchResponse;
+use PhpMcp\Server\JsonRpc\Messages\Error;
+use PhpMcp\Server\JsonRpc\Messages\Response;
 use React\Promise\PromiseInterface;
 use Throwable;
 
@@ -33,16 +36,14 @@ interface ServerTransportInterface extends EventEmitterInterface
     public function listen(): void;
 
     /**
-     * Sends a raw, framed message to a specific connected client.
-     * The message MUST be a complete JSON-RPC frame (typically ending in "\n" for line-based transports
-     * or formatted as an SSE event for HTTP transports). Framing is the responsibility of the caller
-     * (typically the Protocol) as it depends on the transport type.
+     * Sends a message to a connected client session with optional context.
      *
-     * @param  string  $sessionId  Target session identifier ("stdio" is conventionally used for stdio transport).
-     * @param  string  $rawFramedMessage  Message string ready for transport.
+     * @param  Response|Error|BatchResponse|null  $message  Message to send.
+     * @param  string  $sessionId  Target session identifier.
+     * @param  array  $context  Optional context for the message. Eg. streamId for SSE.
      * @return PromiseInterface<void> Resolves on successful send/queue, rejects on specific send error.
      */
-    public function sendToClientAsync(string $sessionId, string $rawFramedMessage): PromiseInterface;
+    public function sendMessage(Response|Error|BatchResponse|null $message, string $sessionId, array $context = []): PromiseInterface;
 
     /**
      * Stops the transport listener gracefully and closes all active connections.

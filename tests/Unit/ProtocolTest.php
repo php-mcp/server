@@ -7,9 +7,9 @@ use Mockery\MockInterface;
 use PhpMcp\Server\Configuration;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\McpServerException;
-use PhpMcp\Server\JsonRpc\Notification;
-use PhpMcp\Server\JsonRpc\Request;
-use PhpMcp\Server\JsonRpc\Response;
+use PhpMcp\Server\JsonRpc\Messages\Notification;
+use PhpMcp\Server\JsonRpc\Messages\Request;
+use PhpMcp\Server\JsonRpc\Messages\Response;
 use PhpMcp\Server\JsonRpc\Results\EmptyResult;
 use PhpMcp\Server\Model\Capabilities;
 use PhpMcp\Server\Protocol;
@@ -75,7 +75,7 @@ it('can handle a valid request', function () {
     $method = 'test/method';
     $params = ['a' => 1];
     $rawJson = json_encode(['jsonrpc' => '2.0', 'id' => $requestId, 'method' => $method, 'params' => $params]);
-    $expectedResponse = Response::success(new EmptyResult(), $requestId);
+    $expectedResponse = Response::make(new EmptyResult(), $requestId);
     $expectedResponseJson = json_encode($expectedResponse->toArray());
 
     $this->requestProcessor->shouldReceive('process')->once()->with(Mockery::type(Request::class), $clientId)->andReturn($expectedResponse);
@@ -102,7 +102,7 @@ it('sends a parse error response for invalid JSON', function () {
     $rawJson = '{"jsonrpc":"2.0", "id":';
 
     $this->requestProcessor->shouldNotReceive('process');
-    $this->transport->shouldReceive('sendToClientAsync')->once()->with($clientId, Mockery::on(fn ($json) => str_contains($json, '"code":-32700') && str_contains($json, '"id":null')))->andReturn(resolve(null));
+    $this->transport->shouldReceive('sendToClientAsync')->once()->with($clientId, Mockery::on(fn($json) => str_contains($json, '"code":-32700') && str_contains($json, '"id":null')))->andReturn(resolve(null));
 
     $this->protocol->handleRawMessage($rawJson, $clientId);
 });
@@ -112,7 +112,7 @@ it('sends an invalid request error response for a request with missing method', 
     $rawJson = '{"jsonrpc":"2.0", "id": 456}'; // Missing method
 
     $this->requestProcessor->shouldNotReceive('process');
-    $this->transport->shouldReceive('sendToClientAsync')->once()->with($clientId, Mockery::on(fn ($json) => str_contains($json, '"code":-32600') && str_contains($json, '"id":456')))->andReturn(resolve(null));
+    $this->transport->shouldReceive('sendToClientAsync')->once()->with($clientId, Mockery::on(fn($json) => str_contains($json, '"code":-32600') && str_contains($json, '"id":456')))->andReturn(resolve(null));
 
     $this->protocol->handleRawMessage($rawJson, $clientId);
 });
@@ -125,7 +125,7 @@ it('sends a mcp error response for a method not found', function () {
     $mcpException = McpServerException::methodNotFound($method);
 
     $this->requestProcessor->shouldReceive('process')->once()->andThrow($mcpException);
-    $this->transport->shouldReceive('sendToClientAsync')->once()->with($clientId, Mockery::on(fn ($json) => str_contains($json, '"code":-32601') && str_contains($json, '"id":789')))->andReturn(resolve(null));
+    $this->transport->shouldReceive('sendToClientAsync')->once()->with($clientId, Mockery::on(fn($json) => str_contains($json, '"code":-32601') && str_contains($json, '"id":789')))->andReturn(resolve(null));
 
     $this->protocol->handleRawMessage($rawJson, $clientId);
 });
@@ -138,7 +138,7 @@ it('sends an internal error response on processor exception', function () {
     $internalException = new \RuntimeException('Borked');
 
     $this->requestProcessor->shouldReceive('process')->once()->andThrow($internalException);
-    $this->transport->shouldReceive('sendToClientAsync')->once()->with($clientId, Mockery::on(fn ($json) => str_contains($json, '"code":-32603') && str_contains($json, '"id":101')))->andReturn(resolve(null));
+    $this->transport->shouldReceive('sendToClientAsync')->once()->with($clientId, Mockery::on(fn($json) => str_contains($json, '"code":-32603') && str_contains($json, '"id":101')))->andReturn(resolve(null));
 
     $this->protocol->handleRawMessage($rawJson, $clientId);
 });

@@ -10,7 +10,7 @@ use PhpMcp\Server\Definitions\ResourceDefinition;
 use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
 use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\Exception\DefinitionException;
-use PhpMcp\Server\JsonRpc\Notification;
+use PhpMcp\Server\JsonRpc\Messages\Notification;
 use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Support\UriTemplateMatcher;
 use Psr\Log\LoggerInterface;
@@ -79,10 +79,10 @@ class Registry
     /** Checks if any elements (manual or discovered) are currently registered. */
     public function hasElements(): bool
     {
-        return ! $this->tools->getArrayCopy() === false
-            || ! $this->resources->getArrayCopy() === false
-            || ! $this->prompts->getArrayCopy() === false
-            || ! $this->resourceTemplates->getArrayCopy() === false;
+        return ! empty($this->tools->getArrayCopy())
+            || ! empty($this->resources->getArrayCopy())
+            || ! empty($this->prompts->getArrayCopy())
+            || ! empty($this->resourceTemplates->getArrayCopy());
     }
 
     private function initializeCollections(): void
@@ -180,7 +180,7 @@ class Registry
 
     public function registerTool(ToolDefinition $tool, bool $isManual = false): void
     {
-        $toolName = $tool->getName();
+        $toolName = $tool->toolName;
         $exists = $this->tools->offsetExists($toolName);
         $wasManual = isset($this->manualToolNames[$toolName]);
 
@@ -209,7 +209,7 @@ class Registry
 
     public function registerResource(ResourceDefinition $resource, bool $isManual = false): void
     {
-        $uri = $resource->getUri();
+        $uri = $resource->uri;
         $exists = $this->resources->offsetExists($uri);
         $wasManual = isset($this->manualResourceUris[$uri]);
 
@@ -236,7 +236,7 @@ class Registry
 
     public function registerResourceTemplate(ResourceTemplateDefinition $template, bool $isManual = false): void
     {
-        $uriTemplate = $template->getUriTemplate();
+        $uriTemplate = $template->uriTemplate;
         $exists = $this->resourceTemplates->offsetExists($uriTemplate);
         $wasManual = isset($this->manualTemplateUris[$uriTemplate]);
 
@@ -260,7 +260,7 @@ class Registry
 
     public function registerPrompt(PromptDefinition $prompt, bool $isManual = false): void
     {
-        $promptName = $prompt->getName();
+        $promptName = $prompt->promptName;
         $exists = $this->prompts->offsetExists($promptName);
         $wasManual = isset($this->manualPromptNames[$promptName]);
 
@@ -309,7 +309,7 @@ class Registry
 
                 foreach ($cached['tools'] ?? [] as $toolData) {
                     $toolDefinition = $toolData instanceof ToolDefinition ? $toolData : ToolDefinition::fromArray($toolData);
-                    $toolName = $toolDefinition->getName();
+                    $toolName = $toolDefinition->toolName;
                     if (! isset($this->manualToolNames[$toolName])) {
                         $this->tools[$toolName] = $toolDefinition;
                         $loadCount++;
@@ -320,7 +320,7 @@ class Registry
 
                 foreach ($cached['resources'] ?? [] as $resourceData) {
                     $resourceDefinition = $resourceData instanceof ResourceDefinition ? $resourceData : ResourceDefinition::fromArray($resourceData);
-                    $uri = $resourceDefinition->getUri();
+                    $uri = $resourceDefinition->uri;
                     if (! isset($this->manualResourceUris[$uri])) {
                         $this->resources[$uri] = $resourceDefinition;
                         $loadCount++;
@@ -331,7 +331,7 @@ class Registry
 
                 foreach ($cached['prompts'] ?? [] as $promptData) {
                     $promptDefinition = $promptData instanceof PromptDefinition ? $promptData : PromptDefinition::fromArray($promptData);
-                    $promptName = $promptDefinition->getName();
+                    $promptName = $promptDefinition->promptName;
                     if (! isset($this->manualPromptNames[$promptName])) {
                         $this->prompts[$promptName] = $promptDefinition;
                         $loadCount++;
@@ -342,7 +342,7 @@ class Registry
 
                 foreach ($cached['resourceTemplates'] ?? [] as $templateData) {
                     $templateDefinition = $templateData instanceof ResourceTemplateDefinition ? $templateData : ResourceTemplateDefinition::fromArray($templateData);
-                    $uriTemplate = $templateDefinition->getUriTemplate();
+                    $uriTemplate = $templateDefinition->uriTemplate;
                     if (! isset($this->manualTemplateUris[$uriTemplate])) {
                         $this->resourceTemplates[$uriTemplate] = $templateDefinition;
                         $loadCount++;
@@ -493,17 +493,17 @@ class Registry
     {
         foreach ($this->resourceTemplates as $templateDefinition) {
             try {
-                $matcher = new UriTemplateMatcher($templateDefinition->getUriTemplate());
+                $matcher = new UriTemplateMatcher($templateDefinition->uriTemplate);
                 $variables = $matcher->match($uri);
 
                 if ($variables !== null) {
-                    $this->logger->debug('MCP Registry: Matched URI to template.', ['uri' => $uri, 'template' => $templateDefinition->getUriTemplate()]);
+                    $this->logger->debug('MCP Registry: Matched URI to template.', ['uri' => $uri, 'template' => $templateDefinition->uriTemplate]);
 
                     return ['definition' => $templateDefinition, 'variables' => $variables];
                 }
             } catch (\InvalidArgumentException $e) {
                 $this->logger->warning('Invalid resource template encountered during matching', [
-                    'template' => $templateDefinition->getUriTemplate(),
+                    'template' => $templateDefinition->uriTemplate,
                     'error' => $e->getMessage(),
                 ]);
 

@@ -15,7 +15,7 @@ use ReflectionParameter;
 // --- Constructor Validation Tests ---
 
 test('constructor validates prompt name pattern', function (string $promptName, bool $shouldFail) {
-    $action = fn () => new PromptDefinition(
+    $action = fn() => new PromptDefinition(
         className: AllElementsStub::class,
         methodName: 'templateMethod',
         promptName: $promptName,
@@ -62,13 +62,13 @@ test('fromReflection creates definition with explicit name and description', fun
     );
 
     // Assert
-    expect($definition->getName())->toBe('explicit-prompt-name');
-    expect($definition->getDescription())->toBe('Explicit Description');
-    expect($definition->getClassName())->toBe(AllElementsStub::class);
-    expect($definition->getMethodName())->toBe('templateMethod');
+    expect($definition->promptName)->toBe('explicit-prompt-name');
+    expect($definition->description)->toBe('Explicit Description');
+    expect($definition->className)->toBe(AllElementsStub::class);
+    expect($definition->methodName)->toBe('templateMethod');
     // Assert arguments based on reflection (templateMethod has 1 param: $id)
-    expect($definition->getArguments())->toBeArray()->toHaveCount(1);
-    expect($definition->getArguments()[0]->getName())->toBe('id');
+    expect($definition->arguments)->toBeArray()->toHaveCount(1);
+    expect($definition->arguments[0]->name)->toBe('id');
 });
 
 test('fromReflection uses method name and docblock summary as defaults', function () {
@@ -78,7 +78,7 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     $docComment = $reflectionMethod->getDocComment() ?: null;
 
     // Read the actual summary from the stub file
-    $stubContent = file_get_contents(__DIR__.'/../../Mocks/DiscoveryStubs/AllElementsStub.php');
+    $stubContent = file_get_contents(__DIR__ . '/../../Mocks/DiscoveryStubs/AllElementsStub.php');
     preg_match('/\/\*\*(.*?)\*\/\s+public function templateMethod/s', $stubContent, $matches);
     $actualDocComment = isset($matches[1]) ? trim(preg_replace('/^\s*\*\s?/?m', '', $matches[1])) : '';
     $expectedSummary = explode("\n", $actualDocComment)[0] ?? null;
@@ -97,11 +97,11 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     );
 
     // Assert
-    expect($definition->getName())->toBe('templateMethod'); // Default to method name
-    expect($definition->getDescription())->toBe($expectedSummary); // Default to summary
-    expect($definition->getClassName())->toBe(AllElementsStub::class);
-    expect($definition->getMethodName())->toBe('templateMethod');
-    expect($definition->getArguments())->toBeArray()->toHaveCount(1); // templateMethod has 1 param
+    expect($definition->promptName)->toBe('templateMethod'); // Default to method name
+    expect($definition->description)->toBe($expectedSummary); // Default to summary
+    expect($definition->className)->toBe(AllElementsStub::class);
+    expect($definition->methodName)->toBe('templateMethod');
+    expect($definition->arguments)->toBeArray()->toHaveCount(1); // templateMethod has 1 param
 });
 
 test('fromReflection handles missing docblock summary', function () {
@@ -124,11 +124,11 @@ test('fromReflection handles missing docblock summary', function () {
     );
 
     // Assert
-    expect($definition->getName())->toBe('tool1');
-    expect($definition->getDescription())->toBeNull();
-    expect($definition->getClassName())->toBe(ToolOnlyStub::class);
-    expect($definition->getMethodName())->toBe('tool1');
-    expect($definition->getArguments())->toBeArray()->toBeEmpty(); // tool1 has no params
+    expect($definition->promptName)->toBe('tool1');
+    expect($definition->description)->toBeNull();
+    expect($definition->className)->toBe(ToolOnlyStub::class);
+    expect($definition->methodName)->toBe('tool1');
+    expect($definition->arguments)->toBeArray()->toBeEmpty(); // tool1 has no params
 });
 
 // --- Serialization Tests ---
@@ -150,10 +150,10 @@ test('can be serialized and unserialized correctly via toArray/fromArray', funct
     // Act
     $mcpArray = $original->toArray();
     $internalArray = [
-        'className' => $original->getClassName(),
-        'methodName' => $original->getMethodName(),
-        'promptName' => $original->getName(),
-        'description' => $original->getDescription(),
+        'className' => $original->className,
+        'methodName' => $original->methodName,
+        'promptName' => $original->promptName,
+        'description' => $original->description,
         'arguments' => $mcpArray['arguments'], // Use the toArray version of arguments
     ];
 
@@ -161,7 +161,7 @@ test('can be serialized and unserialized correctly via toArray/fromArray', funct
 
     // Assert
     expect($reconstructed)->toEqual($original); // Should work with real argument object
-    expect($reconstructed->getArguments()[0]->getName())->toBe('id');
+    expect($reconstructed->arguments[0]->name)->toBe('id');
 });
 
 test('toArray produces correct MCP format', function () {

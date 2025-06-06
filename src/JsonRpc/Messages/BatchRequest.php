@@ -1,10 +1,13 @@
 <?php
 
-namespace PhpMcp\Server\JsonRpc;
+namespace PhpMcp\Server\JsonRpc\Messages;
 
 use PhpMcp\Server\Exception\ProtocolException;
 
-class Batch
+/**
+ * A JSON-RPC batch request, as described in https://www.jsonrpc.org/specification#batch.
+ */
+class BatchRequest extends Message
 {
     /**
      * The individual requests/notifications in this batch.
@@ -21,8 +24,13 @@ class Batch
     public function __construct(array $requests = [])
     {
         foreach ($requests as $request) {
-            $this->addRequest($request);
+            $this->add($request);
         }
+    }
+
+    public function getId(): string|int|null
+    {
+        return null;
     }
 
     /**
@@ -45,11 +53,10 @@ class Batch
                 throw ProtocolException::invalidRequest('Each item in a batch must be a valid JSON-RPC object.');
             }
 
-            // Determine if the item is a notification (no id) or a request
             if (! isset($item['id'])) {
-                $batch->addRequest(Notification::fromArray($item));
+                $batch->add(Notification::fromArray($item));
             } else {
-                $batch->addRequest(Request::fromArray($item));
+                $batch->add(Request::fromArray($item));
             }
         }
 
@@ -61,7 +68,7 @@ class Batch
      *
      * @param  Request|Notification  $request  The request to add
      */
-    public function addRequest(Request|Notification $request): self
+    public function add(Request|Notification $request): self
     {
         $this->requests[] = $request;
 
@@ -73,7 +80,7 @@ class Batch
      *
      * @return array<Request|Notification>
      */
-    public function getRequests(): array
+    public function all(): array
     {
         return $this->requests;
     }
@@ -83,9 +90,9 @@ class Batch
      *
      * @return array<Request>
      */
-    public function getRequestsWithIds(): array
+    public function getRequests(): array
     {
-        return array_filter($this->requests, fn ($r) => ! $r instanceof Notification);
+        return array_filter($this->requests, fn($r) => ! $r instanceof Notification);
     }
 
     /**
@@ -95,7 +102,32 @@ class Batch
      */
     public function getNotifications(): array
     {
-        return array_filter($this->requests, fn ($r) => $r instanceof Notification);
+        return array_filter($this->requests, fn($r) => $r instanceof Notification);
+    }
+
+    public function hasRequests(): bool
+    {
+        $hasRequests = false;
+        foreach ($this->requests as $request) {
+            if ($request instanceof Request) {
+                $hasRequests = true;
+                break;
+            }
+        }
+
+        return $hasRequests;
+    }
+
+    public function hasNotifications(): bool
+    {
+        $hasNotifications = false;
+        foreach ($this->requests as $request) {
+            if ($request instanceof Notification) {
+                $hasNotifications = true;
+                break;
+            }
+        }
+        return $hasNotifications;
     }
 
     /**
@@ -111,6 +143,6 @@ class Batch
      */
     public function toArray(): array
     {
-        return array_map(fn ($r) => $r->toArray(), $this->requests);
+        return array_map(fn($r) => $r->toArray(), $this->requests);
     }
 }

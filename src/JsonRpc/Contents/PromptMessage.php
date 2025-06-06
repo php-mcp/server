@@ -28,7 +28,7 @@ class PromptMessage
     public function toArray(): array
     {
         return [
-            'role' => $this->role,
+            'role' => $this->role->value,
             'content' => $this->content->toArray(),
         ];
     }
@@ -58,7 +58,7 @@ class PromptMessage
      *
      * @param  Content  $content  The message content
      */
-    public static function userWithContent(Content $content): static
+    public static function userWithContent(TextContent|ImageContent|AudioContent|EmbeddedResource $content): static
     {
         return new static(Role::User, $content);
     }
@@ -68,7 +68,7 @@ class PromptMessage
      *
      * @param  Content  $content  The message content
      */
-    public static function assistantWithContent(Content $content): static
+    public static function assistantWithContent(TextContent|ImageContent|AudioContent|EmbeddedResource $content): static
     {
         return new static(Role::Assistant, $content);
     }

@@ -53,7 +53,7 @@ test('formatToolResult handles scalars', function ($input, $expectedText) {
 
     expect($result)->toBeArray()->toHaveCount(1)
         ->and($result[0])->toBeInstanceOf(TextContent::class)
-        ->and($result[0]->getText())->toBe($expectedText);
+        ->and($result[0]->text)->toBe($expectedText);
 })->with([
     ['hello world', 'hello world'],
     [12345, '12345'],
@@ -67,7 +67,7 @@ test('formatToolResult handles null', function () {
 
     expect($result)->toBeArray()->toHaveCount(1)
         ->and($result[0])->toBeInstanceOf(TextContent::class)
-        ->and($result[0]->getText())->toBe('(null)');
+        ->and($result[0]->text)->toBe('(null)');
 });
 
 test('formatToolResult handles array (JSON encodes)', function () {
@@ -77,7 +77,7 @@ test('formatToolResult handles array (JSON encodes)', function () {
 
     expect($result)->toBeArray()->toHaveCount(1)
         ->and($result[0])->toBeInstanceOf(TextContent::class)
-        ->and($result[0]->getText())->toBe($expectedJson);
+        ->and($result[0]->text)->toBe($expectedJson);
 });
 
 test('formatToolResult handles object (JSON encodes)', function () {
@@ -88,7 +88,7 @@ test('formatToolResult handles object (JSON encodes)', function () {
     $result = $this->formatter->formatToolResult($data);
     expect($result)->toBeArray()->toHaveCount(1)
         ->and($result[0])->toBeInstanceOf(TextContent::class)
-        ->and($result[0]->getText())->toBe($expectedJson);
+        ->and($result[0]->text)->toBe($expectedJson);
 });
 
 test('formatToolResult handles single Content object', function () {
@@ -122,7 +122,7 @@ test('formatToolErrorResult creates correct TextContent', function () {
 
     expect($result)->toBeArray()->toHaveCount(1)
         ->and($result[0])->toBeInstanceOf(TextContent::class)
-        ->and($result[0]->getText())->toBe('Tool execution failed: Something went wrong (Type: RuntimeException)');
+        ->and($result[0]->text)->toBe('Tool execution failed: Something went wrong (Type: RuntimeException)');
 });
 
 // --- formatResourceContents Tests ---
@@ -196,10 +196,10 @@ test('formatResourceContents handles stream input', function () {
     // expect(is_resource($stream))->toBeFalse();
     expect($result)->toBeArray()->toHaveCount(1)
         ->and($result[0])->toBeInstanceOf(EmbeddedResource::class)
-        ->and($result[0]->getUri())->toBe('test/uri')
-        ->and($result[0]->getMimeType())->toBe('application/pdf')
-        ->and($result[0]->getText())->toBeNull()
-        ->and($result[0]->getBlob())->toBe(base64_encode('stream content'));
+        ->and($result[0]->uri)->toBe('test/uri')
+        ->and($result[0]->mimeType)->toBe('application/pdf')
+        ->and($result[0]->text)->toBeNull()
+        ->and($result[0]->blob)->toBe(base64_encode('stream content'));
 });
 
 test('formatResourceContents handles array blob input', function () {
@@ -223,17 +223,17 @@ test('formatResourceContents handles SplFileInfo input', function () {
 
     expect($result)->toBeArray()->toHaveCount(1)
         ->and($result[0])->toBeInstanceOf(EmbeddedResource::class)
-        ->and($result[0]->getUri())->toBe('test/uri')
-        ->and($result[0]->getMimeType())->toBe('text/vnd.test')
-        ->and($result[0]->getText())->toBe('splfile test content')
-        ->and($result[0]->getBlob())->toBeNull();
+        ->and($result[0]->uri)->toBe('test/uri')
+        ->and($result[0]->mimeType)->toBe('text/vnd.test')
+        ->and($result[0]->text)->toBe('splfile test content')
+        ->and($result[0]->blob)->toBeNull();
 
     expect($result2)->toBeArray()->toHaveCount(1)
         ->and($result2[0])->toBeInstanceOf(EmbeddedResource::class)
-        ->and($result2[0]->getUri())->toBe('test/uri')
-        ->and($result2[0]->getMimeType())->toBe('image/png')
-        ->and($result2[0]->getText())->toBeNull()
-        ->and($result2[0]->getBlob())->toBe(base64_encode('splfile test content'));
+        ->and($result2[0]->uri)->toBe('test/uri')
+        ->and($result2[0]->mimeType)->toBe('image/png')
+        ->and($result2[0]->text)->toBeNull()
+        ->and($result2[0]->blob)->toBe(base64_encode('splfile test content'));
 });
 
 test('formatResourceContents handles array input (json mime)', function () {

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PhpMcp\Server\Exception;
 
+use PhpMcp\Server\JsonRpc\Messages\Error as JsonRpcError;
+
 /**
  * Exception related to violations of the JSON-RPC 2.0 or MCP structure
  * in incoming messages or outgoing responses (e.g., missing required fields,
@@ -11,17 +13,16 @@ namespace PhpMcp\Server\Exception;
  */
 class ProtocolException extends McpServerException
 {
-    // This exception often corresponds directly to JSON-RPC error codes.
-    // The factory methods in McpServerException can assign appropriate codes.
-
-    public function toJsonRpcError(): \PhpMcp\Server\JsonRpc\Error
+    public function toJsonRpcError(string|int $id): JsonRpcError
     {
         $code = ($this->code >= -32700 && $this->code <= -32600) ? $this->code : self::CODE_INVALID_REQUEST;
 
-        return new \PhpMcp\Server\JsonRpc\Error(
-            $code,
-            $this->getMessage(),
-            $this->getData()
+        return new JsonRpcError(
+            jsonrpc: '2.0',
+            id: $id,
+            code: $code,
+            message: $this->getMessage(),
+            data: $this->getData()
         );
     }
 }

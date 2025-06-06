@@ -1,6 +1,6 @@
 <?php
 
-namespace PhpMcp\Server\JsonRpc;
+namespace PhpMcp\Server\JsonRpc\Messages;
 
 use PhpMcp\Server\Exception\ProtocolException;
 
@@ -17,7 +17,11 @@ class Notification extends Message
         public readonly string $jsonrpc,
         public readonly string $method,
         public readonly array $params = [],
-    ) {
+    ) {}
+
+    public function getId(): null
+    {
+        return null;
     }
 
     public static function make(string $method, array $params = []): self
@@ -38,17 +42,14 @@ class Notification extends Message
      */
     public static function fromArray(array $data): self
     {
-        // Validate JSON-RPC 2.0
         if (! isset($data['jsonrpc']) || $data['jsonrpc'] !== '2.0') {
             throw ProtocolException::invalidRequest('Invalid or missing "jsonrpc" version. Must be "2.0".');
         }
 
-        // Validate method name
         if (! isset($data['method']) || ! is_string($data['method'])) {
             throw ProtocolException::invalidRequest('Invalid or missing "method" field.');
         }
 
-        // Validate params is an array (if set)
         if (isset($data['params']) && ! is_array($data['params'])) {
             throw ProtocolException::invalidRequest('Invalid or missing "params" field.');
         }
