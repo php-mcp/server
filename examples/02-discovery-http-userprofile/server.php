@@ -43,6 +43,7 @@ require_once 'McpElements.php';
 use PhpMcp\Server\Defaults\BasicContainer;
 use PhpMcp\Server\Server;
 use PhpMcp\Server\Transports\HttpServerTransport;
+use PhpMcp\Server\Transports\StreamableHttpServerTransport;
 use Psr\Log\AbstractLogger;
 use Psr\Log\LoggerInterface;
 
@@ -70,21 +71,25 @@ try {
 
     $server->discover(__DIR__, ['.']);
 
-    $transport = new HttpServerTransport(
+    // $transport = new HttpServerTransport(
+    //     host: '127.0.0.1',
+    //     port: 8080,
+    //     mcpPathPrefix: 'mcp'
+    // );
+    $transport = new StreamableHttpServerTransport(
         host: '127.0.0.1',
         port: 8080,
-        mcpPathPrefix: 'mcp'
+        mcpPath: 'mcp'
     );
 
     $server->listen($transport);
 
     $logger->info('Server listener stopped gracefully.');
     exit(0);
-
 } catch (\Throwable $e) {
     fwrite(STDERR, "[MCP SERVER CRITICAL ERROR]\n");
-    fwrite(STDERR, 'Error: '.$e->getMessage()."\n");
-    fwrite(STDERR, 'File: '.$e->getFile().':'.$e->getLine()."\n");
-    fwrite(STDERR, $e->getTraceAsString()."\n");
+    fwrite(STDERR, 'Error: ' . $e->getMessage() . "\n");
+    fwrite(STDERR, 'File: ' . $e->getFile() . ':' . $e->getLine() . "\n");
+    fwrite(STDERR, $e->getTraceAsString() . "\n");
     exit(1);
 }

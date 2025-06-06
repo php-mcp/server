@@ -1,9 +1,13 @@
 <?php
 
-namespace PhpMcp\Server\JsonRpc;
+namespace PhpMcp\Server\JsonRpc\Messages;
 
 use PhpMcp\Server\Exception\ProtocolException;
+use PhpMcp\Server\JsonRpc\Contracts\MessageInterface;
 
+/**
+ * A request that expects a response.
+ */
 class Request extends Message
 {
     /**
@@ -19,7 +23,11 @@ class Request extends Message
         public readonly string|int $id,
         public readonly string $method,
         public readonly array $params = [],
-    ) {
+    ) {}
+
+    public function getId(): string|int
+    {
+        return $this->id;
     }
 
     /**
@@ -31,22 +39,18 @@ class Request extends Message
      */
     public static function fromArray(array $data): self
     {
-        // Validate JSON-RPC 2.0
         if (! isset($data['jsonrpc']) || $data['jsonrpc'] !== '2.0') {
             throw ProtocolException::invalidRequest('Invalid or missing "jsonrpc" version. Must be "2.0".');
         }
 
-        // Validate method
         if (! isset($data['method']) || ! is_string($data['method'])) {
             throw ProtocolException::invalidRequest('Invalid or missing "method" field.');
         }
 
-        // Validate ID
         if (! isset($data['id'])) {
             throw ProtocolException::invalidRequest('Invalid or missing "id" field.');
         }
 
-        // Check params if present (optional)
         $params = [];
         if (isset($data['params'])) {
             if (! is_array($data['params'])) {

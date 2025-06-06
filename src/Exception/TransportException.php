@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace PhpMcp\Server\Exception;
 
+use PhpMcp\Server\JsonRpc\Messages\Error as JsonRpcError;
+
 /**
  * Exception related to errors in the underlying transport layer
  * (e.g., socket errors, process management issues, SSE stream errors).
  */
 class TransportException extends McpServerException
 {
-    // Usually indicates an internal server error if it prevents request processing.
-    public function toJsonRpcError(): \PhpMcp\Server\JsonRpc\Error
+    public function toJsonRpcError(string|int $id): JsonRpcError
     {
-        // Override to ensure it maps to internal error for JSON-RPC responses
-        return new \PhpMcp\Server\JsonRpc\Error(
-            self::CODE_INTERNAL_ERROR,
-            'Transport layer error: '.$this->getMessage(),
-            null
+        return new JsonRpcError(
+            jsonrpc: '2.0',
+            id: $id,
+            code: JsonRpcError::CODE_INTERNAL_ERROR,
+            message: 'Transport layer error: ' . $this->getMessage(),
+            data: null
         );
     }
 }

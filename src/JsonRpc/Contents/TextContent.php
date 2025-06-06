@@ -2,12 +2,13 @@
 
 namespace PhpMcp\Server\JsonRpc\Contents;
 
+use PhpMcp\Server\JsonRpc\Contracts\ContentInterface;
 use PhpMcp\Server\Model\Annotations;
 
 /**
  * Represents text content in MCP.
  */
-class TextContent extends Content
+class TextContent implements ContentInterface
 {
     /**
      * Create a new TextContent instance.
@@ -16,33 +17,9 @@ class TextContent extends Content
      * @param  ?Annotations  $annotations  Optional annotations describing the content
      */
     public function __construct(
-        protected string $text,
-        protected ?Annotations $annotations = null
+        public readonly string $text,
+        public readonly ?Annotations $annotations = null
     ) {}
-
-    /**
-     * Get the text content.
-     */
-    public function getText(): string
-    {
-        return $this->text;
-    }
-
-    /**
-     * Get the annotations.
-     */
-    public function getAnnotations(): ?Annotations
-    {
-        return $this->annotations;
-    }
-
-    /**
-     * Get the content type.
-     */
-    public function getType(): string
-    {
-        return 'text';
-    }
 
     /**
      * Convert the content to an array.
@@ -61,6 +38,11 @@ class TextContent extends Content
         }
 
         return $result;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 
     /**

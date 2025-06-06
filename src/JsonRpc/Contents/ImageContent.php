@@ -2,10 +2,12 @@
 
 namespace PhpMcp\Server\JsonRpc\Contents;
 
+use PhpMcp\Server\JsonRpc\Contracts\ContentInterface;
+
 /**
  * Represents image content in MCP.
  */
-class ImageContent extends Content
+class ImageContent implements ContentInterface
 {
     /**
      * Create a new ImageContent instance.
@@ -14,34 +16,10 @@ class ImageContent extends Content
      * @param  string  $mimeType  The MIME type of the image
      */
     public function __construct(
-        protected string $data,
-        protected string $mimeType
-    ) {
-    }
+        public readonly string $data,
+        public readonly string $mimeType
+    ) {}
 
-    /**
-     * Get the image data.
-     */
-    public function getData(): string
-    {
-        return $this->data;
-    }
-
-    /**
-     * Get the MIME type.
-     */
-    public function getMimeType(): string
-    {
-        return $this->mimeType;
-    }
-
-    /**
-     * Get the content type.
-     */
-    public function getType(): string
-    {
-        return 'image';
-    }
 
     /**
      * Convert the content to an array.
@@ -55,6 +33,11 @@ class ImageContent extends Content
             'data' => $this->data,
             'mimeType' => $this->mimeType,
         ];
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 
     /**

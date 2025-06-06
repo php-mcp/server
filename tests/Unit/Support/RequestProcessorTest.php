@@ -9,9 +9,9 @@ use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\JsonRpc\Contents\TextContent;
 use PhpMcp\Server\JsonRpc\Error as JsonRpcError;
-use PhpMcp\Server\JsonRpc\Notification;
-use PhpMcp\Server\JsonRpc\Request;
-use PhpMcp\Server\JsonRpc\Response;
+use PhpMcp\Server\JsonRpc\Messages\Notification;
+use PhpMcp\Server\JsonRpc\Messages\Request;
+use PhpMcp\Server\JsonRpc\Messages\Response;
 use PhpMcp\Server\JsonRpc\Results\CallToolResult;
 use PhpMcp\Server\JsonRpc\Results\EmptyResult;
 use PhpMcp\Server\JsonRpc\Results\InitializeResult;
@@ -226,12 +226,15 @@ it('can call a tool using the container to get handler', function () {
     $handlerMethod = 'execute';
     $rawArgs = ['p' => 'v'];
     $toolResult = 'Success';
-    $definition = Mockery::mock(ToolDefinition::class);
+    $definition = new ToolDefinition(
+        className: $handlerClass,
+        methodName: $handlerMethod,
+        toolName: $toolName,
+        description: 'd1',
+        inputSchema: [],
+    );
     $handlerInstance = Mockery::mock($handlerClass);
 
-    $definition->allows('getClassName')->andReturn($handlerClass);
-    $definition->allows('getMethodName')->andReturn($handlerMethod);
-    $definition->allows('getInputSchema')->andReturn([]);
 
     $this->registryMock->shouldReceive('findTool')->once()->with($toolName)->andReturn($definition);
     $this->schemaValidatorMock->shouldReceive('validateAgainstJsonSchema')->once()->andReturn([]);

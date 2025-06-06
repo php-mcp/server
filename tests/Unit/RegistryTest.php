@@ -8,7 +8,6 @@ use PhpMcp\Server\Definitions\PromptDefinition;
 use PhpMcp\Server\Definitions\ResourceDefinition;
 use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
 use PhpMcp\Server\Definitions\ToolDefinition;
-use PhpMcp\Server\JsonRpc\Notification;
 use PhpMcp\Server\Registry;
 use PhpMcp\Server\State\ClientStateManager;
 use Psr\Log\LoggerInterface;
@@ -242,8 +241,8 @@ it('loads discovered elements from cache correctly', function () {
     $cachedTool = createTestTool('cached-tool-constructor');
     $cachedResource = createTestResource('cached://res-constructor');
     $cachedData = [
-        'tools' => [$cachedTool->getName() => $cachedTool],
-        'resources' => [$cachedResource->getUri() => $cachedResource],
+        'tools' => [$cachedTool->toolName => $cachedTool],
+        'resources' => [$cachedResource->uri => $cachedResource],
         'prompts' => [],
         'resourceTemplates' => [],
     ];

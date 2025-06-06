@@ -9,6 +9,7 @@ use PhpMcp\Server\Contracts\LoggerAwareInterface;
 use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\TransportException;
+use PhpMcp\Server\JsonRpc\Messages\Message as JsonRpcMessage;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -31,7 +32,7 @@ use function React\Promise\reject;
  *
  * Listens for HTTP connections, manages SSE streams, and emits events.
  */
-class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, ServerTransportInterface
+class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterface, LoopAwareInterface
 {
     use EventEmitterTrait;
 
@@ -136,17 +137,14 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
             $method = $request->getMethod();
             $this->logger->debug('Received request', ['method' => $method, 'path' => $path]);
 
-            // --- SSE Connection Handling ---
             if ($method === 'GET' && $path === $this->ssePath) {
                 return $this->handleSseRequest($request);
             }
 
-            // --- Message POST Handling ---
             if ($method === 'POST' && $path === $this->messagePath) {
                 return $this->handleMessagePostRequest($request);
             }
 
-            // --- Not Found ---
             $this->logger->debug('404 Not Found', ['method' => $method, 'path' => $path]);
 
             return new Response(404, ['Content-Type' => 'text/plain'], 'Not Found');
@@ -237,40 +235,49 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
             return new Response(400, ['Content-Type' => 'text/plain'], 'Empty request body');
         }
 
-        $this->emit('message', [$body, $clientId]);
+        try {
+            $message = JsonRpcMessage::parseRequest($body);
+        } catch (Throwable $e) {
+            $this->logger->error('Error parsing message', ['clientId' => $clientId, 'exception' => $e]);
+            return new Response(400, ['Content-Type' => 'text/plain'], 'Invalid JSON-RPC message: ' . $e->getMessage());
+        }
+
+        $this->emit('message', [$message, $clientId]);
+
 
         return new Response(202, ['Content-Type' => 'text/plain'], 'Accepted');
     }
 
+
     /**
      * Sends a raw JSON-RPC message frame to a specific client via SSE.
      */
-    public function sendToClientAsync(string $clientId, string $rawFramedMessage): PromiseInterface
+    public function sendMessage(JsonRpcMessage|null $message, string $sessionId, array $context = []): PromiseInterface
     {
-        if (! isset($this->activeSseStreams[$clientId])) {
-            return reject(new TransportException("Cannot send message: Client '{$clientId}' not connected via SSE."));
+        if (! isset($this->activeSseStreams[$sessionId])) {
+            return reject(new TransportException("Cannot send message: Client '{$sessionId}' not connected via SSE."));
         }
 
-        $stream = $this->activeSseStreams[$clientId];
+        $stream = $this->activeSseStreams[$sessionId];
         if (! $stream->isWritable()) {
-            return reject(new TransportException("Cannot send message: SSE stream for client '{$clientId}' is not writable."));
+            return reject(new TransportException("Cannot send message: SSE stream for client '{$sessionId}' is not writable."));
         }
 
-        $jsonData = trim($rawFramedMessage);
+        $json = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-        if ($jsonData === '') {
+        if ($json === '') {
             return resolve(null);
         }
 
         $deferred = new Deferred();
-        $written = $this->sendSseEvent($stream, 'message', $jsonData);
+        $written = $this->sendSseEvent($stream, 'message', $json);
 
         if ($written) {
             $deferred->resolve(null);
         } else {
-            $this->logger->debug('SSE stream buffer full, waiting for drain.', ['clientId' => $clientId]);
-            $stream->once('drain', function () use ($deferred, $clientId) {
-                $this->logger->debug('SSE stream drained.', ['clientId' => $clientId]);
+            $this->logger->debug('SSE stream buffer full, waiting for drain.', ['sessionId' => $sessionId]);
+            $stream->once('drain', function () use ($deferred, $sessionId) {
+                $this->logger->debug('SSE stream drained.', ['sessionId' => $sessionId]);
                 $deferred->resolve(null);
             });
         }

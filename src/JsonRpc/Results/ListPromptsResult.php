@@ -3,9 +3,9 @@
 namespace PhpMcp\Server\JsonRpc\Results;
 
 use PhpMcp\Server\Definitions\PromptDefinition;
-use PhpMcp\Server\JsonRpc\Result;
+use PhpMcp\Server\JsonRpc\Contracts\ResultInterface;
 
-class ListPromptsResult extends Result
+class ListPromptsResult implements ResultInterface
 {
     /**
      * @param  array<PromptDefinition>  $prompts  The list of prompt definitions.
@@ -14,13 +14,12 @@ class ListPromptsResult extends Result
     public function __construct(
         public readonly array $prompts,
         public readonly ?string $nextCursor = null
-    ) {
-    }
+    ) {}
 
     public function toArray(): array
     {
         $result = [
-            'prompts' => array_map(fn (PromptDefinition $p) => $p->toArray(), $this->prompts),
+            'prompts' => array_map(fn(PromptDefinition $p) => $p->toArray(), $this->prompts),
         ];
 
         if ($this->nextCursor) {
@@ -28,5 +27,10 @@ class ListPromptsResult extends Result
         }
 
         return $result;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

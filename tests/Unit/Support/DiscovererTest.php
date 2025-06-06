@@ -44,19 +44,19 @@ test('discovers all element types in a single file', function () {
 
     // Assert registry interactions
     $this->registry->shouldReceive('registerTool')->once()->with(Mockery::on(function ($arg) {
-        return $arg instanceof ToolDefinition && $arg->getName() === 'discovered-tool';
+        return $arg instanceof ToolDefinition && $arg->toolName === 'discovered-tool';
     }));
     $this->registry->shouldReceive('registerResource')->once()->with(Mockery::on(function ($arg) {
-        return $arg instanceof ResourceDefinition && $arg->getUri() === 'discovered://resource';
+        return $arg instanceof ResourceDefinition && $arg->uri === 'discovered://resource';
     }));
     $this->registry->shouldReceive('registerPrompt')->once()->with(Mockery::on(function ($arg) {
-        return $arg instanceof PromptDefinition && $arg->getName() === 'discovered-prompt';
+        return $arg instanceof PromptDefinition && $arg->promptName === 'discovered-prompt';
     }));
     $this->registry->shouldReceive('registerResourceTemplate')->once()->with(Mockery::on(function ($arg) {
-        return $arg instanceof ResourceTemplateDefinition && $arg->getUriTemplate() === 'discovered://template/{id}';
+        return $arg instanceof ResourceTemplateDefinition && $arg->uriTemplate === 'discovered://template/{id}';
     }));
 
-    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn ($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
+    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
 
     // Act
     $this->discoverer->discover(TEST_DISCOVERY_DIR, ['.']);
@@ -68,13 +68,13 @@ test('discovers elements across multiple files', function () {
     $file2Path = createDiscoveryTestFile('ResourceOnlyStub');
 
     // Assert registry interactions
-    $this->registry->shouldReceive('registerTool')->once()->with(Mockery::on(fn ($arg) => $arg->getName() === 'tool-from-file1'));
+    $this->registry->shouldReceive('registerTool')->once()->with(Mockery::on(fn($arg) => $arg->toolName === 'tool-from-file1'));
     $this->registry->shouldNotReceive('registerResource');
     $this->registry->shouldNotReceive('registerPrompt');
     $this->registry->shouldNotReceive('registerResourceTemplate');
 
     // Ensure no errors during processing of these files
-    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn ($ctx) => isset($ctx['file']) && ($ctx['file'] === $file1Path || $ctx['file'] === $file2Path)));
+    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn($ctx) => isset($ctx['file']) && ($ctx['file'] === $file1Path || $ctx['file'] === $file2Path)));
 
     // Act
     $this->discoverer->discover(TEST_DISCOVERY_DIR, ['.']);
@@ -96,7 +96,7 @@ test('handles directory with no MCP elements', function () {
 
 test('handles non-existent directory gracefully', function () {
     // Arrange
-    $nonExistentDir = TEST_DISCOVERY_DIR.'/nonexistent';
+    $nonExistentDir = TEST_DISCOVERY_DIR . '/nonexistent';
 
     // Assert registry interactions
     $this->registry->shouldNotReceive('registerTool');
@@ -130,11 +130,10 @@ test('skips non-instantiable classes and non-public/static/constructor methods',
     }
 
     // Ensure no processing errors for this file
-    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn ($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
+    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
 
     // Act
     $this->discoverer->discover(TEST_DISCOVERY_DIR, ['.']);
-
 })->with([
     'Abstract class' => ['AbstractStub', 0],
     'Interface' => ['InterfaceStub', 0],
@@ -155,16 +154,16 @@ test('handles definition creation error and continues', function () {
 
     // Assert registry interactions
     $this->registry->shouldReceive('registerTool')
-        ->with(Mockery::on(fn ($arg) => $arg instanceof ToolDefinition && $arg->getName() === 'valid-tool'))
+        ->with(Mockery::on(fn($arg) => $arg instanceof ToolDefinition && $arg->toolName === 'valid-tool'))
         ->once();
     $this->registry->shouldReceive('registerTool')
-        ->with(Mockery::on(fn ($arg) => $arg instanceof ToolDefinition && $arg->getName() === 'another-valid-tool'))
+        ->with(Mockery::on(fn($arg) => $arg instanceof ToolDefinition && $arg->toolName === 'another-valid-tool'))
         ->once();
     $this->registry->shouldNotReceive('registerResource');
 
     // Ensure no *other* unexpected errors related to this class/methods
     $this->logger->shouldNotReceive('error')
-        ->with(Mockery::any(), Mockery::on(fn ($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
+        ->with(Mockery::any(), Mockery::on(fn($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
 
     // Act
     $this->discoverer->discover(TEST_DISCOVERY_DIR, ['.']);
@@ -172,7 +171,7 @@ test('handles definition creation error and continues', function () {
 
 test('handles file read error gracefully', function () {
     // Arrange
-    $invalidFile = TEST_DISCOVERY_DIR.'/invalid.php';
+    $invalidFile = TEST_DISCOVERY_DIR . '/invalid.php';
     touch($invalidFile); // Create the file
     chmod($invalidFile, 0000); // Make it unreadable
 
@@ -197,13 +196,13 @@ test('discovers attributes placed directly on invokable classes', function (stri
         ->once()
         ->with(Mockery::on(function ($arg) use ($expectedNameOrUri, $stubName) {
             // Check if it's the correct definition type and name/uri
-            return ($arg instanceof ToolDefinition && $arg->getName() === $expectedNameOrUri)
-                || ($arg instanceof ResourceDefinition && $arg->getUri() === $expectedNameOrUri)
-                || ($arg instanceof PromptDefinition && $arg->getName() === $expectedNameOrUri)
-                || ($arg instanceof ResourceTemplateDefinition && $arg->getUriTemplate() === $expectedNameOrUri)
+            return ($arg instanceof ToolDefinition && $arg->toolName === $expectedNameOrUri)
+                || ($arg instanceof ResourceDefinition && $arg->uri === $expectedNameOrUri)
+                || ($arg instanceof PromptDefinition && $arg->promptName === $expectedNameOrUri)
+                || ($arg instanceof ResourceTemplateDefinition && $arg->uriTemplate === $expectedNameOrUri)
                 // Verify the definition points to the __invoke method
-                && $arg->getMethodName() === '__invoke'
-                && str_ends_with($arg->getClassName(), $stubName);
+                && $arg->methodName === '__invoke'
+                && str_ends_with($arg->className, $stubName);
         }));
 
     // Act

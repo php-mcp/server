@@ -2,10 +2,9 @@
 
 namespace PhpMcp\Server\JsonRpc\Results;
 
-use PhpMcp\Server\JsonRpc\Contents\Content;
-use PhpMcp\Server\JsonRpc\Result;
+use PhpMcp\Server\JsonRpc\Contracts\ResultInterface;
 
-class CallToolResult extends Result
+class CallToolResult implements ResultInterface
 {
     /**
      * Create a new CallToolResult.
@@ -14,28 +13,9 @@ class CallToolResult extends Result
      * @param  bool  $isError  Whether the tool execution resulted in an error
      */
     public function __construct(
-        protected array $content,
-        protected bool $isError = false
-    ) {
-    }
-
-    /**
-     * Get the content of the tool result.
-     *
-     * @return Content[]
-     */
-    public function getContent(): array
-    {
-        return $this->content;
-    }
-
-    /**
-     * Check if the tool execution resulted in an error.
-     */
-    public function isError(): bool
-    {
-        return $this->isError;
-    }
+        public readonly array $content,
+        public readonly bool $isError = false
+    ) {}
 
     /**
      * Convert the result to an array.
@@ -43,8 +23,13 @@ class CallToolResult extends Result
     public function toArray(): array
     {
         return [
-            'content' => array_map(fn ($item) => $item->toArray(), $this->content),
+            'content' => array_map(fn($item) => $item->toArray(), $this->content),
             'isError' => $this->isError,
         ];
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

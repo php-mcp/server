@@ -96,13 +96,13 @@ test('fromReflection creates definition with explicit values from attribute', fu
     );
 
     // Assert
-    expect($definition->getUri())->toBe('test://explicit/uri');
-    expect($definition->getName())->toBe('explicit-res-name');
-    expect($definition->getDescription())->toBe('Explicit Description');
-    expect($definition->getClassName())->toBe(AllElementsStub::class);
-    expect($definition->getMethodName())->toBe('resourceMethod');
-    expect($definition->getMimeType())->toBe('application/json');
-    expect($definition->getSize())->toBe(1234);
+    expect($definition->uri)->toBe('test://explicit/uri');
+    expect($definition->name)->toBe('explicit-res-name');
+    expect($definition->description)->toBe('Explicit Description');
+    expect($definition->className)->toBe(AllElementsStub::class);
+    expect($definition->methodName)->toBe('resourceMethod');
+    expect($definition->mimeType)->toBe('application/json');
+    expect($definition->size)->toBe(1234);
 });
 
 test('fromReflection uses method name and docblock summary as defaults', function () {
@@ -132,13 +132,13 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     );
 
     // Assert
-    expect($definition->getUri())->toBe('test://default/uri');
-    expect($definition->getName())->toBe('resourceMethod'); // Default to method name
-    expect($definition->getDescription())->toBe($expectedSummary); // Default to summary
-    expect($definition->getClassName())->toBe(AllElementsStub::class);
-    expect($definition->getMethodName())->toBe('resourceMethod');
-    expect($definition->getMimeType())->toBeNull();
-    expect($definition->getSize())->toBeNull();
+    expect($definition->uri)->toBe('test://default/uri');
+    expect($definition->name)->toBe('resourceMethod'); // Default to method name
+    expect($definition->description)->toBe($expectedSummary); // Default to summary
+    expect($definition->className)->toBe(AllElementsStub::class);
+    expect($definition->methodName)->toBe('resourceMethod');
+    expect($definition->mimeType)->toBeNull();
+    expect($definition->size)->toBeNull();
 });
 
 test('fromReflection handles missing docblock summary', function () {
@@ -162,10 +162,10 @@ test('fromReflection handles missing docblock summary', function () {
     );
 
     // Assert
-    expect($definition->getName())->toBe('resource2');
-    expect($definition->getDescription())->toBeNull();
-    expect($definition->getClassName())->toBe(ResourceOnlyStub::class);
-    expect($definition->getMethodName())->toBe('resource2');
+    expect($definition->name)->toBe('resource2');
+    expect($definition->description)->toBeNull();
+    expect($definition->className)->toBe(ResourceOnlyStub::class);
+    expect($definition->methodName)->toBe('resource2');
 });
 
 // --- Serialization Tests ---
@@ -185,19 +185,19 @@ test('can be serialized and unserialized correctly via toArray/fromArray', funct
     // Act
     $mcpArray = $original->toArray();
     $internalArray = [
-        'className' => $original->getClassName(),
-        'methodName' => $original->getMethodName(),
-        'uri' => $original->getUri(),
-        'name' => $original->getName(),
-        'description' => $original->getDescription(),
-        'mimeType' => $original->getMimeType(),
-        'size' => $original->getSize(),
+        'className' => $original->className,
+        'methodName' => $original->methodName,
+        'uri' => $original->uri,
+        'name' => $original->name,
+        'description' => $original->description,
+        'mimeType' => $original->mimeType,
+        'size' => $original->size,
     ];
     $reconstructed = ResourceDefinition::fromArray($internalArray);
 
     // Assert
     expect($reconstructed)->toEqual($original);
-    expect($reconstructed->getSize())->toBe($original->getSize());
+    expect($reconstructed->size)->toBe($original->size);
 });
 
 test('toArray produces correct MCP format', function () {

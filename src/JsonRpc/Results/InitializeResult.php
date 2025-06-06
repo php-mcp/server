@@ -2,9 +2,9 @@
 
 namespace PhpMcp\Server\JsonRpc\Results;
 
-use PhpMcp\Server\JsonRpc\Result;
+use PhpMcp\Server\JsonRpc\Contracts\ResultInterface;
 
-class InitializeResult extends Result
+class InitializeResult implements ResultInterface
 {
     /**
      * Create a new InitializeResult.
@@ -19,8 +19,7 @@ class InitializeResult extends Result
         public readonly string $protocolVersion,
         public readonly array $capabilities,
         public readonly ?string $instructions = null
-    ) {
-    }
+    ) {}
 
     /**
      * Convert the result to an array.
@@ -38,5 +37,10 @@ class InitializeResult extends Result
         }
 
         return $result;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

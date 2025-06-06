@@ -2,12 +2,13 @@
 
 namespace PhpMcp\Server\JsonRpc\Contents;
 
+use PhpMcp\Server\JsonRpc\Contracts\ContentInterface;
 use PhpMcp\Server\Model\Annotations;
 
 /**
  * Represents audio content in MCP.
  */
-class AudioContent extends Content
+class AudioContent implements ContentInterface
 {
     /**
      * Create a new AudioContent instance.
@@ -17,42 +18,10 @@ class AudioContent extends Content
      * @param  ?Annotations  $annotations  Optional annotations describing the content
      */
     public function __construct(
-        protected string $data,
-        protected string $mimeType,
-        protected ?Annotations $annotations = null
+        public readonly string $data,
+        public readonly string $mimeType,
+        public readonly ?Annotations $annotations = null
     ) {}
-
-    /**
-     * Get the audio data.
-     */
-    public function getData(): string
-    {
-        return $this->data;
-    }
-
-    /**
-     * Get the MIME type.
-     */
-    public function getMimeType(): string
-    {
-        return $this->mimeType;
-    }
-
-    /**
-     * Get the annotations.
-     */
-    public function getAnnotations(): ?Annotations
-    {
-        return $this->annotations;
-    }
-
-    /**
-     * Get the content type.
-     */
-    public function getType(): string
-    {
-        return 'audio';
-    }
 
     /**
      * Convert the content to an array.
@@ -72,6 +41,11 @@ class AudioContent extends Content
         }
 
         return $result;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 
     /**

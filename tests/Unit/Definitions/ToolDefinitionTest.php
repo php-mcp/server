@@ -60,11 +60,11 @@ test('fromReflection creates definition with explicit name and description', fun
     );
 
     // Assert
-    expect($definition->getName())->toBe('explicit-tool-name');
-    expect($definition->getDescription())->toBe('Explicit Description');
-    expect($definition->getClassName())->toBe(AllElementsStub::class);
-    expect($definition->getMethodName())->toBe('templateMethod');
-    expect($definition->getInputSchema())->toBe($expectedSchema);
+    expect($definition->toolName)->toBe('explicit-tool-name');
+    expect($definition->description)->toBe('Explicit Description');
+    expect($definition->className)->toBe(AllElementsStub::class);
+    expect($definition->methodName)->toBe('templateMethod');
+    expect($definition->inputSchema)->toBe($expectedSchema);
 });
 
 test('fromReflection uses method name and docblock summary as defaults', function () {
@@ -95,11 +95,11 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     );
 
     // Assert
-    expect($definition->getName())->toBe('templateMethod'); // Default to method name
-    expect($definition->getDescription())->toBe($expectedSummary); // Default to actual summary
-    expect($definition->getClassName())->toBe(AllElementsStub::class);
-    expect($definition->getMethodName())->toBe('templateMethod');
-    expect($definition->getInputSchema())->toBe($expectedSchema);
+    expect($definition->toolName)->toBe('templateMethod'); // Default to method name
+    expect($definition->description)->toBe($expectedSummary); // Default to actual summary
+    expect($definition->className)->toBe(AllElementsStub::class);
+    expect($definition->methodName)->toBe('templateMethod');
+    expect($definition->inputSchema)->toBe($expectedSchema);
 });
 
 test('fromReflection uses class short name as default tool name for invokable classes', function () {
@@ -118,10 +118,10 @@ test('fromReflection uses class short name as default tool name for invokable cl
         $this->schemaGenerator
     );
 
-    expect($definition->getName())->toBe('ToolOnlyStub');
-    expect($definition->getClassName())->toBe(ToolOnlyStub::class);
-    expect($definition->getMethodName())->toBe('__invoke');
-    expect($definition->getInputSchema())->toBe(['type' => 'object']);
+    expect($definition->toolName)->toBe('ToolOnlyStub');
+    expect($definition->className)->toBe(ToolOnlyStub::class);
+    expect($definition->methodName)->toBe('__invoke');
+    expect($definition->inputSchema)->toBe(['type' => 'object']);
 });
 
 test('fromReflection handles missing docblock summary', function () {
@@ -145,11 +145,11 @@ test('fromReflection handles missing docblock summary', function () {
     );
 
     // Assert
-    expect($definition->getName())->toBe('tool1');
-    expect($definition->getDescription())->toBeNull(); // No description available
-    expect($definition->getClassName())->toBe(ToolOnlyStub::class);
-    expect($definition->getMethodName())->toBe('tool1');
-    expect($definition->getInputSchema())->toBe($expectedSchema);
+    expect($definition->toolName)->toBe('tool1');
+    expect($definition->description)->toBeNull(); // No description available
+    expect($definition->className)->toBe(ToolOnlyStub::class);
+    expect($definition->methodName)->toBe('tool1');
+    expect($definition->inputSchema)->toBe($expectedSchema);
 });
 
 // --- Serialization Tests ---
@@ -167,17 +167,17 @@ test('can be serialized and unserialized correctly via toArray/fromArray', funct
     // Act
     $mcpArray = $original->toArray();
     $internalArray = [
-        'className' => $original->getClassName(),
-        'methodName' => $original->getMethodName(),
-        'toolName' => $original->getName(),
-        'description' => $original->getDescription(),
-        'inputSchema' => $original->getInputSchema(),
+        'className' => $original->className,
+        'methodName' => $original->methodName,
+        'toolName' => $original->toolName,
+        'description' => $original->description,
+        'inputSchema' => $original->inputSchema,
     ];
     $reconstructed = ToolDefinition::fromArray($internalArray);
 
     // Assert
     expect($reconstructed)->toEqual($original);
-    expect($reconstructed->getInputSchema())->toBe($original->getInputSchema());
+    expect($reconstructed->inputSchema)->toBe($original->inputSchema);
 });
 
 test('toArray produces correct MCP format', function () {

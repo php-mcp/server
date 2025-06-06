@@ -8,9 +8,10 @@ use JsonException;
 use PhpMcp\Server\Configuration;
 use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\JsonRpc\Contents\TextContent;
-use PhpMcp\Server\JsonRpc\Notification;
-use PhpMcp\Server\JsonRpc\Request;
-use PhpMcp\Server\JsonRpc\Response;
+use PhpMcp\Server\JsonRpc\Messages\Notification;
+use PhpMcp\Server\JsonRpc\Messages\Request;
+use PhpMcp\Server\JsonRpc\Messages\Response;
+use PhpMcp\Server\JsonRpc\Messages\Error;
 use PhpMcp\Server\JsonRpc\Result;
 use PhpMcp\Server\JsonRpc\Results\CallToolResult;
 use PhpMcp\Server\JsonRpc\Results\EmptyResult;
@@ -63,11 +64,20 @@ class RequestProcessor
         $this->argumentPreparer = $argumentPreparer ?? new ArgumentPreparer($this->configuration->logger);
     }
 
-    public function process(Request|Notification $message, string $sessionId): ?Response
+    public function processNotification(Notification $message, string $sessionId): void
     {
         $method = $message->method;
         $params = $message->params;
-        $id = $message instanceof Notification ? null : $message->id;
+
+        if ($method === 'notifications/initialized') {
+            $this->handleNotificationInitialized($params, $sessionId);
+        }
+    }
+
+    public function processRequest(Request $message, string $sessionId): Response|Error
+    {
+        $method = $message->method;
+        $params = $message->params;
 
         try {
             /** @var Result|null $result */
@@ -77,10 +87,6 @@ class RequestProcessor
                 $result = $this->handleInitialize($params, $sessionId);
             } elseif ($method === 'ping') {
                 $result = $this->handlePing($sessionId);
-            } elseif ($method === 'notifications/initialized') {
-                $this->handleNotificationInitialized($params, $sessionId);
-
-                return null;
             } else {
                 $this->validateSessionInitialized($sessionId);
                 [$type, $action] = $this->parseMethod($method);
@@ -118,16 +124,21 @@ class RequestProcessor
                 throw McpServerException::internalError("Processing method '{$method}' failed to return a result.");
             }
 
-            return isset($id) ? Response::success($result, id: $id) : null;
+            return Response::make($result, $message->id);
         } catch (McpServerException $e) {
             $this->logger->debug('MCP Processor caught McpServerException', ['method' => $method, 'code' => $e->getCode(), 'message' => $e->getMessage(), 'data' => $e->getData()]);
 
-            return isset($id) ? Response::error($e->toJsonRpcError(), id: $id) : null;
+            return $e->toJsonRpcError($message->id);
         } catch (Throwable $e) {
             $this->logger->error('MCP Processor caught unexpected error', ['method' => $method, 'exception' => $e]);
-            $mcpError = McpServerException::internalError("Internal error processing method '{$method}'", $e); // Use internalError factory
 
-            return isset($id) ? Response::error($mcpError->toJsonRpcError(), id: $id) : null;
+            return new Error(
+                jsonrpc: '2.0',
+                id: $message->id,
+                code: Error::CODE_INTERNAL_ERROR,
+                message: 'Internal error processing method ' . $method,
+                data: $e->getMessage()
+            );
         }
     }
 
@@ -285,7 +296,7 @@ class RequestProcessor
             throw McpServerException::methodNotFound("Tool '{$toolName}' not found.");
         }
 
-        $inputSchema = $definition->getInputSchema();
+        $inputSchema = $definition->inputSchema;
 
         $validationErrors = $this->schemaValidator->validateAgainstJsonSchema($arguments, $inputSchema);
 
@@ -310,8 +321,8 @@ class RequestProcessor
         $argumentsForPhpCall = (array) $arguments;
 
         try {
-            $instance = $this->container->get($definition->getClassName());
-            $methodName = $definition->getMethodName();
+            $instance = $this->container->get($definition->className);
+            $methodName = $definition->methodName;
 
             $args = $this->argumentPreparer->prepareMethodArguments(
                 $instance,
@@ -360,8 +371,8 @@ class RequestProcessor
         }
 
         try {
-            $instance = $this->container->get($definition->getClassName());
-            $methodName = $definition->getMethodName();
+            $instance = $this->container->get($definition->className);
+            $methodName = $definition->methodName;
 
             $methodParams = array_merge($uriVariables, ['uri' => $uri]);
 
@@ -373,7 +384,7 @@ class RequestProcessor
             );
 
             $readResult = $instance->{$methodName}(...$args);
-            $contents = $this->formatResourceContents($readResult, $uri, $definition->getMimeType());
+            $contents = $this->formatResourceContents($readResult, $uri, $definition->mimeType);
 
             return new ReadResourceResult($contents);
         } catch (JsonException $e) {
@@ -434,15 +445,15 @@ class RequestProcessor
 
         $arguments = (array) $arguments;
 
-        foreach ($definition->getArguments() as $argDef) {
-            if ($argDef->isRequired() && ! array_key_exists($argDef->getName(), $arguments)) {
-                throw McpServerException::invalidParams("Missing required argument '{$argDef->getName()}' for prompt '{$promptName}'.");
+        foreach ($definition->arguments as $argDef) {
+            if ($argDef->required && ! array_key_exists($argDef->name, $arguments)) {
+                throw McpServerException::invalidParams("Missing required argument '{$argDef->name}' for prompt '{$promptName}'.");
             }
         }
 
         try {
-            $instance = $this->container->get($definition->getClassName());
-            $methodName = $definition->getMethodName();
+            $instance = $this->container->get($definition->className);
+            $methodName = $definition->methodName;
 
             $args = $this->argumentPreparer->prepareMethodArguments(
                 $instance,
@@ -454,7 +465,7 @@ class RequestProcessor
             $promptGenerationResult = $instance->{$methodName}(...$args);
             $messages = $this->formatPromptMessages($promptGenerationResult);
 
-            return new GetPromptResult($messages, $definition->getDescription());
+            return new GetPromptResult($messages, $definition->description);
         } catch (JsonException $e) {
             $this->logger->warning('MCP SDK: Failed to JSON encode prompt messages.', ['exception' => $e, 'promptName' => $promptName]);
             throw McpServerException::internalError("Failed to serialize prompt messages for '{$promptName}'.", $e);
