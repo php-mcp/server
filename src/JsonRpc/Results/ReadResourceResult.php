@@ -3,9 +3,9 @@
 namespace PhpMcp\Server\JsonRpc\Results;
 
 use PhpMcp\Server\JsonRpc\Contents\ResourceContent;
-use PhpMcp\Server\JsonRpc\Result;
+use PhpMcp\Server\JsonRpc\Contracts\ResultInterface;
 
-class ReadResourceResult extends Result
+class ReadResourceResult implements ResultInterface
 {
     /**
      * Create a new ReadResourceResult.
@@ -13,18 +13,9 @@ class ReadResourceResult extends Result
      * @param  ResourceContent[]  $contents  The contents of the resource
      */
     public function __construct(
-        protected array $contents
+        public readonly array $contents
     ) {}
 
-    /**
-     * Get the contents of the resource.
-     *
-     * @return ResourceContent[]
-     */
-    public function getContents(): array
-    {
-        return $this->contents;
-    }
 
     /**
      * Convert the result to an array.
@@ -34,5 +25,10 @@ class ReadResourceResult extends Result
         return [
             'contents' => array_map(fn($resource) => $resource->toArray(), $this->contents),
         ];
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

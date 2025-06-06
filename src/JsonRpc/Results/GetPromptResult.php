@@ -3,9 +3,9 @@
 namespace PhpMcp\Server\JsonRpc\Results;
 
 use PhpMcp\Server\JsonRpc\Contents\PromptMessage;
-use PhpMcp\Server\JsonRpc\Result;
+use PhpMcp\Server\JsonRpc\Contracts\ResultInterface;
 
-class GetPromptResult extends Result
+class GetPromptResult implements ResultInterface
 {
     /**
      * Create a new GetPromptResult.
@@ -14,28 +14,9 @@ class GetPromptResult extends Result
      * @param  string|null  $description  Optional description of the prompt
      */
     public function __construct(
-        protected array $messages,
-        protected ?string $description = null
-    ) {
-    }
-
-    /**
-     * Get the messages in the prompt.
-     *
-     * @return PromptMessage[]
-     */
-    public function getMessages(): array
-    {
-        return $this->messages;
-    }
-
-    /**
-     * Get the description of the prompt.
-     */
-    public function getDescription(): ?string
-    {
-        return $this->description;
-    }
+        public readonly array $messages,
+        public readonly ?string $description = null
+    ) {}
 
     /**
      * Convert the result to an array.
@@ -43,7 +24,7 @@ class GetPromptResult extends Result
     public function toArray(): array
     {
         $result = [
-            'messages' => array_map(fn ($message) => $message->toArray(), $this->messages),
+            'messages' => array_map(fn($message) => $message->toArray(), $this->messages),
         ];
 
         if ($this->description !== null) {
@@ -51,5 +32,10 @@ class GetPromptResult extends Result
         }
 
         return $result;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

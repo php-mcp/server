@@ -3,9 +3,9 @@
 namespace PhpMcp\Server\JsonRpc\Results;
 
 use PhpMcp\Server\Definitions\ToolDefinition;
-use PhpMcp\Server\JsonRpc\Result;
+use PhpMcp\Server\JsonRpc\Contracts\ResultInterface;
 
-class ListToolsResult extends Result
+class ListToolsResult implements ResultInterface
 {
     /**
      * @param  array<ToolDefinition>  $tools  The list of tool definitions.
@@ -14,13 +14,12 @@ class ListToolsResult extends Result
     public function __construct(
         public readonly array $tools,
         public readonly ?string $nextCursor = null
-    ) {
-    }
+    ) {}
 
     public function toArray(): array
     {
         $result =  [
-            'tools' => array_map(fn (ToolDefinition $t) => $t->toArray(), $this->tools),
+            'tools' => array_map(fn(ToolDefinition $t) => $t->toArray(), $this->tools),
         ];
 
         if ($this->nextCursor) {
@@ -28,5 +27,10 @@ class ListToolsResult extends Result
         }
 
         return $result;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }

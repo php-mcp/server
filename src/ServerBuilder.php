@@ -236,7 +236,7 @@ final class ServerBuilder
                     $schemaGenerator
                 );
                 $registry->registerTool($def, true);
-                $logger->debug("Registered manual tool '{$def->getName()}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
+                $logger->debug("Registered manual tool '{$def->toolName}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual tool', ['handler' => $data['handler'], 'name' => $data['name'], 'exception' => $e]);
@@ -258,7 +258,7 @@ final class ServerBuilder
                     $docBlockParser
                 );
                 $registry->registerResource($def, true);
-                $logger->debug("Registered manual resource '{$def->getUri()}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
+                $logger->debug("Registered manual resource '{$def->uri}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual resource', ['handler' => $data['handler'], 'uri' => $data['uri'], 'exception' => $e]);
@@ -279,7 +279,7 @@ final class ServerBuilder
                     $docBlockParser
                 );
                 $registry->registerResourceTemplate($def, true);
-                $logger->debug("Registered manual template '{$def->getUriTemplate()}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
+                $logger->debug("Registered manual template '{$def->uriTemplate}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual template', ['handler' => $data['handler'], 'uriTemplate' => $data['uriTemplate'], 'exception' => $e]);
@@ -297,7 +297,7 @@ final class ServerBuilder
                     $docBlockParser
                 );
                 $registry->registerPrompt($def, true);
-                $logger->debug("Registered manual prompt '{$def->getName()}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
+                $logger->debug("Registered manual prompt '{$def->promptName}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual prompt', ['handler' => $data['handler'], 'name' => $data['name'], 'exception' => $e]);

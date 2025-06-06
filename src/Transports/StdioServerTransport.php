@@ -9,6 +9,7 @@ use PhpMcp\Server\Contracts\LoggerAwareInterface;
 use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\TransportException;
+use PhpMcp\Server\JsonRpc\Messages\Message as JsonRpcMessage;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use React\ChildProcess\Process;
@@ -179,25 +180,19 @@ class StdioServerTransport implements LoggerAwareInterface, LoopAwareInterface, 
     /**
      * Sends a raw, framed message to STDOUT.
      */
-    public function sendToClientAsync(string $clientId, string $rawFramedMessage): PromiseInterface
+    public function sendMessage(JsonRpcMessage|null $message, string $sessionId, array $context = []): PromiseInterface
     {
-        if ($clientId !== self::CLIENT_ID) {
-            $this->logger->error("Attempted to send message to invalid clientId '{$clientId}'.");
-
-            return reject(new TransportException("Invalid clientId '{$clientId}' for Stdio transport."));
-        }
-
         if ($this->closing || ! $this->stdout || ! $this->stdout->isWritable()) {
             return reject(new TransportException('Stdio transport is closed or STDOUT is not writable.'));
         }
 
         $deferred = new Deferred();
-        $written = $this->stdout->write($rawFramedMessage);
+        $json = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $written = $this->stdout->write($json);
 
         if ($written) {
             $deferred->resolve(null);
         } else {
-            // Handle backpressure: resolve the promise once the stream drains
             $this->logger->debug('STDOUT buffer full, waiting for drain.');
             $this->stdout->once('drain', function () use ($deferred) {
                 $this->logger->debug('STDOUT drained.');

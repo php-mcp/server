@@ -93,12 +93,12 @@ test('fromReflection creates definition with explicit values from attribute', fu
     );
 
     // Assert
-    expect($definition->getUriTemplate())->toBe('test://explicit/{id}/uri');
-    expect($definition->getName())->toBe('explicit-tmpl-name');
-    expect($definition->getDescription())->toBe('Explicit Description');
-    expect($definition->getClassName())->toBe(AllElementsStub::class);
-    expect($definition->getMethodName())->toBe('templateMethod');
-    expect($definition->getMimeType())->toBe('application/xml');
+    expect($definition->uriTemplate)->toBe('test://explicit/{id}/uri');
+    expect($definition->name)->toBe('explicit-tmpl-name');
+    expect($definition->description)->toBe('Explicit Description');
+    expect($definition->className)->toBe(AllElementsStub::class);
+    expect($definition->methodName)->toBe('templateMethod');
+    expect($definition->mimeType)->toBe('application/xml');
 });
 
 test('fromReflection uses method name and docblock summary as defaults', function () {
@@ -128,12 +128,12 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     );
 
     // Assert
-    expect($definition->getUriTemplate())->toBe('test://default/{tmplId}');
-    expect($definition->getName())->toBe('templateMethod'); // Default to method name
-    expect($definition->getDescription())->toBe($expectedSummary); // Default to summary
-    expect($definition->getClassName())->toBe(AllElementsStub::class);
-    expect($definition->getMethodName())->toBe('templateMethod');
-    expect($definition->getMimeType())->toBeNull();
+    expect($definition->uriTemplate)->toBe('test://default/{tmplId}');
+    expect($definition->name)->toBe('templateMethod'); // Default to method name
+    expect($definition->description)->toBe($expectedSummary); // Default to summary
+    expect($definition->className)->toBe(AllElementsStub::class);
+    expect($definition->methodName)->toBe('templateMethod');
+    expect($definition->mimeType)->toBeNull();
 });
 
 test('fromReflection handles missing docblock summary', function () {
@@ -158,10 +158,10 @@ test('fromReflection handles missing docblock summary', function () {
     );
 
     // Assert
-    expect($definition->getName())->toBe('templateMethod'); // Still defaults to method name
-    expect($definition->getDescription())->toBeNull(); // No description available
-    expect($definition->getClassName())->toBe(AllElementsStub::class);
-    expect($definition->getMethodName())->toBe('templateMethod');
+    expect($definition->name)->toBe('templateMethod'); // Still defaults to method name
+    expect($definition->description)->toBeNull(); // No description available
+    expect($definition->className)->toBe(AllElementsStub::class);
+    expect($definition->methodName)->toBe('templateMethod');
 });
 
 // --- Serialization Tests ---
@@ -180,12 +180,12 @@ test('can be serialized and unserialized correctly via toArray/fromArray', funct
     // Act
     $mcpArray = $original->toArray();
     $internalArray = [
-        'className' => $original->getClassName(),
-        'methodName' => $original->getMethodName(),
-        'uriTemplate' => $original->getUriTemplate(),
-        'name' => $original->getName(),
-        'description' => $original->getDescription(),
-        'mimeType' => $original->getMimeType(),
+        'className' => $original->className,
+        'methodName' => $original->methodName,
+        'uriTemplate' => $original->uriTemplate,
+        'name' => $original->name,
+        'description' => $original->description,
+        'mimeType' => $original->mimeType,
     ];
     $reconstructed = ResourceTemplateDefinition::fromArray($internalArray);
 

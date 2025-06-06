@@ -2,10 +2,12 @@
 
 namespace PhpMcp\Server\JsonRpc\Contents;
 
+use PhpMcp\Server\JsonRpc\Contracts\ContentInterface;
+
 /**
  * Represents embedded resource content in MCP.
  */
-class ResourceContent extends Content
+class ResourceContent implements ContentInterface
 {
 
     /**
@@ -22,7 +24,6 @@ class ResourceContent extends Content
         public readonly ?string $text = null,
         public readonly ?string $blob = null
     ) {
-        // Validate that either text or blob is provided, but not both
         if (($text === null && $blob === null) || ($text !== null && $blob !== null)) {
             throw new \InvalidArgumentException('Either text OR blob must be provided for a resource.');
         }
@@ -48,6 +49,11 @@ class ResourceContent extends Content
         }
 
         return $resource;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 
     /**

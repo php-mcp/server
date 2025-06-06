@@ -3,9 +3,9 @@
 namespace PhpMcp\Server\JsonRpc\Results;
 
 use PhpMcp\Server\Definitions\ResourceDefinition;
-use PhpMcp\Server\JsonRpc\Result;
+use PhpMcp\Server\JsonRpc\Contracts\ResultInterface;
 
-class ListResourcesResult extends Result
+class ListResourcesResult implements ResultInterface
 {
     /**
      * @param  array<ResourceDefinition>  $resources  The list of resource definitions.
@@ -14,8 +14,7 @@ class ListResourcesResult extends Result
     public function __construct(
         public readonly array $resources,
         public readonly ?string $nextCursor = null
-    ) {
-    }
+    ) {}
 
     /**
      * Convert the result to an array.
@@ -23,7 +22,7 @@ class ListResourcesResult extends Result
     public function toArray(): array
     {
         $result = [
-            'resources' => array_map(fn (ResourceDefinition $r) => $r->toArray(), $this->resources),
+            'resources' => array_map(fn(ResourceDefinition $r) => $r->toArray(), $this->resources),
         ];
 
         if ($this->nextCursor !== null) {
@@ -31,5 +30,10 @@ class ListResourcesResult extends Result
         }
 
         return $result;
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }
