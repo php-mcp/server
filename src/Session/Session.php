@@ -5,29 +5,35 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Session;
 
 use PhpMcp\Server\Contracts\SessionInterface;
+use SessionHandlerInterface;
 
 class Session implements SessionInterface
 {
-    protected string $id;
-
     /**
      * @var array<string, mixed> Stores all session data.
      * Keys are snake_case by convention for MCP-specific data.
+     *
+     * Official keys are:
+     * - initialized: bool
+     * - client_info: array|null
+     * - protocol_version: string|null
+     * - subscriptions: array<string, bool>
+     * - message_queue: array<string>
+     * - log_level: string|null
      */
-    protected array $data = [
-        'initialized' => false,
-        'client_info' => null,
-        'protocol_version' => null,
-        'subscriptions' => [],      // [uri => true]
-        'message_queue' => [],      // string[] (raw JSON-RPC frames)
-        'requested_log_level' => null,
-        'last_activity_timestamp' => 0,
-    ];
+    protected array $data = [];
 
-    public function __construct(string $sessionId)
-    {
-        $this->id = $sessionId;
-        $this->touch();
+    public function __construct(
+        protected SessionHandlerInterface $handler,
+        protected string $id = ''
+    ) {
+        if (empty($this->id)) {
+            $this->id = $this->generateId();
+        }
+
+        if ($data = $this->handler->read($this->id)) {
+            $this->data = json_decode($data, true) ?? [];
+        }
     }
 
     public function getId(): string
@@ -35,17 +41,17 @@ class Session implements SessionInterface
         return $this->id;
     }
 
-    public function initialize(): void
+    public function generateId(): string
     {
-        $this->setAttribute('initialized', true);
+        return bin2hex(random_bytes(16));
     }
 
-    public function isInitialized(): bool
+    public function save(): void
     {
-        return (bool) $this->getAttribute('initialized', false);
+        $this->handler->write($this->id, json_encode($this->data));
     }
 
-    public function getAttribute(string $key, mixed $default = null): mixed
+    public function get(string $key, mixed $default = null): mixed
     {
         $key = explode('.', $key);
         $data = $this->data;
@@ -61,7 +67,7 @@ class Session implements SessionInterface
         return $data;
     }
 
-    public function setAttribute(string $key, mixed $value, bool $overwrite = true): void
+    public function set(string $key, mixed $value, bool $overwrite = true): void
     {
         $segments = explode('.', $key);
         $data = &$this->data;
@@ -78,10 +84,9 @@ class Session implements SessionInterface
         if ($overwrite || !isset($data[$lastKey])) {
             $data[$lastKey] = $value;
         }
-        $this->touch();
     }
 
-    public function hasAttribute(string $key): bool
+    public function has(string $key): bool
     {
         $key = explode('.', $key);
         $data = $this->data;
@@ -99,7 +104,7 @@ class Session implements SessionInterface
         return true;
     }
 
-    public function forgetAttribute(string $key): void
+    public function forget(string $key): void
     {
         $segments = explode('.', $key);
         $data = &$this->data;
@@ -116,23 +121,26 @@ class Session implements SessionInterface
         if (isset($data[$lastKey])) {
             unset($data[$lastKey]);
         }
-
-        $this->touch();
     }
 
-    public function pullAttribute(string $key, mixed $default = null): mixed
+    public function clear(): void
     {
-        $value = $this->getAttribute($key, $default);
-        $this->forgetAttribute($key);
+        $this->data = [];
+    }
+
+    public function pull(string $key, mixed $default = null): mixed
+    {
+        $value = $this->get($key, $default);
+        $this->forget($key);
         return $value;
     }
 
-    public function getAttributes(): array
+    public function all(): array
     {
         return $this->data;
     }
 
-    public function setAttributes(array $attributes): void
+    public function hydrate(array $attributes): void
     {
         $this->data = array_merge(
             [
@@ -141,23 +149,12 @@ class Session implements SessionInterface
                 'protocol_version' => null,
                 'subscriptions' => [],
                 'message_queue' => [],
-                'requested_log_level' => null,
-                'last_activity_timestamp' => 0,
+                'log_level' => null,
+                'timestamp' => 0,
             ],
             $attributes
         );
         unset($this->data['id']);
-
-        if (!isset($attributes['last_activity_timestamp'])) {
-            $this->touch();
-        } else {
-            $this->data['last_activity_timestamp'] = (int) $attributes['last_activity_timestamp'];
-        }
-    }
-
-    public function touch(): void
-    {
-        $this->data['last_activity_timestamp'] = time();
     }
 
     public function queueMessage(string $rawFramedMessage): void
@@ -169,11 +166,6 @@ class Session implements SessionInterface
     {
         $messages = $this->data['message_queue'] ?? [];
         $this->data['message_queue'] = [];
-
-        if (!empty($messages)) {
-            $this->touch();
-        }
-
         return $messages;
     }
 
@@ -184,6 +176,6 @@ class Session implements SessionInterface
 
     public function jsonSerialize(): array
     {
-        return $this->getAttributes();
+        return $this->all();
     }
 }
