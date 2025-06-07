@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Contracts;
 
 use Evenement\EventEmitterInterface;
-use PhpMcp\Server\JsonRpc\Messages\BatchResponse;
-use PhpMcp\Server\JsonRpc\Messages\Error;
-use PhpMcp\Server\JsonRpc\Messages\Response;
+use PhpMcp\Server\JsonRpc\Messages\Message;
 use React\Promise\PromiseInterface;
 use Throwable;
 
@@ -19,8 +17,8 @@ use Throwable;
  *
  * --- Expected Emitted Events ---
  * 'ready': () - Optional: Fired when listening starts successfully.
- * 'client_connected': (string $sessionId) - New client connection (e.g., SSE).
- * 'message': (string $rawJsonRpcFrame, string $sessionId) - Complete message received from a client.
+ * 'client_connected': (string $sessionId) - New client connection
+ * 'message': (Message $message, string $sessionId, array $context) - Complete message received from a client.
  * 'client_disconnected': (string $sessionId, ?string $reason) - Client connection closed.
  * 'error': (Throwable $error, ?string $sessionId) - Error occurred (general transport error if sessionId is null).
  * 'close': (?string $reason) - Transport listener stopped completely.
@@ -38,12 +36,12 @@ interface ServerTransportInterface extends EventEmitterInterface
     /**
      * Sends a message to a connected client session with optional context.
      *
-     * @param  Response|Error|BatchResponse|null  $message  Message to send.
+     * @param  Message  $message  Message to send.
      * @param  string  $sessionId  Target session identifier.
      * @param  array  $context  Optional context for the message. Eg. streamId for SSE.
      * @return PromiseInterface<void> Resolves on successful send/queue, rejects on specific send error.
      */
-    public function sendMessage(Response|Error|BatchResponse|null $message, string $sessionId, array $context = []): PromiseInterface;
+    public function sendMessage(Message $message, string $sessionId, array $context = []): PromiseInterface;
 
     /**
      * Stops the transport listener gracefully and closes all active connections.

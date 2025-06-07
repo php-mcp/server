@@ -19,6 +19,11 @@ class Error extends Message
 
     public const CODE_INTERNAL_ERROR = -32603;
 
+
+    // Internal Errors
+    public const CODE_CONNECTION_CLOSED = -32000;
+    public const CODE_REQUEST_TIMEOUT = -32001;
+
     /**
      * Create a new JSON-RPC 2.0 error.
      *
@@ -43,19 +48,30 @@ class Error extends Message
     {
         return new self(
             jsonrpc: '2.0',
-            id: '0',
+            id: '',
             code: self::CODE_PARSE_ERROR,
             message: $message,
             data: null,
         );
     }
 
-    public static function invalidRequest(string $message): self
+    public static function invalidRequest(string $message, string $id = ''): self
     {
         return new self(
             jsonrpc: '2.0',
-            id: '0',
+            id: $id,
             code: self::CODE_INVALID_REQUEST,
+            message: $message,
+            data: null,
+        );
+    }
+
+    public static function connectionAborted(string $message): self
+    {
+        return new self(
+            jsonrpc: '2.0',
+            id: '',
+            code: self::CODE_CONNECTION_CLOSED,
             message: $message,
             data: null,
         );

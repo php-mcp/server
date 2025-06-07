@@ -5,7 +5,7 @@ namespace PhpMcp\Server\JsonRpc\Results;
 use PhpMcp\Server\JsonRpc\Contracts\ResultInterface;
 
 /**
- * A generic empty result for methods that return an empty object
+ * A generic empty result that indicates success but carries no data.
  */
 class EmptyResult implements ResultInterface
 {
@@ -22,8 +22,8 @@ class EmptyResult implements ResultInterface
         return []; // Empty result object
     }
 
-    public function jsonSerialize(): array
+    public function jsonSerialize(): mixed
     {
-        return $this->toArray();
+        return new \stdClass();
     }
 }

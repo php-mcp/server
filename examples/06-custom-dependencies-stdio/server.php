@@ -94,8 +94,10 @@ try {
 
     $logger->info('Server listener stopped gracefully.');
     exit(0);
-
 } catch (\Throwable $e) {
-    fwrite(STDERR, "[MCP SERVER CRITICAL ERROR]\n".$e."\n");
+    fwrite(STDERR, "[MCP SERVER CRITICAL ERROR]\n");
+    fwrite(STDERR, 'Error: ' . $e->getMessage() . "\n");
+    fwrite(STDERR, 'File: ' . $e->getFile() . ':' . $e->getLine() . "\n");
+    fwrite(STDERR, $e->getTraceAsString() . "\n");
     exit(1);
 }

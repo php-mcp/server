@@ -12,7 +12,7 @@ class InitializeResult implements ResultInterface
      * @param  array  $serverInfo  Server information
      * @param  string  $protocolVersion  Protocol version
      * @param  array  $capabilities  Server capabilities
-     * @param  string|null  $instructions  Optional instructions text
+     * @param  string|null  $instructions  Instructions describing how to use the server and its features.
      */
     public function __construct(
         public readonly array $serverInfo,

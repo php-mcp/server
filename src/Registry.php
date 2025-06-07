@@ -105,7 +105,7 @@ class Registry
                 $notification = Notification::make('notifications/tools/list_changed');
                 $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
                 if ($framedMessage !== false) {
-                    $this->sessionManager->queueMessageForAll($framedMessage);
+                    // $this->sessionManager->queueMessageForAll($framedMessage);
                 }
             }
         };
@@ -115,7 +115,7 @@ class Registry
                 $notification = Notification::make('notifications/resources/list_changed');
                 $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
                 if ($framedMessage !== false) {
-                    $this->sessionManager->queueMessageForAll($framedMessage);
+                    // $this->sessionManager->queueMessageForAll($framedMessage);
                 }
             }
         };
@@ -125,7 +125,7 @@ class Registry
                 $notification = Notification::make('notifications/prompts/list_changed');
                 $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
                 if ($framedMessage !== false) {
-                    $this->sessionManager->queueMessageForAll($framedMessage);
+                    // $this->sessionManager->queueMessageForAll($framedMessage);
                 }
             }
         };
