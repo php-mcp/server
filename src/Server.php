@@ -160,7 +160,7 @@ class Server
                 $this->endListen($transport); // If the loop ends, we need to clean up
             }
         } catch (Throwable $e) {
-            $this->configuration->logger->critical('Failed to start listening or event loop crashed.', ['exception' => $e]);
+            $this->configuration->logger->critical('Failed to start listening or event loop crashed.', ['exception' => $e->getMessage()]);
             $this->endListen($transport);
             throw $e;
         }

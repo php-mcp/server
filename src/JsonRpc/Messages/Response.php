@@ -3,11 +3,12 @@
 namespace PhpMcp\Server\JsonRpc\Messages;
 
 use PhpMcp\Server\Exception\ProtocolException;
+use PhpMcp\Server\JsonRpc\Contracts\ResultInterface;
 
 /**
  * A successful (non-error) response to a request.
  *
- * @template T
+ * @template T of ResultInterface
  */
 class Response extends Message
 {
@@ -16,7 +17,7 @@ class Response extends Message
      *
      * @param  string  $jsonrpc  JSON-RPC version (always "2.0")
      * @param  string|int  $id  Request ID this response is for (must match the request)
-     * @param  T|null  $result  Method result (can be a Result object or array)
+     * @param  T  $result  Method result
      */
     public function __construct(
         public readonly string $jsonrpc,
@@ -79,7 +80,16 @@ class Response extends Message
         return [
             'jsonrpc' => $this->jsonrpc,
             'id' => $this->id,
-            'result' => is_array($this->result) ? $this->result : $this->result->toArray(),
+            'result' => $this->result->toArray(),
+        ];
+    }
+
+    public function jsonSerialize(): mixed
+    {
+        return [
+            'jsonrpc' => $this->jsonrpc,
+            'id' => $this->id,
+            'result' => $this->result->jsonSerialize(),
         ];
     }
 }

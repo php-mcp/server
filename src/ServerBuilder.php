@@ -8,15 +8,18 @@ use PhpMcp\Server\Defaults\BasicContainer;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\Model\Capabilities;
+use PhpMcp\Server\Session\ArraySessionHandler;
+use PhpMcp\Server\Session\CacheSessionHandler;
 use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Support\HandlerResolver;
-use PhpMcp\Server\Support\RequestProcessor;
+use PhpMcp\Server\Support\RequestHandler;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Psr\SimpleCache\CacheInterface;
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
+use SessionHandlerInterface;
 use Throwable;
 
 final class ServerBuilder
@@ -34,6 +37,10 @@ final class ServerBuilder
     private ?ContainerInterface $container = null;
 
     private ?LoopInterface $loop = null;
+
+    private ?SessionHandlerInterface $sessionHandler = null;
+
+    private ?int $sessionTtl = 3600;
 
     private ?int $definitionCacheTtl = 3600;
 
@@ -99,6 +106,30 @@ final class ServerBuilder
     {
         $this->cache = $cache;
         $this->definitionCacheTtl = $definitionCacheTtl > 0 ? $definitionCacheTtl : 3600;
+
+        return $this;
+    }
+
+    public function withSessionHandler(SessionHandlerInterface $sessionHandler, int $sessionTtl = 3600): self
+    {
+        $this->sessionHandler = $sessionHandler;
+        $this->sessionTtl = $sessionTtl;
+
+        return $this;
+    }
+
+    public function withArraySessionHandler(int $sessionTtl = 3600): self
+    {
+        $this->sessionHandler = new ArraySessionHandler($sessionTtl);
+        $this->sessionTtl = $sessionTtl;
+
+        return $this;
+    }
+
+    public function withCacheSessionHandler(CacheInterface $cache, int $sessionTtl = 3600): self
+    {
+        $this->sessionHandler = new CacheSessionHandler($cache, $sessionTtl);
+        $this->sessionTtl = $sessionTtl;
 
         return $this;
     }
@@ -193,10 +224,10 @@ final class ServerBuilder
             paginationLimit: $this->paginationLimit ?? 50
         );
 
-        $sessionManager = new SessionManager($logger, $cache, $configuration->definitionCacheTtl);
+        $sessionHandler = $this->sessionHandler ?? new ArraySessionHandler(3600);
+        $sessionManager = new SessionManager($sessionHandler, $logger, $loop, $this->sessionTtl);
         $registry = new Registry($logger, $cache, $sessionManager);
-        $requestProcessor = new RequestProcessor($configuration, $registry, $sessionManager);
-        $protocol = new Protocol($logger, $requestProcessor);
+        $protocol = new Protocol($configuration, $registry, $sessionManager);
 
         $registry->disableNotifications();
 

@@ -10,6 +10,7 @@ use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\TransportException;
 use PhpMcp\Server\JsonRpc\Messages\Message as JsonRpcMessage;
+use PhpMcp\Server\JsonRpc\Messages\Error as JsonRpcError;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use React\ChildProcess\Process;
@@ -29,7 +30,7 @@ use function React\Promise\reject;
  * Implementation of the STDIO server transport using ReactPHP Process and Streams.
  * Listens on STDIN, writes to STDOUT, and emits events for the Protocol.
  */
-class StdioServerTransport implements LoggerAwareInterface, LoopAwareInterface, ServerTransportInterface
+class StdioServerTransport implements ServerTransportInterface, LoggerAwareInterface, LoopAwareInterface
 {
     use EventEmitterTrait;
 
@@ -171,16 +172,27 @@ class StdioServerTransport implements LoggerAwareInterface, LoopAwareInterface, 
             $this->buffer = substr($this->buffer, $pos + 1);
 
             $trimmedLine = trim($line);
-            if ($trimmedLine !== '') {
-                $this->emit('message', [$trimmedLine, self::CLIENT_ID]);
+            if (empty($trimmedLine)) {
+                continue;
             }
+
+            try {
+                $message = JsonRpcMessage::parseRequest($trimmedLine);
+            } catch (Throwable $e) {
+                $this->logger->error('Error parsing message', ['exception' => $e]);
+                $error = JsonRpcError::parseError("Invalid JSON: " . $e->getMessage());
+                $this->sendMessage($error, self::CLIENT_ID);
+                continue;
+            }
+
+            $this->emit('message', [$message, self::CLIENT_ID]);
         }
     }
 
     /**
      * Sends a raw, framed message to STDOUT.
      */
-    public function sendMessage(JsonRpcMessage|null $message, string $sessionId, array $context = []): PromiseInterface
+    public function sendMessage(JsonRpcMessage $message, string $sessionId, array $context = []): PromiseInterface
     {
         if ($this->closing || ! $this->stdout || ! $this->stdout->isWritable()) {
             return reject(new TransportException('Stdio transport is closed or STDOUT is not writable.'));
@@ -188,7 +200,7 @@ class StdioServerTransport implements LoggerAwareInterface, LoopAwareInterface, 
 
         $deferred = new Deferred();
         $json = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $written = $this->stdout->write($json);
+        $written = $this->stdout->write($json . "\n");
 
         if ($written) {
             $deferred->resolve(null);
