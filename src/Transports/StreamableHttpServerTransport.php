@@ -60,10 +60,12 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
     /**
      * Stores active SSE streams.
      * Key: streamId
-     * Value: ['stream' => ThroughStream, 'sessionId' => string, 'type' => 'get' | 'post', 'context' => array]
-     * @var array<string, array{stream: ThroughStream, sessionId: string, type: string, context: array}>
+     * Value: ['stream' => ThroughStream, 'sessionId' => string, 'context' => array]
+     * @var array<string, array{stream: ThroughStream, sessionId: string, context: array}>
      */
     private array $activeSseStreams = [];
+
+    private ?ThroughStream $getStream = null;
 
     public function __construct(
         private readonly string $host = '127.0.0.1',
@@ -190,19 +192,16 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
             return resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
         }
 
-        $streamId = $this->idGenerator->generateId();
-        $sseStream = new ThroughStream();
+        $this->getStream = new ThroughStream();
 
-        $this->activeSseStreams[$streamId] = ['stream' => $sseStream, 'sessionId' => $sessionId, 'type' => 'get'];
-
-        $sseStream->on('close', function () use ($streamId, $sessionId) {
-            $this->logger->debug("GET SSE stream closed.", ['streamId' => $streamId, 'sessionId' => $sessionId]);
-            unset($this->activeSseStreams[$streamId]);
+        $this->getStream->on('close', function () use ($sessionId) {
+            $this->logger->debug("GET SSE stream closed.", ['sessionId' => $sessionId]);
+            $this->getStream = null;
         });
 
-        $sseStream->on('error', function (Throwable $e) use ($streamId, $sessionId) {
-            $this->logger->error("GET SSE stream error.", ['streamId' => $streamId, 'sessionId' => $sessionId, 'error' => $e->getMessage()]);
-            unset($this->activeSseStreams[$streamId]);
+        $this->getStream->on('error', function (Throwable $e) use ($sessionId) {
+            $this->logger->error("GET SSE stream error.", ['sessionId' => $sessionId, 'error' => $e->getMessage()]);
+            $this->getStream = null;
         });
 
         $headers = [
@@ -212,11 +211,11 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
             'X-Accel-Buffering' => 'no',
         ];
 
-        $response = new HttpResponse(200, $headers, $sseStream);
+        $response = new HttpResponse(200, $headers, $this->getStream);
 
         if ($this->eventStore) {
             $lastEventId = $request->getHeaderLine('Last-Event-ID');
-            $this->replayEvents($lastEventId, $sseStream, $sessionId);
+            $this->replayEvents($lastEventId, $this->getStream, $sessionId);
         }
 
         return resolve($response);
@@ -309,7 +308,6 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
                 $this->activeSseStreams[$streamId] = [
                     'stream' => $sseStream,
                     'sessionId' => $sessionId,
-                    'type' => 'post',
                     'context' => ['nRequests' => $nRequests, 'nResponses' => 0]
                 ];
 
@@ -488,34 +486,28 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
                 $deferred->resolve(new HttpResponse(200, $headers, $responseBody));
                 return resolve(null);
 
-            case 'get_sse':
-                $streamId = $context['streamId'];
-                if (!isset($this->activeSseStreams[$streamId])) {
-                    $this->logger->error("GET SSE stream not found.", ['streamId' => $streamId, 'sessionId' => $sessionId]);
-                    return reject(new TransportException("GET SSE stream {$streamId} not found."));
+            default:
+                if ($this->getStream === null) {
+                    $this->logger->error("GET SSE stream not found.", ['sessionId' => $sessionId]);
+                    return reject(new TransportException("GET SSE stream not found."));
                 }
 
-                $stream = $this->activeSseStreams[$streamId]['stream'];
-                if (!$stream->isWritable()) {
-                    $this->logger->warning("GET SSE stream is not writable.", ['streamId' => $streamId, 'sessionId' => $sessionId]);
-                    return reject(new TransportException("GET SSE stream {$streamId} not writable."));
+                if (!$this->getStream->isWritable()) {
+                    $this->logger->warning("GET SSE stream is not writable.", ['sessionId' => $sessionId]);
+                    return reject(new TransportException("GET SSE stream not writable."));
                 }
                 if ($message instanceof JsonRpcResponse || $message instanceof JsonRpcError) {
                     $json = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-                    $eventId = $this->eventStore ? $this->eventStore->storeEvent($streamId, $json) : null;
-                    $this->sendSseEventToStream($stream, $json, $eventId);
+                    $eventId = $this->eventStore ? $this->eventStore->storeEvent('GET_STREAM', $json) : null;
+                    $this->sendSseEventToStream($this->getStream, $json, $eventId);
                 } elseif ($message instanceof BatchResponse) {
                     foreach ($message->all() as $singleResponse) {
                         $json = json_encode($singleResponse, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-                        $eventId = $this->eventStore ? $this->eventStore->storeEvent($streamId, $json) : null;
-                        $this->sendSseEventToStream($stream, $json, $eventId);
+                        $eventId = $this->eventStore ? $this->eventStore->storeEvent('GET_STREAM', $json) : null;
+                        $this->sendSseEventToStream($this->getStream, $json, $eventId);
                     }
                 }
                 return resolve(null);
-
-            default:
-                $this->logger->error("Unknown sendMessage context type.", ['context' => $context, 'sessionId' => $sessionId]);
-                return reject(new TransportException("Unknown sendMessage context type: " . ($context['type'] ?? 'null')));
         }
     }
 
@@ -577,6 +569,11 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
             if ($streamInfo['stream']->isWritable()) {
                 $streamInfo['stream']->end();
             }
+        }
+
+        if ($this->getStream !== null) {
+            $this->getStream->end();
+            $this->getStream = null;
         }
 
         foreach ($this->pendingDirectPostResponses as $pendingRequestId => $deferred) {

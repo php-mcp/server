@@ -6,12 +6,12 @@ namespace PhpMcp\Server\Session;
 
 use Evenement\EventEmitterInterface;
 use Evenement\EventEmitterTrait;
+use PhpMcp\Server\Contracts\SessionHandlerInterface;
 use PhpMcp\Server\Contracts\SessionInterface;
 use Psr\Log\LoggerInterface;
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\TimerInterface;
-use SessionHandlerInterface;
 
 class SessionManager implements EventEmitterInterface
 {
@@ -40,8 +40,17 @@ class SessionManager implements EventEmitterInterface
         }
 
         $this->gcTimer = $this->loop->addPeriodicTimer($this->gcInterval, function () {
-            $count = $this->handler->gc($this->ttl);
-            $this->logger->debug('Session garbage collection complete', ['purged_sessions' => $count]);
+            $deletedSessions = $this->handler->gc($this->ttl);
+
+            foreach ($deletedSessions as $sessionId) {
+                $this->emit('session_deleted', [$sessionId]);
+            }
+
+            if (count($deletedSessions) > 0) {
+                $this->logger->debug('Session garbage collection complete', [
+                    'purged_sessions' => count($deletedSessions),
+                ]);
+            }
         });
     }
 

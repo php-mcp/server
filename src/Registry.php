@@ -4,35 +4,36 @@ declare(strict_types=1);
 
 namespace PhpMcp\Server;
 
-use ArrayObject;
+use Evenement\EventEmitterInterface;
+use Evenement\EventEmitterTrait;
 use PhpMcp\Server\Definitions\PromptDefinition;
 use PhpMcp\Server\Definitions\ResourceDefinition;
 use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
 use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\Exception\DefinitionException;
-use PhpMcp\Server\JsonRpc\Messages\Notification;
-use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Support\UriTemplateMatcher;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use Psr\SimpleCache\InvalidArgumentException as CacheInvalidArgumentException;
 use Throwable;
 
-class Registry
+class Registry implements EventEmitterInterface
 {
+    use EventEmitterTrait;
+
     private const DISCOVERED_ELEMENTS_CACHE_KEY = 'mcp_server_discovered_elements';
 
-    /** @var ArrayObject<string, ToolDefinition> */
-    private ArrayObject $tools;
+    /** @var array<string, ToolDefinition> */
+    private array $tools = [];
 
-    /** @var ArrayObject<string, ResourceDefinition> */
-    private ArrayObject $resources;
+    /** @var array<string, ResourceDefinition> */
+    private array $resources = [];
 
-    /** @var ArrayObject<string, PromptDefinition> */
-    private ArrayObject $prompts;
+    /** @var array<string, PromptDefinition> */
+    private array $prompts = [];
 
-    /** @var ArrayObject<string, ResourceTemplateDefinition> */
-    private ArrayObject $resourceTemplates;
+    /** @var array<string, ResourceTemplateDefinition> */
+    private array $resourceTemplates = [];
 
     /** @var array<string, true> */
     private array $manualToolNames = [];
@@ -46,265 +47,59 @@ class Registry
     /** @var array<string, true> */
     private array $manualTemplateUris = [];
 
-    private bool $discoveredElementsLoaded = false;
+    private array $listHashes = [
+        'tools' => '',
+        'resources' => '',
+        'resource_templates' => '',
+        'prompts' => '',
+    ];
 
     private bool $notificationsEnabled = true;
-
 
     public function __construct(
         protected LoggerInterface $logger,
         protected ?CacheInterface $cache = null,
-        protected ?SessionManager $sessionManager = null
     ) {
-        $this->initializeCollections();
-
-        if ($this->cache) {
-            $this->loadDiscoveredElementsFromCache();
-        } else {
-            $this->discoveredElementsLoaded = true;
-            $this->logger->debug('No cache provided to registry, skipping initial cache load.');
-        }
+        $this->load();
+        $this->computeAllHashes();
     }
 
     /**
-     * Checks if discovery has been run OR elements loaded from cache.
-     *
-     * Note: Manual elements can exist even if this is false initially.
+     * Compute hashes for all lists for change detection
      */
-    public function discoveryRanOrCached(): bool
+    private function computeAllHashes(): void
     {
-        return $this->discoveredElementsLoaded;
+        $this->listHashes['tools'] = $this->computeHash($this->tools);
+        $this->listHashes['resources'] = $this->computeHash($this->resources);
+        $this->listHashes['resource_templates'] = $this->computeHash($this->resourceTemplates);
+        $this->listHashes['prompts'] = $this->computeHash($this->prompts);
     }
 
-    /** Checks if any elements (manual or discovered) are currently registered. */
-    public function hasElements(): bool
+    /**
+     * Compute a stable hash for a collection
+     */
+    private function computeHash(array $collection): string
     {
-        return ! empty($this->tools->getArrayCopy())
-            || ! empty($this->resources->getArrayCopy())
-            || ! empty($this->prompts->getArrayCopy())
-            || ! empty($this->resourceTemplates->getArrayCopy());
+        if (empty($collection)) {
+            return '';
+        }
+
+        ksort($collection);
+        return md5(json_encode($collection));
     }
 
-    private function initializeCollections(): void
-    {
-        $this->tools = new ArrayObject();
-        $this->resources = new ArrayObject();
-        $this->prompts = new ArrayObject();
-        $this->resourceTemplates = new ArrayObject();
-
-        $this->manualToolNames = [];
-        $this->manualResourceUris = [];
-        $this->manualPromptNames = [];
-        $this->manualTemplateUris = [];
-    }
-
-    public function enableNotifications(): void
-    {
-        $this->notifyToolsChanged = function () {
-            if ($this->sessionManager) {
-                $notification = Notification::make('notifications/tools/list_changed');
-                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-                if ($framedMessage !== false) {
-                    // $this->sessionManager->queueMessageForAll($framedMessage);
-                }
-            }
-        };
-
-        $this->notifyResourcesChanged = function () {
-            if ($this->sessionManager) {
-                $notification = Notification::make('notifications/resources/list_changed');
-                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-                if ($framedMessage !== false) {
-                    // $this->sessionManager->queueMessageForAll($framedMessage);
-                }
-            }
-        };
-
-        $this->notifyPromptsChanged = function () {
-            if ($this->sessionManager) {
-                $notification = Notification::make('notifications/prompts/list_changed');
-                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-                if ($framedMessage !== false) {
-                    // $this->sessionManager->queueMessageForAll($framedMessage);
-                }
-            }
-        };
-    }
-
-    public function setToolsChangedNotifier(?callable $notifier): void
-    {
-        if (!$this->notificationsEnabled || !$this->clientStateManager) {
-            return;
-        }
-        $notification = Notification::make('notifications/prompts/list_changed');
-
-        $framedMessage = json_encode($notification, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-        if ($framedMessage === false || $framedMessage === "\n") {
-            $this->logger->error('Failed to encode notification for queuing.', ['method' => $notification->method]);
-            return;
-        }
-        $this->clientStateManager->queueMessageForAll($framedMessage);
-    }
-
-    public function notifyResourceUpdated(string $uri): void
-    {
-        if (!$this->notificationsEnabled || !$this->clientStateManager) {
-            return;
-        }
-
-        $subscribers = $this->clientStateManager->getResourceSubscribers($uri);
-        if (empty($subscribers)) {
-            return;
-        }
-        $notification = Notification::make('notifications/resources/updated', ['uri' => $uri]);
-
-        $framedMessage = json_encode($notification, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-        if ($framedMessage === false || $framedMessage === "\n") {
-            $this->logger->error('Failed to encode resource/updated notification.', ['uri' => $uri]);
-            return;
-        }
-
-        foreach ($subscribers as $clientId) {
-            $this->clientStateManager->queueMessage($clientId, $framedMessage);
-        }
-    }
-
-    /** @deprecated  */
-    public function setToolsChangedNotifier(?callable $notifier): void {}
-
-    /** @deprecated  */
-    public function setResourcesChangedNotifier(?callable $notifier): void {}
-
-    /** @deprecated  */
-    public function setPromptsChangedNotifier(?callable $notifier): void {}
-
-    public function registerTool(ToolDefinition $tool, bool $isManual = false): void
-    {
-        $toolName = $tool->toolName;
-        $exists = $this->tools->offsetExists($toolName);
-        $wasManual = isset($this->manualToolNames[$toolName]);
-
-        if ($exists && ! $isManual && $wasManual) {
-            $this->logger->debug("MCP Registry: Ignoring discovered tool '{$toolName}' as it conflicts with a manually registered one.");
-
-            return; // Manual registration takes precedence
-        }
-
-        if ($exists) {
-            $this->logger->warning('MCP Registry: Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " tool '{$toolName}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
-        }
-
-        $this->tools[$toolName] = $tool;
-
-        if ($isManual) {
-            $this->manualToolNames[$toolName] = true;
-        } elseif ($wasManual) {
-            unset($this->manualToolNames[$toolName]);
-        }
-
-        if (! $exists) {
-            $this->notifyToolsListChanged();
-        }
-    }
-
-    public function registerResource(ResourceDefinition $resource, bool $isManual = false): void
-    {
-        $uri = $resource->uri;
-        $exists = $this->resources->offsetExists($uri);
-        $wasManual = isset($this->manualResourceUris[$uri]);
-
-        if ($exists && ! $isManual && $wasManual) {
-            $this->logger->debug("MCP Registry: Ignoring discovered resource '{$uri}' as it conflicts with a manually registered one.");
-
-            return;
-        }
-        if ($exists) {
-            $this->logger->warning('MCP Registry: Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " resource '{$uri}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
-        }
-
-        $this->resources[$uri] = $resource;
-        if ($isManual) {
-            $this->manualResourceUris[$uri] = true;
-        } elseif ($wasManual) {
-            unset($this->manualResourceUris[$uri]);
-        }
-
-        if (! $exists) {
-            $this->notifyResourcesListChanged();
-        }
-    }
-
-    public function registerResourceTemplate(ResourceTemplateDefinition $template, bool $isManual = false): void
-    {
-        $uriTemplate = $template->uriTemplate;
-        $exists = $this->resourceTemplates->offsetExists($uriTemplate);
-        $wasManual = isset($this->manualTemplateUris[$uriTemplate]);
-
-        if ($exists && ! $isManual && $wasManual) {
-            $this->logger->debug("MCP Registry: Ignoring discovered template '{$uriTemplate}' as it conflicts with a manually registered one.");
-
-            return;
-        }
-        if ($exists) {
-            $this->logger->warning('MCP Registry: Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " template '{$uriTemplate}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
-        }
-
-        $this->resourceTemplates[$uriTemplate] = $template;
-        if ($isManual) {
-            $this->manualTemplateUris[$uriTemplate] = true;
-        } elseif ($wasManual) {
-            unset($this->manualTemplateUris[$uriTemplate]);
-        }
-        // No listChanged for templates
-    }
-
-    public function registerPrompt(PromptDefinition $prompt, bool $isManual = false): void
-    {
-        $promptName = $prompt->promptName;
-        $exists = $this->prompts->offsetExists($promptName);
-        $wasManual = isset($this->manualPromptNames[$promptName]);
-
-        if ($exists && ! $isManual && $wasManual) {
-            $this->logger->debug("MCP Registry: Ignoring discovered prompt '{$promptName}' as it conflicts with a manually registered one.");
-
-            return;
-        }
-        if ($exists) {
-            $this->logger->warning('MCP Registry: Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " prompt '{$promptName}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
-        }
-
-        $this->prompts[$promptName] = $prompt;
-        if ($isManual) {
-            $this->manualPromptNames[$promptName] = true;
-        } elseif ($wasManual) {
-            unset($this->manualPromptNames[$promptName]);
-        }
-
-        if (! $exists) {
-            $this->notifyPromptsListChanged();
-        }
-    }
-
-    public function loadDiscoveredElementsFromCache(bool $force = false): void
+    public function load(): void
     {
         if ($this->cache === null) {
-            $this->logger->debug('MCP Registry: Cache load skipped, cache not available.');
-            $this->discoveredElementsLoaded = true;
-
             return;
         }
 
-        if ($this->discoveredElementsLoaded && ! $force) {
-            return; // Already loaded or ran discovery this session
-        }
-
-        $this->clearDiscoveredElements(false); // Don't delete cache, just clear internal collections
+        $this->clear();
 
         try {
             $cached = $this->cache->get(self::DISCOVERED_ELEMENTS_CACHE_KEY);
 
             if (is_array($cached)) {
-                $this->logger->debug('MCP Registry: Loading discovered elements from cache.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY]);
                 $loadCount = 0;
 
                 foreach ($cached['tools'] ?? [] as $toolData) {
@@ -351,30 +146,156 @@ class Registry
                     }
                 }
 
-                $this->logger->debug("MCP Registry: Loaded {$loadCount} elements from cache.");
-
-                $this->discoveredElementsLoaded = true;
+                $this->logger->debug("Loaded {$loadCount} elements from cache.");
             } elseif ($cached !== null) {
-                $this->logger->warning('MCP Registry: Invalid data type found in cache, ignoring.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'type' => gettype($cached)]);
+                $this->logger->warning('Invalid data type found in registry cache, ignoring.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'type' => gettype($cached)]);
             } else {
-                $this->logger->debug('MCP Registry: Cache miss or empty.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY]);
+                $this->logger->debug('Cache miss or empty.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY]);
             }
         } catch (CacheInvalidArgumentException $e) {
-            $this->logger->error('MCP Registry: Invalid cache key used.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'exception' => $e]);
-        } catch (DefinitionException $e) { // Catch potential fromArray errors
-            $this->logger->error('MCP Registry: Error hydrating definition from cache.', ['exception' => $e]);
-            // Clear cache on hydration error? Or just log and continue? Let's log and skip cache load.
-            $this->initializeCollections(); // Reset collections if hydration failed
+            $this->logger->error('Invalid registry cache key used.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'exception' => $e]);
+        } catch (DefinitionException $e) {
+            $this->logger->error('Error hydrating definition from cache.', ['exception' => $e]);
         } catch (Throwable $e) {
-            $this->logger->error('MCP Registry: Unexpected error loading from cache.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'exception' => $e]);
+            $this->logger->error('Unexpected error loading from cache.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'exception' => $e]);
         }
     }
 
-    public function saveDiscoveredElementsToCache(): bool
+    public function registerTool(ToolDefinition $tool, bool $isManual = false): void
+    {
+        $toolName = $tool->toolName;
+        $exists = isset($this->tools[$toolName]);
+        $wasManual = isset($this->manualToolNames[$toolName]);
+
+        if ($exists && ! $isManual && $wasManual) {
+            $this->logger->debug("MCP Registry: Ignoring discovered tool '{$toolName}' as it conflicts with a manually registered one.");
+
+            return; // Manual registration takes precedence
+        }
+
+        if ($exists) {
+            $this->logger->warning('MCP Registry: Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " tool '{$toolName}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
+        }
+
+        $this->tools[$toolName] = $tool;
+
+        if ($isManual) {
+            $this->manualToolNames[$toolName] = true;
+        } elseif ($wasManual) {
+            unset($this->manualToolNames[$toolName]);
+        }
+
+        $this->checkAndEmitChange('tools', $this->tools);
+    }
+
+    public function registerResource(ResourceDefinition $resource, bool $isManual = false): void
+    {
+        $uri = $resource->uri;
+        $exists = isset($this->resources[$uri]);
+        $wasManual = isset($this->manualResourceUris[$uri]);
+
+        if ($exists && ! $isManual && $wasManual) {
+            $this->logger->debug("Ignoring discovered resource '{$uri}' as it conflicts with a manually registered one.");
+
+            return;
+        }
+        if ($exists) {
+            $this->logger->warning('Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " resource '{$uri}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
+        }
+
+        $this->resources[$uri] = $resource;
+
+        if ($isManual) {
+            $this->manualResourceUris[$uri] = true;
+        } elseif ($wasManual) {
+            unset($this->manualResourceUris[$uri]);
+        }
+
+        $this->checkAndEmitChange('resources', $this->resources);
+    }
+
+    public function registerResourceTemplate(ResourceTemplateDefinition $template, bool $isManual = false): void
+    {
+        $uriTemplate = $template->uriTemplate;
+        $exists = isset($this->resourceTemplates[$uriTemplate]);
+        $wasManual = isset($this->manualTemplateUris[$uriTemplate]);
+
+        if ($exists && ! $isManual && $wasManual) {
+            $this->logger->debug("MCP Registry: Ignoring discovered template '{$uriTemplate}' as it conflicts with a manually registered one.");
+
+            return;
+        }
+        if ($exists) {
+            $this->logger->warning('MCP Registry: Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " template '{$uriTemplate}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
+        }
+
+        $this->resourceTemplates[$uriTemplate] = $template;
+
+        if ($isManual) {
+            $this->manualTemplateUris[$uriTemplate] = true;
+        } elseif ($wasManual) {
+            unset($this->manualTemplateUris[$uriTemplate]);
+        }
+
+        // No listChanged for templates
+    }
+
+    public function registerPrompt(PromptDefinition $prompt, bool $isManual = false): void
+    {
+        $promptName = $prompt->promptName;
+        $exists = isset($this->prompts[$promptName]);
+        $wasManual = isset($this->manualPromptNames[$promptName]);
+
+        if ($exists && ! $isManual && $wasManual) {
+            $this->logger->debug("MCP Registry: Ignoring discovered prompt '{$promptName}' as it conflicts with a manually registered one.");
+
+            return;
+        }
+        if ($exists) {
+            $this->logger->warning('MCP Registry: Replacing existing ' . ($wasManual ? 'manual' : 'discovered') . " prompt '{$promptName}' with " . ($isManual ? 'manual' : 'discovered') . ' definition.');
+        }
+
+        $this->prompts[$promptName] = $prompt;
+
+        if ($isManual) {
+            $this->manualPromptNames[$promptName] = true;
+        } elseif ($wasManual) {
+            unset($this->manualPromptNames[$promptName]);
+        }
+
+        $this->checkAndEmitChange('prompts', $this->prompts);
+    }
+
+    public function enableNotifications(): void
+    {
+        $this->notificationsEnabled = true;
+    }
+
+    public function disableNotifications(): void
+    {
+        $this->notificationsEnabled = false;
+    }
+
+    /**
+     * Check if a list has changed and emit event if needed
+     */
+    private function checkAndEmitChange(string $listType, array $collection): void
+    {
+        if (! $this->notificationsEnabled) {
+            return;
+        }
+
+        $newHash = $this->computeHash($collection);
+
+        if ($newHash !== $this->listHashes[$listType]) {
+            $this->listHashes[$listType] = $newHash;
+            $this->emit('list_changed', [$listType]);
+        }
+    }
+
+    public function save(): bool
     {
         if ($this->cache === null) {
-            $this->logger->debug('MCP Registry: Cache save skipped, cache not available.');
-
             return false;
         }
 
@@ -413,33 +334,40 @@ class Registry
             $success = $this->cache->set(self::DISCOVERED_ELEMENTS_CACHE_KEY, $discoveredData);
 
             if ($success) {
-                $this->logger->debug('MCP Registry: Elements saved to cache.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY]);
+                $this->logger->debug('Registry elements saved to cache.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY]);
             } else {
-                $this->logger->warning('MCP Registry: Cache set operation returned false.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY]);
+                $this->logger->warning('Registry cache set operation returned false.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY]);
             }
 
             return $success;
         } catch (CacheInvalidArgumentException $e) {
-            $this->logger->error('MCP Registry: Invalid cache key or value during save.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'exception' => $e]);
+            $this->logger->error('Invalid cache key or value during save.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'exception' => $e]);
 
             return false;
         } catch (Throwable $e) {
-            $this->logger->error('MCP Registry: Unexpected error saving to cache.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'exception' => $e]);
+            $this->logger->error('Unexpected error saving to cache.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'exception' => $e]);
 
             return false;
         }
     }
 
-    public function clearDiscoveredElements(bool $deleteFromCache = true): void
+    /** Checks if any elements (manual or discovered) are currently registered. */
+    public function hasElements(): bool
     {
-        $this->logger->debug('Clearing discovered elements...', ['deleteCacheFile' => $deleteFromCache]);
+        return ! empty($this->tools)
+            || ! empty($this->resources)
+            || ! empty($this->prompts)
+            || ! empty($this->resourceTemplates);
+    }
 
-        if ($deleteFromCache && $this->cache !== null) {
+    public function clear(): void
+    {
+        if ($this->cache !== null) {
             try {
                 $this->cache->delete(self::DISCOVERED_ELEMENTS_CACHE_KEY);
-                $this->logger->info('MCP Registry: Discovered elements cache cleared.');
+                $this->logger->debug('Registry cache cleared.');
             } catch (Throwable $e) {
-                $this->logger->error('MCP Registry: Error clearing discovered elements cache.', ['exception' => $e]);
+                $this->logger->error('Error clearing registry cache.', ['exception' => $e]);
             }
         }
 
@@ -470,7 +398,6 @@ class Registry
             }
         }
 
-        $this->discoveredElementsLoaded = false;
         $this->logger->debug("Removed {$clearCount} discovered elements from internal registry.");
     }
 
@@ -515,26 +442,26 @@ class Registry
         return null;
     }
 
-    /** @return ArrayObject<string, ToolDefinition> */
-    public function allTools(): ArrayObject
+    /** @return array<string, ToolDefinition> */
+    public function getTools(): array
     {
         return $this->tools;
     }
 
-    /** @return ArrayObject<string, ResourceDefinition> */
-    public function allResources(): ArrayObject
+    /** @return array<string, ResourceDefinition> */
+    public function getResources(): array
     {
         return $this->resources;
     }
 
-    /** @return ArrayObject<string, PromptDefinition> */
-    public function allPrompts(): ArrayObject
+    /** @return array<string, PromptDefinition> */
+    public function getPrompts(): array
     {
         return $this->prompts;
     }
 
-    /** @return ArrayObject<string, ResourceTemplateDefinition> */
-    public function allResourceTemplates(): ArrayObject
+    /** @return array<string, ResourceTemplateDefinition> */
+    public function getResourceTemplates(): array
     {
         return $this->resourceTemplates;
     }

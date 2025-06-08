@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace PhpMcp\Server\Session;
 
+use PhpMcp\Server\Contracts\SessionHandlerInterface;
 use PhpMcp\Server\Contracts\SessionInterface;
-use SessionHandlerInterface;
 
 class Session implements SessionInterface
 {
@@ -147,10 +147,8 @@ class Session implements SessionInterface
                 'initialized' => false,
                 'client_info' => null,
                 'protocol_version' => null,
-                'subscriptions' => [],
                 'message_queue' => [],
                 'log_level' => null,
-                'timestamp' => 0,
             ],
             $attributes
         );
