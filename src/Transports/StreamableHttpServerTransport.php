@@ -10,8 +10,6 @@ use PhpMcp\Server\Contracts\IdGeneratorInterface;
 use PhpMcp\Server\Contracts\LoggerAwareInterface;
 use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
-use PhpMcp\Server\Contracts\SessionIdGeneratorInterface;
-use PhpMcp\Server\Defaults\DefaultUuidSessionIdGenerator;
 use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\Exception\TransportException;
 use PhpMcp\Server\JsonRpc\Messages\Message as JsonRpcMessage;
@@ -60,21 +58,10 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
     private array $pendingDirectPostResponses = [];
 
     /**
-     * Stores context for active SSE streams initiated by a POST request.
-     * Helps manage when to close these streams.
-     * Key: streamId
-     * Value: ['expectedResponses' => int, 'receivedResponses' => int]
-     * @var array<string, array>
-     */
-    private array $postSseStreamContexts = [];
-
-    /**
      * Stores active SSE streams.
      * Key: streamId
-     * Value: ['stream' => ThroughStream, 'sessionId' => string, 'type' => 'get' | 'post'
-     * 'post_init' for SSE stream established for an InitializeRequest
-     * 'post_data' for SSE stream established for other data requests
-     * @var array<string, array{stream: ThroughStream, sessionId: string, type: string}>
+     * Value: ['stream' => ThroughStream, 'sessionId' => string, 'type' => 'get' | 'post', 'context' => array]
+     * @var array<string, array{stream: ThroughStream, sessionId: string, type: string, context: array}>
      */
     private array $activeSseStreams = [];
 
@@ -209,7 +196,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         $this->activeSseStreams[$streamId] = ['stream' => $sseStream, 'sessionId' => $sessionId, 'type' => 'get'];
 
         $sseStream->on('close', function () use ($streamId, $sessionId) {
-            $this->logger->info("GET SSE stream closed.", ['streamId' => $streamId, 'sessionId' => $sessionId]);
+            $this->logger->debug("GET SSE stream closed.", ['streamId' => $streamId, 'sessionId' => $sessionId]);
             unset($this->activeSseStreams[$streamId]);
         });
 
@@ -319,22 +306,20 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
             if ($useSse) {
                 $streamId = $this->idGenerator->generateId();
                 $sseStream = new ThroughStream();
-                $this->activeSseStreams[$streamId] = ['stream' => $sseStream, 'sessionId' => $sessionId, 'type' => 'post'];
-                $this->postSseStreamContexts[$streamId] = [
-                    'nRequests' => $nRequests,
-                    'nResponses' => 0,
-                    'sessionId' => $sessionId
+                $this->activeSseStreams[$streamId] = [
+                    'stream' => $sseStream,
+                    'sessionId' => $sessionId,
+                    'type' => 'post',
+                    'context' => ['nRequests' => $nRequests, 'nResponses' => 0]
                 ];
 
                 $sseStream->on('close', function () use ($streamId) {
-                    $this->logger->info("POST SSE stream closed by client/server.", ['streamId' => $streamId, 'sessionId' => $this->postSseStreamContexts[$streamId]['sessionId'] ?? 'unknown']);
+                    $this->logger->info("POST SSE stream closed by client/server.", ['streamId' => $streamId, 'sessionId' => $this->activeSseStreams[$streamId]['sessionId']]);
                     unset($this->activeSseStreams[$streamId]);
-                    unset($this->postSseStreamContexts[$streamId]);
                 });
                 $sseStream->on('error', function (Throwable $e) use ($streamId) {
-                    $this->logger->error("POST SSE stream error.", ['streamId' => $streamId, 'sessionId' => $this->postSseStreamContexts[$streamId]['sessionId'] ?? 'unknown', 'error' => $e->getMessage()]);
+                    $this->logger->error("POST SSE stream error.", ['streamId' => $streamId, 'sessionId' => $this->activeSseStreams[$streamId]['sessionId'], 'error' => $e->getMessage()]);
                     unset($this->activeSseStreams[$streamId]);
-                    unset($this->postSseStreamContexts[$streamId]);
                 });
 
                 $headers = [
@@ -389,21 +374,19 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
             return resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
         }
 
-        // TODO: Use session manager to handle this?
-
-        // TODO: Close all associated HTTP streams for this session
-
-        // TODO: Clean up session tracking in this transport
-
-        // TODO: Remove any mappings for requests belonging to this session
-
+        $streamsToClose = [];
         foreach ($this->activeSseStreams as $streamId => $streamInfo) {
             if ($streamInfo['sessionId'] === $sessionId) {
-                $streamInfo['stream']->end();
+                $streamsToClose[] = $streamId;
             }
         }
 
-        $this->emit('client_disconnected', [$sessionId, null, 'Session terminated by DELETE request']); // No specific streamId, signals whole session.
+        foreach ($streamsToClose as $streamId) {
+            $this->activeSseStreams[$streamId]['stream']->end();
+            unset($this->activeSseStreams[$streamId]);
+        }
+
+        $this->emit('client_disconnected', [$sessionId, 'Session terminated by DELETE request']);
 
         return resolve(new HttpResponse(204));
     }
@@ -476,14 +459,14 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
                     }
                 }
 
-                if (isset($this->postSseStreamContexts[$streamId])) {
-                    $this->postSseStreamContexts[$streamId]['nResponses'] += $sentCountThisCall;
-                    $sCtx = $this->postSseStreamContexts[$streamId];
-                    if ($sCtx['nResponses'] >= $sCtx['nRequests']) {
+                if (isset($this->activeSseStreams[$streamId]['context'])) {
+                    $this->activeSseStreams[$streamId]['context']['nResponses'] += $sentCountThisCall;
+                    if ($this->activeSseStreams[$streamId]['context']['nResponses'] >= $this->activeSseStreams[$streamId]['context']['nRequests']) {
                         $this->logger->info("All expected responses sent for POST SSE stream. Closing.", ['streamId' => $streamId, 'sessionId' => $sessionId]);
                         $stream->end(); // Will trigger 'close' event.
                     }
                 }
+
                 return resolve(null);
 
             case 'post_json':
@@ -601,7 +584,6 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         }
 
         $this->activeSseStreams = [];
-        $this->postSseStreamContexts = [];
         $this->pendingDirectPostResponses = [];
 
         $this->emit('close', ['Transport closed.']);
