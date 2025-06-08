@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PhpMcp\Server\Session;
 
-use SessionHandlerInterface;
+use PhpMcp\Server\Contracts\SessionHandlerInterface;
 
 class ArraySessionHandler implements SessionHandlerInterface
 {
@@ -15,16 +15,6 @@ class ArraySessionHandler implements SessionHandlerInterface
 
     public function __construct(public readonly int $ttl = 3600)
     {
-    }
-
-    public function open(string $savePath, string $sessionName): bool
-    {
-        return true;
-    }
-
-    public function close(): bool
-    {
-        return true;
     }
 
     public function read(string $sessionId): string|false
@@ -63,15 +53,15 @@ class ArraySessionHandler implements SessionHandlerInterface
         return true;
     }
 
-    public function gc(int $maxLifetime): int|false
+    public function gc(int $maxLifetime): array
     {
         $currentTimestamp = time();
+        $deletedSessions = [];
 
-        $deletedSessions = 0;
         foreach ($this->store as $sessionId => $session) {
             if ($currentTimestamp - $session['timestamp'] > $maxLifetime) {
                 unset($this->store[$sessionId]);
-                $deletedSessions++;
+                $deletedSessions[] = $sessionId;
             }
         }
 
