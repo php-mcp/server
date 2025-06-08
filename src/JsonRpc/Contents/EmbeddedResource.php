@@ -17,7 +17,8 @@ class EmbeddedResource
      */
     public function __construct(
         public readonly ResourceContent $resource
-    ) {}
+    ) {
+    }
 
     /**
      * Convert the resource to an array.

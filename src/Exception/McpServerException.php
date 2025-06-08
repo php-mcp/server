@@ -13,8 +13,6 @@ use Throwable;
  */
 class McpServerException extends Exception
 {
-
-
     // MCP reserved range: -32000 to -32099 (Server error)
     // Add specific server-side codes if needed later, e.g.:
     // public const CODE_RESOURCE_ACTION_FAILED = -32000;
@@ -82,9 +80,9 @@ class McpServerException extends Exception
         return new ProtocolException($details, JsonRpcError::CODE_INVALID_REQUEST, null, $previous);
     }
 
-    public static function methodNotFound(string $methodName, ?Throwable $previous = null): self
+    public static function methodNotFound(string $methodName, ?string $message = null, ?Throwable $previous = null): self
     {
-        return new ProtocolException("Method not found: {$methodName}", JsonRpcError::CODE_METHOD_NOT_FOUND, null, $previous);
+        return new ProtocolException($message ?? "Method not found: {$methodName}", JsonRpcError::CODE_METHOD_NOT_FOUND, null, $previous);
     }
 
     public static function invalidParams(string $message = 'Invalid params', $data = null, ?Throwable $previous = null): self

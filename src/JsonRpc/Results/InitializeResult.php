@@ -19,7 +19,8 @@ class InitializeResult implements ResultInterface
         public readonly string $protocolVersion,
         public readonly array $capabilities,
         public readonly ?string $instructions = null
-    ) {}
+    ) {
+    }
 
     /**
      * Convert the result to an array.

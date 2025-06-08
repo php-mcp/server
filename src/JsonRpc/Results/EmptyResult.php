@@ -12,7 +12,9 @@ class EmptyResult implements ResultInterface
     /**
      * Create a new EmptyResult.
      */
-    public function __construct() {}
+    public function __construct()
+    {
+    }
 
     /**
      * Convert the result to an array.

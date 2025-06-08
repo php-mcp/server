@@ -13,7 +13,9 @@ class ArraySessionHandler implements SessionHandlerInterface
      */
     protected array $store = [];
 
-    public function __construct(public readonly int $ttl = 3600) {}
+    public function __construct(public readonly int $ttl = 3600)
+    {
+    }
 
     public function open(string $savePath, string $sessionName): bool
     {

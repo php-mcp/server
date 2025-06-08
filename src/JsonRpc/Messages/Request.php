@@ -23,7 +23,8 @@ class Request extends Message
         public readonly string|int $id,
         public readonly string $method,
         public readonly array $params = [],
-    ) {}
+    ) {
+    }
 
     public function getId(): string|int
     {

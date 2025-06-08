@@ -18,7 +18,8 @@ class ImageContent implements ContentInterface
     public function __construct(
         public readonly string $data,
         public readonly string $mimeType
-    ) {}
+    ) {
+    }
 
 
     /**

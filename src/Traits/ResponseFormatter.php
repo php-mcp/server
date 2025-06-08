@@ -111,7 +111,7 @@ trait ResponseFormatter
         }
 
         if (is_array($readResult) && ! empty($readResult) && $readResult[array_key_first($readResult)] instanceof EmbeddedResource) {
-            return array_map(fn($item) => $item->resource, $readResult);
+            return array_map(fn ($item) => $item->resource, $readResult);
         }
 
         if (is_string($readResult)) {

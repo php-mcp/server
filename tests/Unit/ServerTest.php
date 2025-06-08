@@ -152,7 +152,7 @@ it('throws exception if already listening', function () {
     $transport->shouldReceive('setLogger', 'setLoop', 'on', 'once', 'removeListener', 'close')->withAnyArgs()->byDefault();
     $transport->shouldReceive('listen')->once(); // Expect listen on first call
     $transport->shouldReceive('emit')->withAnyArgs()->byDefault(); // Allow emit
-    $this->loop->shouldReceive('run')->once()->andReturnUsing(fn() => $transport->emit('close')); // Simulate loop run for first call
+    $this->loop->shouldReceive('run')->once()->andReturnUsing(fn () => $transport->emit('close')); // Simulate loop run for first call
     $this->protocol->shouldReceive('bindTransport', 'unbindTransport')->once();
     $transport->shouldReceive('removeAllListeners')->once();
 
@@ -164,7 +164,7 @@ it('throws exception if already listening', function () {
     $prop->setValue($this->server, true);
 
     // Act & Assert: Second call throws
-    expect(fn() => $this->server->listen($transport))
+    expect(fn () => $this->server->listen($transport))
         ->toThrow(LogicException::class, 'Server is already listening');
 });
 
@@ -182,7 +182,7 @@ it('warns if no elements and discovery not run when trying to listen', function 
     $transport->shouldReceive('emit')->withAnyArgs()->byDefault(); // Allow emit
     $this->protocol->shouldReceive('bindTransport', 'unbindTransport')->once();
     $transport->shouldReceive('removeAllListeners')->once();
-    $this->loop->shouldReceive('run')->once()->andReturnUsing(fn() => $transport->emit('close'));
+    $this->loop->shouldReceive('run')->once()->andReturnUsing(fn () => $transport->emit('close'));
 
     $this->server->listen($transport);
 });
@@ -203,7 +203,7 @@ it('warns if no elements found AFTER discovery when trying to listen', function 
     $transport->shouldReceive('emit')->withAnyArgs()->byDefault();
     $this->protocol->shouldReceive('bindTransport', 'unbindTransport')->once();
     $transport->shouldReceive('removeAllListeners')->once();
-    $this->loop->shouldReceive('run')->once()->andReturnUsing(fn() => $transport->emit('close'));
+    $this->loop->shouldReceive('run')->once()->andReturnUsing(fn () => $transport->emit('close'));
 
     $this->server->listen($transport);
 });
@@ -220,7 +220,7 @@ it('does not warn if elements are present when trying to listen', function () {
     $transport->shouldReceive('emit')->withAnyArgs()->byDefault();
     $this->protocol->shouldReceive('bindTransport', 'unbindTransport')->once();
     $transport->shouldReceive('removeAllListeners')->once();
-    $this->loop->shouldReceive('run')->once()->andReturnUsing(fn() => $transport->emit('close'));
+    $this->loop->shouldReceive('run')->once()->andReturnUsing(fn () => $transport->emit('close'));
 
     $this->server->listen($transport);
 });
@@ -234,7 +234,7 @@ it('injects logger and loop into aware transports when listening', function () {
     $transport->shouldReceive('emit')->withAnyArgs()->byDefault();
     $this->protocol->shouldReceive('bindTransport', 'unbindTransport')->once();
     $transport->shouldReceive('removeAllListeners')->once();
-    $this->loop->shouldReceive('run')->once()->andReturnUsing(fn() => $transport->emit('close'));
+    $this->loop->shouldReceive('run')->once()->andReturnUsing(fn () => $transport->emit('close'));
 
     $this->server->listen($transport);
 });

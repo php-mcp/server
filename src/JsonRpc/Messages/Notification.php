@@ -17,7 +17,8 @@ class Notification extends Message
         public readonly string $jsonrpc,
         public readonly string $method,
         public readonly array $params = [],
-    ) {}
+    ) {
+    }
 
     public function getId(): null
     {

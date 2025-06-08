@@ -9,7 +9,9 @@ use SessionHandlerInterface;
 
 class CacheSessionHandler implements SessionHandlerInterface
 {
-    public function __construct(public readonly CacheInterface $cache, public readonly int $ttl = 3600) {}
+    public function __construct(public readonly CacheInterface $cache, public readonly int $ttl = 3600)
+    {
+    }
 
     public function open(string $savePath, string $sessionName): bool
     {

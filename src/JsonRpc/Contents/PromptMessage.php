@@ -18,7 +18,8 @@ class PromptMessage
     public function __construct(
         public readonly Role $role,
         public readonly TextContent|ImageContent|AudioContent|EmbeddedResource $content
-    ) {}
+    ) {
+    }
 
     /**
      * Convert the message to an array.

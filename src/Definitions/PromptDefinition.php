@@ -69,7 +69,7 @@ class PromptDefinition
         }
         if (! empty($this->arguments)) {
             $data['arguments'] = array_map(
-                fn(PromptArgumentDefinition $arg) => $arg->toArray(),
+                fn (PromptArgumentDefinition $arg) => $arg->toArray(),
                 $this->arguments
             );
         }

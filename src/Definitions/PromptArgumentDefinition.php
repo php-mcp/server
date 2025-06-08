@@ -19,7 +19,8 @@ class PromptArgumentDefinition
         public readonly string $name,
         public readonly ?string $description,
         public readonly bool $required = false
-    ) {}
+    ) {
+    }
 
     /**
      * Formats the definition into the structure expected by MCP's 'Prompt.arguments'.

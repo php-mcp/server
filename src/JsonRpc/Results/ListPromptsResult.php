@@ -14,12 +14,13 @@ class ListPromptsResult implements ResultInterface
     public function __construct(
         public readonly array $prompts,
         public readonly ?string $nextCursor = null
-    ) {}
+    ) {
+    }
 
     public function toArray(): array
     {
         $result = [
-            'prompts' => array_map(fn(PromptDefinition $p) => $p->toArray(), $this->prompts),
+            'prompts' => array_map(fn (PromptDefinition $p) => $p->toArray(), $this->prompts),
         ];
 
         if ($this->nextCursor) {

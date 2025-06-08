@@ -12,7 +12,7 @@ use ReflectionMethod;
 // --- Constructor Validation Tests ---
 
 test('constructor validates template name pattern', function (string $templateName, bool $shouldFail) {
-    $action = fn() => new ResourceTemplateDefinition(
+    $action = fn () => new ResourceTemplateDefinition(
         className: AllElementsStub::class,
         methodName: 'templateMethod',
         uriTemplate: 'user://{userId}/profile',
@@ -35,7 +35,7 @@ test('constructor validates template name pattern', function (string $templateNa
 ]);
 
 test('constructor validates URI template pattern', function (string $uriTemplate, bool $shouldFail) {
-    $action = fn() => new ResourceTemplateDefinition(
+    $action = fn () => new ResourceTemplateDefinition(
         className: AllElementsStub::class,
         methodName: 'templateMethod',
         uriTemplate: $uriTemplate,

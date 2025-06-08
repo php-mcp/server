@@ -14,12 +14,13 @@ class ListToolsResult implements ResultInterface
     public function __construct(
         public readonly array $tools,
         public readonly ?string $nextCursor = null
-    ) {}
+    ) {
+    }
 
     public function toArray(): array
     {
         $result =  [
-            'tools' => array_map(fn(ToolDefinition $t) => $t->toArray(), $this->tools),
+            'tools' => array_map(fn (ToolDefinition $t) => $t->toArray(), $this->tools),
         ];
 
         if ($this->nextCursor) {

@@ -172,7 +172,7 @@ it('updates client state and global active list when client is initialized', fun
     $this->cache->shouldReceive('get')->once()->with($clientStateKey)->andReturn(null); // Simulate not found
     // saveClientState
     $this->cache->shouldReceive('set')->once()
-        ->with($clientStateKey, Mockery::on(fn(ClientState $s) => $s->isInitialized === true), CACHE_TTL_CSM)
+        ->with($clientStateKey, Mockery::on(fn (ClientState $s) => $s->isInitialized === true), CACHE_TTL_CSM)
         ->andReturn(true);
     // updateGlobalActiveClientTimestamp
     $this->cache->shouldReceive('get')->once()->with($activeClientsKey, [])->andReturn([]);
@@ -220,7 +220,7 @@ it('updates client state and global resource list when a resource subscription i
     $this->cache->shouldReceive('get')->once()->with($clientStateKey)->andReturn(null);
     // saveClientState
     $this->cache->shouldReceive('set')->once()
-        ->with($clientStateKey, Mockery::on(fn(ClientState $s) => isset($s->subscriptions[TEST_URI_CSM_1])), CACHE_TTL_CSM)
+        ->with($clientStateKey, Mockery::on(fn (ClientState $s) => isset($s->subscriptions[TEST_URI_CSM_1])), CACHE_TTL_CSM)
         ->andReturn(true);
     // Global resource sub update
     $this->cache->shouldReceive('get')->once()->with($resSubKey, [])->andReturn([]);
@@ -241,7 +241,7 @@ it('updates client state and global resource list when a resource subscription i
     $this->cache->shouldReceive('get')->once()->with($clientStateKey)->andReturn($initialClientState);
     // saveClientState (after removing TEST_URI_CSM_1 from client's list)
     $this->cache->shouldReceive('set')->once()
-        ->with($clientStateKey, Mockery::on(fn(ClientState $s) => ! isset($s->subscriptions[TEST_URI_CSM_1]) && isset($s->subscriptions[TEST_URI_CSM_2])), CACHE_TTL_CSM)
+        ->with($clientStateKey, Mockery::on(fn (ClientState $s) => ! isset($s->subscriptions[TEST_URI_CSM_1]) && isset($s->subscriptions[TEST_URI_CSM_2])), CACHE_TTL_CSM)
         ->andReturn(true);
     // Global resource sub update
     $this->cache->shouldReceive('get')->once()->with($resSubKey, [])->andReturn([TEST_CLIENT_ID_CSM => true, 'other' => true]);
@@ -263,7 +263,7 @@ it('clears from ClientState and all global lists when all resource subscriptions
     $this->cache->shouldReceive('get')->once()->with($clientStateKey)->andReturn($initialClientState);
     // Save client state with empty subscriptions
     $this->cache->shouldReceive('set')->once()
-        ->with($clientStateKey, Mockery::on(fn(ClientState $s) => empty($s->subscriptions)), CACHE_TTL_CSM)
+        ->with($clientStateKey, Mockery::on(fn (ClientState $s) => empty($s->subscriptions)), CACHE_TTL_CSM)
         ->andReturn(true);
 
     // Interaction with global resource sub list for URI 1
@@ -314,7 +314,7 @@ it('consumes from ClientState queue and saves', function () {
 
     $this->cache->shouldReceive('get')->once()->with($clientStateKey)->andReturn($initialState);
     $this->cache->shouldReceive('set')->once() // Expect save after consuming
-        ->with($clientStateKey, Mockery::on(fn(ClientState $s) => empty($s->messageQueue)), CACHE_TTL_CSM)
+        ->with($clientStateKey, Mockery::on(fn (ClientState $s) => empty($s->messageQueue)), CACHE_TTL_CSM)
         ->andReturn(true);
 
     $retrieved = $this->stateManagerWithCache->getQueuedMessages(TEST_CLIENT_ID_CSM);
@@ -328,7 +328,7 @@ it('updates client state when log level is set', function () {
 
     $this->cache->shouldReceive('get')->once()->with($clientStateKey)->andReturn(null); // Create new
     $this->cache->shouldReceive('set')->once()
-        ->with($clientStateKey, Mockery::on(fn(ClientState $s) => $s->requestedLogLevel === $level), CACHE_TTL_CSM)
+        ->with($clientStateKey, Mockery::on(fn (ClientState $s) => $s->requestedLogLevel === $level), CACHE_TTL_CSM)
         ->andReturn(true);
 
     $this->stateManagerWithCache->setClientRequestedLogLevel(TEST_CLIENT_ID_CSM, $level);
@@ -356,7 +356,7 @@ it('performs all cleanup steps', function ($removeFromActive) {
     $initialClientState = new ClientState($clientId);
     $initialClientState->addSubscription(TEST_URI_CSM_1);
     $this->cache->shouldReceive('get')->once()->with($clientStateKey)->andReturn($initialClientState); // For removeAllResourceSubscriptions
-    $this->cache->shouldReceive('set')->once()->with($clientStateKey, Mockery::on(fn(ClientState $s) => empty($s->subscriptions)), CACHE_TTL_CSM); // For removeAll...
+    $this->cache->shouldReceive('set')->once()->with($clientStateKey, Mockery::on(fn (ClientState $s) => empty($s->subscriptions)), CACHE_TTL_CSM); // For removeAll...
     $resSubKey1 = getResourceSubscribersKey(TEST_URI_CSM_1);
     $this->cache->shouldReceive('get')->once()->with($resSubKey1, [])->andReturn([$clientId => true]);
     $this->cache->shouldReceive('delete')->once()->with($resSubKey1); // Becomes empty
@@ -365,7 +365,7 @@ it('performs all cleanup steps', function ($removeFromActive) {
 
     if ($removeFromActive) {
         $this->cache->shouldReceive('get')->once()->with($activeClientsKey, [])->andReturn([$clientId => time(), 'other' => time()]);
-        $this->cache->shouldReceive('set')->once()->with($activeClientsKey, Mockery::on(fn($arr) => ! isset($arr[$clientId])), CACHE_TTL_CSM)->andReturn(true);
+        $this->cache->shouldReceive('set')->once()->with($activeClientsKey, Mockery::on(fn ($arr) => ! isset($arr[$clientId])), CACHE_TTL_CSM)->andReturn(true);
     } else {
         $this->cache->shouldNotReceive('get')->with($activeClientsKey, []); // Should not touch active list
     }
@@ -384,10 +384,10 @@ it('updates client state and global list when client activity is updated', funct
 
     $this->cache->shouldReceive('get')->once()->with($clientStateKey)->andReturn($initialState);
     $this->cache->shouldReceive('set')->once() // Save ClientState
-        ->with($clientStateKey, Mockery::on(fn(ClientState $s) => $s->lastActivityTimestamp >= $initialActivityTime), CACHE_TTL_CSM)
+        ->with($clientStateKey, Mockery::on(fn (ClientState $s) => $s->lastActivityTimestamp >= $initialActivityTime), CACHE_TTL_CSM)
         ->andReturn(true);
     $this->cache->shouldReceive('get')->once()->with($activeClientsKey, [])->andReturn([]); // Update global
-    $this->cache->shouldReceive('set')->once()->with($activeClientsKey, Mockery::on(fn($arr) => $arr[TEST_CLIENT_ID_CSM] >= $initialActivityTime), CACHE_TTL_CSM)->andReturn(true);
+    $this->cache->shouldReceive('set')->once()->with($activeClientsKey, Mockery::on(fn ($arr) => $arr[TEST_CLIENT_ID_CSM] >= $initialActivityTime), CACHE_TTL_CSM)->andReturn(true);
 
     $this->stateManagerWithCache->updateClientActivity(TEST_CLIENT_ID_CSM);
 });
@@ -430,7 +430,7 @@ it('can get last activity time', function () {
 it('gracefully handles cache exception', function () {
     $clientStateKey = getClientStateKey(TEST_CLIENT_ID_CSM);
     $this->cache->shouldReceive('get')->once()->with($clientStateKey)
-        ->andThrow(new class() extends \Exception implements CacheInvalidArgumentException {});
+        ->andThrow(new class () extends \Exception implements CacheInvalidArgumentException {});
     $this->logger->shouldReceive('error')->once()->with(Mockery::pattern('/Error fetching client state from cache/'), Mockery::any());
 
     expect($this->stateManagerWithCache->getClientInfo(TEST_CLIENT_ID_CSM))->toBeNull();

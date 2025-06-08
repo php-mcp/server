@@ -37,7 +37,8 @@ class Error extends Message
         public readonly int $code,
         public readonly string $message,
         public readonly mixed $data = null
-    ) {}
+    ) {
+    }
 
     public function getId(): string|int
     {

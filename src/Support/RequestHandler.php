@@ -375,15 +375,18 @@ class RequestHandler
         if ($cursor === null) {
             return 0;
         }
+
         $decoded = base64_decode($cursor, true);
         if ($decoded === false) {
             $this->logger->warning('Received invalid pagination cursor (not base64)', ['cursor' => $cursor]);
 
             return 0;
         }
+
         if (preg_match('/^offset=(\d+)$/', $decoded, $matches)) {
             return (int) $matches[1];
         }
+
         $this->logger->warning('Received invalid pagination cursor format', ['cursor' => $decoded]);
 
         return 0;

@@ -13,7 +13,7 @@ use ReflectionMethod;
 // --- Constructor Validation Tests ---
 
 test('constructor validates resource name pattern', function (string $resourceName, bool $shouldFail) {
-    $action = fn() => new ResourceDefinition(
+    $action = fn () => new ResourceDefinition(
         className: AllElementsStub::class,
         methodName: 'resourceMethod',
         uri: 'file:///valid/uri',
@@ -37,7 +37,7 @@ test('constructor validates resource name pattern', function (string $resourceNa
 ]);
 
 test('constructor validates URI pattern', function (string $uri, bool $shouldFail) {
-    $action = fn() => new ResourceDefinition(
+    $action = fn () => new ResourceDefinition(
         className: AllElementsStub::class,
         methodName: 'resourceMethod',
         uri: $uri,

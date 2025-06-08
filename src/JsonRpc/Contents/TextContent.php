@@ -19,7 +19,8 @@ class TextContent implements ContentInterface
     public function __construct(
         public readonly string $text,
         public readonly ?Annotations $annotations = null
-    ) {}
+    ) {
+    }
 
     /**
      * Convert the content to an array.
