@@ -38,5 +38,6 @@ class Configuration
         public readonly ContainerInterface $container,
         public readonly int $definitionCacheTtl = 3600,
         public readonly int $paginationLimit = 50,
-    ) {}
+    ) {
+    }
 }

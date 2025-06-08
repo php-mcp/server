@@ -25,5 +25,6 @@ final class McpResourceTemplate
         public ?string $description = null,
         public ?string $mimeType = null,
         public ?Annotations $annotations = null,
-    ) {}
+    ) {
+    }
 }

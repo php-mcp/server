@@ -55,7 +55,9 @@ final class ServerBuilder
 
     private array $manualPrompts = [];
 
-    public function __construct() {}
+    public function __construct()
+    {
+    }
 
     /**
      * Sets the server's identity. Required.

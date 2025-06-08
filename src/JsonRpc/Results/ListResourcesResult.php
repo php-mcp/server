@@ -14,7 +14,8 @@ class ListResourcesResult implements ResultInterface
     public function __construct(
         public readonly array $resources,
         public readonly ?string $nextCursor = null
-    ) {}
+    ) {
+    }
 
     /**
      * Convert the result to an array.
@@ -22,7 +23,7 @@ class ListResourcesResult implements ResultInterface
     public function toArray(): array
     {
         $result = [
-            'resources' => array_map(fn(ResourceDefinition $r) => $r->toArray(), $this->resources),
+            'resources' => array_map(fn (ResourceDefinition $r) => $r->toArray(), $this->resources),
         ];
 
         if ($this->nextCursor !== null) {

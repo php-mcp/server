@@ -56,7 +56,7 @@ test('discovers all element types in a single file', function () {
         return $arg instanceof ResourceTemplateDefinition && $arg->uriTemplate === 'discovered://template/{id}';
     }));
 
-    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
+    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn ($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
 
     // Act
     $this->discoverer->discover(TEST_DISCOVERY_DIR, ['.']);
@@ -68,13 +68,13 @@ test('discovers elements across multiple files', function () {
     $file2Path = createDiscoveryTestFile('ResourceOnlyStub');
 
     // Assert registry interactions
-    $this->registry->shouldReceive('registerTool')->once()->with(Mockery::on(fn($arg) => $arg->toolName === 'tool-from-file1'));
+    $this->registry->shouldReceive('registerTool')->once()->with(Mockery::on(fn ($arg) => $arg->toolName === 'tool-from-file1'));
     $this->registry->shouldNotReceive('registerResource');
     $this->registry->shouldNotReceive('registerPrompt');
     $this->registry->shouldNotReceive('registerResourceTemplate');
 
     // Ensure no errors during processing of these files
-    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn($ctx) => isset($ctx['file']) && ($ctx['file'] === $file1Path || $ctx['file'] === $file2Path)));
+    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn ($ctx) => isset($ctx['file']) && ($ctx['file'] === $file1Path || $ctx['file'] === $file2Path)));
 
     // Act
     $this->discoverer->discover(TEST_DISCOVERY_DIR, ['.']);
@@ -130,7 +130,7 @@ test('skips non-instantiable classes and non-public/static/constructor methods',
     }
 
     // Ensure no processing errors for this file
-    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
+    $this->logger->shouldNotReceive('error')->with(Mockery::any(), Mockery::on(fn ($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
 
     // Act
     $this->discoverer->discover(TEST_DISCOVERY_DIR, ['.']);
@@ -154,16 +154,16 @@ test('handles definition creation error and continues', function () {
 
     // Assert registry interactions
     $this->registry->shouldReceive('registerTool')
-        ->with(Mockery::on(fn($arg) => $arg instanceof ToolDefinition && $arg->toolName === 'valid-tool'))
+        ->with(Mockery::on(fn ($arg) => $arg instanceof ToolDefinition && $arg->toolName === 'valid-tool'))
         ->once();
     $this->registry->shouldReceive('registerTool')
-        ->with(Mockery::on(fn($arg) => $arg instanceof ToolDefinition && $arg->toolName === 'another-valid-tool'))
+        ->with(Mockery::on(fn ($arg) => $arg instanceof ToolDefinition && $arg->toolName === 'another-valid-tool'))
         ->once();
     $this->registry->shouldNotReceive('registerResource');
 
     // Ensure no *other* unexpected errors related to this class/methods
     $this->logger->shouldNotReceive('error')
-        ->with(Mockery::any(), Mockery::on(fn($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
+        ->with(Mockery::any(), Mockery::on(fn ($ctx) => isset($ctx['file']) && $ctx['file'] === $filePath));
 
     // Act
     $this->discoverer->discover(TEST_DISCOVERY_DIR, ['.']);

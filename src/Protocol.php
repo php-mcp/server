@@ -37,10 +37,10 @@ class Protocol
     protected array $listeners = [];
 
     public function __construct(
-        protected  Configuration $configuration,
-        protected  Registry $registry,
-        protected  SessionManager $sessionManager,
-        protected  ?RequestHandler $requestHandler = null,
+        protected Configuration $configuration,
+        protected Registry $registry,
+        protected SessionManager $sessionManager,
+        protected ?RequestHandler $requestHandler = null,
     ) {
         $this->logger = $this->configuration->logger;
         $this->requestHandler ??= new RequestHandler($this->configuration, $this->registry, $this->sessionManager);
@@ -152,44 +152,27 @@ class Protocol
         $params = $request->params;
 
         try {
-            /** @var Result|null $result */
-            $result = null;
-
-            if ($method === 'initialize') {
-                $result = $this->requestHandler->handleInitialize($params, $session);
-            } elseif ($method === 'ping') {
-                $result = $this->requestHandler->handlePing($session);
-            } else {
-                $this->validateSessionInitialized($session);
-                [$type, $action] = $this->parseMethod($method);
-                $this->validateCapabilityEnabled($type);
-
-                $result = match ($type) {
-                    'tools' => match ($action) {
-                        'list' => $this->requestHandler->handleToolList($params),
-                        'call' => $this->requestHandler->handleToolCall($params),
-                        default => throw McpServerException::methodNotFound($method),
-                    },
-                    'resources' => match ($action) {
-                        'list' => $this->requestHandler->handleResourcesList($params),
-                        'read' => $this->requestHandler->handleResourceRead($params),
-                        'subscribe' => $this->requestHandler->handleResourceSubscribe($params, $session),
-                        'unsubscribe' => $this->requestHandler->handleResourceUnsubscribe($params, $session),
-                        'templates/list' => $this->requestHandler->handleResourceTemplateList($params),
-                        default => throw McpServerException::methodNotFound($method),
-                    },
-                    'prompts' => match ($action) {
-                        'list' => $this->requestHandler->handlePromptsList($params),
-                        'get' => $this->requestHandler->handlePromptGet($params),
-                        default => throw McpServerException::methodNotFound($method),
-                    },
-                    'logging' => match ($action) {
-                        'setLevel' => $this->requestHandler->handleLoggingSetLevel($params, $session),
-                        default => throw McpServerException::methodNotFound($method),
-                    },
-                    default => throw McpServerException::methodNotFound($method),
-                };
+            if ($method !== 'initialize') {
+                $this->assertSessionInitialized($session);
             }
+
+            $this->assertRequestCapability($method);
+
+            $result = match ($method) {
+                'initialize' => $this->requestHandler->handleInitialize($params, $session),
+                'ping' => $this->requestHandler->handlePing($session),
+                'tools/list' => $this->requestHandler->handleToolList($params),
+                'tools/call' => $this->requestHandler->handleToolCall($params),
+                'resources/list' => $this->requestHandler->handleResourcesList($params),
+                'resources/read' => $this->requestHandler->handleResourceRead($params),
+                'resources/subscribe' => $this->requestHandler->handleResourceSubscribe($params, $session),
+                'resources/unsubscribe' => $this->requestHandler->handleResourceUnsubscribe($params, $session),
+                'resources/templates/list' => $this->requestHandler->handleResourceTemplateList($params),
+                'prompts/list' => $this->requestHandler->handlePromptsList($params),
+                'prompts/get' => $this->requestHandler->handlePromptGet($params),
+                'logging/setLevel' => $this->requestHandler->handleLoggingSetLevel($params, $session),
+                default => throw McpServerException::methodNotFound($method),
+            };
 
             return Response::make($result, $request->id);
         } catch (McpServerException $e) {
@@ -225,7 +208,7 @@ class Protocol
     /**
      * Validate that a session is initialized
      */
-    private function validateSessionInitialized(SessionInterface $session): void
+    private function assertSessionInitialized(SessionInterface $session): void
     {
         if (!$session->get('initialized', false)) {
             throw McpServerException::invalidRequest('Client session not initialized.');
@@ -233,24 +216,105 @@ class Protocol
     }
 
     /**
-     * Validate that a capability is enabled
+     * Assert that a request method is enabled
      */
-    private function validateCapabilityEnabled(string $type): void
+    private function assertRequestCapability(string $method): void
     {
-        $caps = $this->configuration->capabilities;
+        $capabilities = $this->configuration->capabilities;
 
-        $enabled = match ($type) {
-            'tools' => $caps->toolsEnabled,
-            'resources', 'resources/templates' => $caps->resourcesEnabled,
-            'resources/subscribe', 'resources/unsubscribe' => $caps->resourcesEnabled && $caps->resourcesSubscribe,
-            'prompts' => $caps->promptsEnabled,
-            'logging' => $caps->loggingEnabled,
-            default => false,
-        };
+        switch ($method) {
+            case "ping":
+            case "initialize":
+                // No specific capability required for these methods
+                break;
 
-        if (!$enabled) {
-            $methodSegment = explode('/', $type)[0];
-            throw McpServerException::methodNotFound("MCP capability '{$methodSegment}' is not enabled on this server.");
+            case 'tools/list':
+            case 'tools/call':
+                if (!$capabilities->toolsEnabled) {
+                    throw McpServerException::methodNotFound($method, 'Tools are not enabled on this server.');
+                }
+                break;
+
+            case 'resources/list':
+            case 'resources/templates/list':
+            case 'resources/read':
+                if (!$capabilities->resourcesEnabled) {
+                    throw McpServerException::methodNotFound($method, 'Resources are not enabled on this server.');
+                }
+                break;
+
+            case 'resources/subscribe':
+            case 'resources/unsubscribe':
+                if (!$capabilities->resourcesEnabled) {
+                    throw McpServerException::methodNotFound($method, 'Resources are not enabled on this server.');
+                }
+                if (!$capabilities->resourcesSubscribe) {
+                    throw McpServerException::methodNotFound($method, 'Resources subscription is not enabled on this server.');
+                }
+                break;
+
+            case 'prompts/list':
+            case 'prompts/get':
+                if (!$capabilities->promptsEnabled) {
+                    throw McpServerException::methodNotFound($method, 'Prompts are not enabled on this server.');
+                }
+                break;
+
+            case 'logging/setLevel':
+                if (!$capabilities->loggingEnabled) {
+                    throw McpServerException::methodNotFound($method, 'Logging is not enabled on this server.');
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    private function assertNotificationCapability(string $method): void
+    {
+        $capabilities = $this->configuration->capabilities;
+
+        switch ($method) {
+            case 'notifications/message':
+                if (!$capabilities->loggingEnabled) {
+                    throw McpServerException::methodNotFound($method, 'Logging is not enabled on this server.');
+                }
+                break;
+
+            case "notifications/initialized":
+                // Initialized notifications are always allowed
+                break;
+
+            case "notifications/resources/updated":
+            case "notifications/resources/list_changed":
+                if (!$capabilities->resourcesListChanged) {
+                    throw McpServerException::methodNotFound($method, 'Resources list changed notifications are not enabled on this server.');
+                }
+                break;
+
+            case "notifications/tools/list_changed":
+                if (!$capabilities->toolsListChanged) {
+                    throw McpServerException::methodNotFound($method, 'Tools list changed notifications are not enabled on this server.');
+                }
+                break;
+
+            case "notifications/prompts/list_changed":
+                if (!$capabilities->promptsListChanged) {
+                    throw McpServerException::methodNotFound($method, 'Prompts list changed notifications are not enabled on this server.');
+                }
+                break;
+
+            case "notifications/cancelled":
+                // Cancellation notifications are always allowed
+                break;
+
+            case "notifications/progress":
+                // Progress notifications are always allowed
+                break;
+
+            default:
+                break;
         }
     }
 

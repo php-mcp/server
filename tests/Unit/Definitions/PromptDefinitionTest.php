@@ -15,7 +15,7 @@ use ReflectionParameter;
 // --- Constructor Validation Tests ---
 
 test('constructor validates prompt name pattern', function (string $promptName, bool $shouldFail) {
-    $action = fn() => new PromptDefinition(
+    $action = fn () => new PromptDefinition(
         className: AllElementsStub::class,
         methodName: 'templateMethod',
         promptName: $promptName,

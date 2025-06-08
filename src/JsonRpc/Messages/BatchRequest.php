@@ -92,7 +92,7 @@ class BatchRequest extends Message
      */
     public function getRequests(): array
     {
-        return array_filter($this->requests, fn($r) => ! $r instanceof Notification);
+        return array_filter($this->requests, fn ($r) => ! $r instanceof Notification);
     }
 
     /**
@@ -102,7 +102,7 @@ class BatchRequest extends Message
      */
     public function getNotifications(): array
     {
-        return array_filter($this->requests, fn($r) => $r instanceof Notification);
+        return array_filter($this->requests, fn ($r) => $r instanceof Notification);
     }
 
     public function hasRequests(): bool
@@ -143,6 +143,6 @@ class BatchRequest extends Message
      */
     public function toArray(): array
     {
-        return array_map(fn($r) => $r->toArray(), $this->requests);
+        return array_map(fn ($r) => $r->toArray(), $this->requests);
     }
 }

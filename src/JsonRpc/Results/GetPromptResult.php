@@ -16,7 +16,8 @@ class GetPromptResult implements ResultInterface
     public function __construct(
         public readonly array $messages,
         public readonly ?string $description = null
-    ) {}
+    ) {
+    }
 
     /**
      * Convert the result to an array.
@@ -24,7 +25,7 @@ class GetPromptResult implements ResultInterface
     public function toArray(): array
     {
         $result = [
-            'messages' => array_map(fn($message) => $message->toArray(), $this->messages),
+            'messages' => array_map(fn ($message) => $message->toArray(), $this->messages),
         ];
 
         if ($this->description !== null) {

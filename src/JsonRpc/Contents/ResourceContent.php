@@ -9,7 +9,6 @@ use PhpMcp\Server\JsonRpc\Contracts\ContentInterface;
  */
 class ResourceContent implements ContentInterface
 {
-
     /**
      * Create a new Resource instance.
      *

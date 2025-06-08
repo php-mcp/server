@@ -14,7 +14,8 @@ class ReadResourceResult implements ResultInterface
      */
     public function __construct(
         public readonly array $contents
-    ) {}
+    ) {
+    }
 
 
     /**
@@ -23,7 +24,7 @@ class ReadResourceResult implements ResultInterface
     public function toArray(): array
     {
         return [
-            'contents' => array_map(fn($resource) => $resource->toArray(), $this->contents),
+            'contents' => array_map(fn ($resource) => $resource->toArray(), $this->contents),
         ];
     }
 

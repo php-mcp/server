@@ -29,7 +29,8 @@ class ToolAnnotations
         public readonly ?bool $destructiveHint = null,
         public readonly ?bool $idempotentHint = null,
         public readonly ?bool $openWorldHint = null,
-    ) {}
+    ) {
+    }
 
     public static function default(): self
     {

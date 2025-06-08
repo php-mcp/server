@@ -27,6 +27,7 @@ class SessionManager implements EventEmitterInterface
         protected int $ttl = 3600
     ) {
         $this->loop ??= Loop::get();
+        $this->startGcTimer();
     }
 
     /**
@@ -113,7 +114,9 @@ class SessionManager implements EventEmitterInterface
     public function queueMessage(string $sessionId, string $message): void
     {
         $session = $this->getSession($sessionId);
-        if ($session === null) return;
+        if ($session === null) {
+            return;
+        }
 
         $session->queueMessage($message);
         $session->save();
@@ -122,7 +125,9 @@ class SessionManager implements EventEmitterInterface
     public function dequeueMessages(string $sessionId): array
     {
         $session = $this->getSession($sessionId);
-        if ($session === null) return [];
+        if ($session === null) {
+            return [];
+        }
 
         $messages = $session->dequeueMessages();
         $session->save();
@@ -133,8 +138,15 @@ class SessionManager implements EventEmitterInterface
     public function hasQueuedMessages(string $sessionId): bool
     {
         $session = $this->getSession($sessionId, true);
-        if ($session === null) return false;
+        if ($session === null) {
+            return false;
+        }
 
         return $session->hasQueuedMessages();
+    }
+
+    public function __destruct()
+    {
+        $this->stopGcTimer();
     }
 }

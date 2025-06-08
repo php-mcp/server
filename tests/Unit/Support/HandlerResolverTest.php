@@ -8,20 +8,36 @@ use InvalidArgumentException;
 
 class ValidHandlerClass
 {
-    public function publicMethod() {}
-    protected function protectedMethod() {}
-    private function privateMethod() {}
-    public static function staticMethod() {}
-    public function __construct() {}
-    public function __destruct() {}
+    public function publicMethod()
+    {
+    }
+    protected function protectedMethod()
+    {
+    }
+    private function privateMethod()
+    {
+    }
+    public static function staticMethod()
+    {
+    }
+    public function __construct()
+    {
+    }
+    public function __destruct()
+    {
+    }
 }
 
 class ValidInvokableClass
 {
-    public function __invoke() {}
+    public function __invoke()
+    {
+    }
 }
 
-class NonInvokableClass {}
+class NonInvokableClass
+{
+}
 
 abstract class AbstractHandlerClass
 {
