@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Contracts;
 
 use Evenement\EventEmitterInterface;
+use PhpMcp\Server\Exception\TransportException;
 use PhpMcp\Server\JsonRpc\Messages\Message;
 use React\Promise\PromiseInterface;
-use Throwable;
 
 /**
  * Interface for server-side MCP transports.
@@ -29,7 +29,7 @@ interface ServerTransportInterface extends EventEmitterInterface
      * Starts the transport listener (e.g., listens on STDIN, starts HTTP server).
      * Does NOT run the event loop itself. Prepares transport to emit events when loop runs.
      *
-     * @throws \PhpMcp\Server\Exception\TransportException on immediate setup failure (e.g., port binding).
+     * @throws TransportException on immediate setup failure (e.g., port binding).
      */
     public function listen(): void;
 

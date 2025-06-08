@@ -120,7 +120,7 @@ class StdioServerTransport implements ServerTransportInterface, LoggerAwareInter
             $this->stdin = new ReadableResourceStream($this->inputStreamResource, $this->loop);
             $this->stdout = new WritableResourceStream($this->outputStreamResource, $this->loop);
         } catch (Throwable $e) {
-            $this->logger->error('StdioTransport: Failed to open STDIN/STDOUT streams.', ['exception' => $e]);
+            $this->logger->error('Failed to open STDIN/STDOUT streams.', ['exception' => $e]);
             throw new TransportException("Failed to open standard streams: {$e->getMessage()}", 0, $e);
         }
 
@@ -130,7 +130,7 @@ class StdioServerTransport implements ServerTransportInterface, LoggerAwareInter
         });
 
         $this->stdin->on('error', function (Throwable $error) {
-            $this->logger->error('StdioTransport: STDIN stream error.', ['error' => $error->getMessage()]);
+            $this->logger->error('STDIN stream error.', ['error' => $error->getMessage()]);
             $this->emit('error', [new TransportException("STDIN error: {$error->getMessage()}", 0, $error), self::CLIENT_ID]);
             $this->close();
         });
@@ -142,14 +142,13 @@ class StdioServerTransport implements ServerTransportInterface, LoggerAwareInter
         });
 
         $this->stdout->on('error', function (Throwable $error) {
-            $this->logger->error('StdioTransport: STDOUT stream error.', ['error' => $error->getMessage()]);
+            $this->logger->error('STDOUT stream error.', ['error' => $error->getMessage()]);
             $this->emit('error', [new TransportException("STDOUT error: {$error->getMessage()}", 0, $error), self::CLIENT_ID]);
             $this->close();
         });
 
         $signalHandler = function (int $signal) {
-            $this->logger->info("StdioTransport: Received signal {$signal}, shutting down.");
-            // $this->emit('client_disconnected', [self::CLIENT_ID, 'SIGTERM/SIGINT']);
+            $this->logger->info("Received signal {$signal}, shutting down.");
             $this->close();
         };
         $this->loop->addSignal(SIGTERM, $signalHandler);

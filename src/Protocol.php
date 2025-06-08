@@ -274,9 +274,9 @@ class Protocol
      */
     public function handleClientConnected(string $sessionId): void
     {
-        $this->sessionManager->createSession($sessionId);
-
         $this->logger->info('Client connected', ['sessionId' => $sessionId]);
+
+        $this->sessionManager->createSession($sessionId);
     }
 
     /**
@@ -284,9 +284,9 @@ class Protocol
      */
     public function handleClientDisconnected(string $sessionId, ?string $reason = null): void
     {
-        $this->sessionManager->deleteSession($sessionId);
-
         $this->logger->info('Client disconnected', ['clientId' => $sessionId, 'reason' => $reason ?? 'N/A']);
+
+        $this->sessionManager->deleteSession($sessionId);
     }
 
     /**
