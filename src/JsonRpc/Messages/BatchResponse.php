@@ -73,7 +73,7 @@ class BatchResponse extends Message
      */
     public function getResponses(): array
     {
-        return array_filter($this->responses, fn($r) => $r instanceof Response);
+        return array_filter($this->responses, fn ($r) => $r instanceof Response);
     }
 
     /**
@@ -83,7 +83,7 @@ class BatchResponse extends Message
      */
     public function getErrors(): array
     {
-        return array_filter($this->responses, fn($r) => $r instanceof Error);
+        return array_filter($this->responses, fn ($r) => $r instanceof Error);
     }
 
     public function isEmpty(): bool
@@ -104,6 +104,6 @@ class BatchResponse extends Message
      */
     public function toArray(): array
     {
-        return array_map(fn($r) => $r->toArray(), $this->responses);
+        return array_map(fn ($r) => $r->toArray(), $this->responses);
     }
 }

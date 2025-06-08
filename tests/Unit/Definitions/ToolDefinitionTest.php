@@ -12,7 +12,7 @@ use PhpMcp\Server\Tests\Mocks\DiscoveryStubs\ToolOnlyStub;
 use ReflectionMethod;
 
 test('constructor validates tool name pattern', function (string $toolName, bool $shouldFail) {
-    $action = fn() => new ToolDefinition(
+    $action = fn () => new ToolDefinition(
         className: AllElementsStub::class,
         methodName: 'templateMethod',
         toolName: $toolName,

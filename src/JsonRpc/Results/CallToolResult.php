@@ -15,7 +15,8 @@ class CallToolResult implements ResultInterface
     public function __construct(
         public readonly array $content,
         public readonly bool $isError = false
-    ) {}
+    ) {
+    }
 
     /**
      * Convert the result to an array.
@@ -23,7 +24,7 @@ class CallToolResult implements ResultInterface
     public function toArray(): array
     {
         return [
-            'content' => array_map(fn($item) => $item->toArray(), $this->content),
+            'content' => array_map(fn ($item) => $item->toArray(), $this->content),
             'isError' => $this->isError,
         ];
     }

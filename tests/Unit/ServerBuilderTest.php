@@ -20,18 +20,26 @@ use ReflectionClass;
 
 class DummyHandlerClass
 {
-    public function handle() {}
+    public function handle()
+    {
+    }
 }
 class DummyInvokableClass
 {
-    public function __invoke() {}
+    public function __invoke()
+    {
+    }
 }
 class HandlerWithDeps
 {
-    public function __construct(public LoggerInterface $log) {}
+    public function __construct(public LoggerInterface $log)
+    {
+    }
 
     #[McpTool(name: 'depTool')]
-    public function run() {}
+    public function run()
+    {
+    }
 }
 
 beforeEach(function () {

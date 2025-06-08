@@ -76,7 +76,7 @@ class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterf
         $this->loop = Loop::get();
         $this->ssePath = '/' . trim($mcpPathPrefix, '/') . '/sse';
         $this->messagePath = '/' . trim($mcpPathPrefix, '/') . '/message';
-        $this->idGenerator = $idGenerator ?? new RandomIdGenerator;
+        $this->idGenerator = $idGenerator ?? new RandomIdGenerator();
     }
 
     public function setLogger(LoggerInterface $logger): void

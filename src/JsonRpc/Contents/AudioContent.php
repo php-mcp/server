@@ -21,7 +21,8 @@ class AudioContent implements ContentInterface
         public readonly string $data,
         public readonly string $mimeType,
         public readonly ?Annotations $annotations = null
-    ) {}
+    ) {
+    }
 
     /**
      * Convert the content to an array.
