@@ -14,9 +14,13 @@ use PhpMcp\Server\JsonRpc\Messages\Notification;
 use PhpMcp\Server\JsonRpc\Messages\Request;
 use PhpMcp\Server\JsonRpc\Messages\Response;
 use PhpMcp\Server\Session\SessionManager;
+use PhpMcp\Server\Session\SubscriptionManager;
 use PhpMcp\Server\Support\RequestHandler;
 use Psr\Log\LoggerInterface;
+use React\Promise\PromiseInterface;
 use Throwable;
+
+use function React\Promise\reject;
 
 /**
  * Bridges the core MCP Processor logic with a ServerTransportInterface
@@ -27,7 +31,8 @@ use Throwable;
  */
 class Protocol
 {
-    public const SUPPORTED_PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26'];
+    public const LATEST_PROTOCOL_VERSION = '2025-03-26';
+    public const SUPPORTED_PROTOCOL_VERSIONS = [self::LATEST_PROTOCOL_VERSION, '2024-11-05'];
 
     protected ?ServerTransportInterface $transport = null;
 
@@ -41,9 +46,19 @@ class Protocol
         protected Registry $registry,
         protected SessionManager $sessionManager,
         protected ?RequestHandler $requestHandler = null,
+        protected ?SubscriptionManager $subscriptionManager = null,
     ) {
         $this->logger = $this->configuration->logger;
-        $this->requestHandler ??= new RequestHandler($this->configuration, $this->registry, $this->sessionManager);
+        $this->subscriptionManager ??= new SubscriptionManager($this->logger);
+        $this->requestHandler ??= new RequestHandler($this->configuration, $this->registry, $this->subscriptionManager);
+
+        $this->sessionManager->on('session_deleted', function (string $sessionId) {
+            $this->subscriptionManager->cleanupSession($sessionId);
+        });
+
+        $this->registry->on('list_changed', function (string $listType) {
+            $this->handleListChanged($listType);
+        });
     }
 
     /**
@@ -171,6 +186,7 @@ class Protocol
                 'prompts/list' => $this->requestHandler->handlePromptsList($params),
                 'prompts/get' => $this->requestHandler->handlePromptGet($params),
                 'logging/setLevel' => $this->requestHandler->handleLoggingSetLevel($params, $session),
+                'completion/complete' => $this->requestHandler->handleCompletionComplete($params, $session),
                 default => throw McpServerException::methodNotFound($method),
             };
 
@@ -180,7 +196,7 @@ class Protocol
 
             return $e->toJsonRpcError($request->id);
         } catch (Throwable $e) {
-            $this->logger->error('MCP Processor caught unexpected error', ['method' => $method, 'exception' => $e]);
+            $this->logger->error('MCP Processor caught unexpected error', ['method' => $method, 'exception' => $e->getMessage()]);
 
             return new Error(
                 jsonrpc: '2.0',
@@ -200,9 +216,65 @@ class Protocol
         $method = $notification->method;
         $params = $notification->params;
 
-        if ($method === 'notifications/initialized') {
-            $this->requestHandler->handleNotificationInitialized($params, $session);
+        try {
+            if ($method === 'notifications/initialized') {
+                $this->requestHandler->handleNotificationInitialized($params, $session);
+            }
+        } catch (Throwable $e) {
+            $this->logger->error('Error while processing notification', ['method' => $method, 'exception' => $e->getMessage()]);
+            return;
         }
+    }
+
+    /**
+     * Send a notification to a session
+     */
+    public function sendNotification(string $sessionId, Notification $notification): PromiseInterface
+    {
+        if ($this->transport === null) {
+            $this->logger->error('Cannot send notification, transport not bound', [
+                'sessionId' => $sessionId,
+                'method' => $notification->method
+            ]);
+            return reject(new McpServerException('Transport not bound'));
+        }
+
+        try {
+            return $this->transport->sendMessage($notification, $sessionId, []);
+        } catch (Throwable $e) {
+            $this->logger->error('Failed to send notification', [
+                'sessionId' => $sessionId,
+                'method' => $notification->method,
+                'error' => $e->getMessage()
+            ]);
+            return reject(new McpServerException('Failed to send notification: ' . $e->getMessage()));
+        }
+    }
+
+    /**
+     * Notify subscribers about resource content change
+     */
+    public function notifyResourceChanged(string $uri): void
+    {
+        $subscribers = $this->subscriptionManager->getSubscribers($uri);
+
+        if (empty($subscribers)) {
+            return;
+        }
+
+        $notification = Notification::make(
+            'notifications/resources/updated',
+            ['uri' => $uri]
+        );
+
+        foreach ($subscribers as $sessionId) {
+            $this->sendNotification($sessionId, $notification);
+        }
+
+        $this->logger->debug("Sent resource change notification", [
+            'uri' => $uri,
+            'subscriber_count' => count($subscribers)
+        ]);
     }
 
     /**
@@ -266,42 +338,50 @@ class Protocol
                 }
                 break;
 
+            case 'completion/complete':
+                if (!$capabilities->completionsEnabled) {
+                    throw McpServerException::methodNotFound($method, 'Completions are not enabled on this server.');
+                }
+                break;
+
             default:
                 break;
         }
     }
 
-    private function assertNotificationCapability(string $method): void
+    private function canSendNotification(string $method): bool
     {
         $capabilities = $this->configuration->capabilities;
+
+        $valid = true;
 
         switch ($method) {
             case 'notifications/message':
                 if (!$capabilities->loggingEnabled) {
-                    throw McpServerException::methodNotFound($method, 'Logging is not enabled on this server.');
+                    $this->logger->warning('Logging is not enabled on this server. Notifications/message will not be sent.');
+                    $valid = false;
                 }
-                break;
-
-            case "notifications/initialized":
-                // Initialized notifications are always allowed
                 break;
 
             case "notifications/resources/updated":
             case "notifications/resources/list_changed":
                 if (!$capabilities->resourcesListChanged) {
-                    throw McpServerException::methodNotFound($method, 'Resources list changed notifications are not enabled on this server.');
+                    $this->logger->warning('Resources list changed notifications are not enabled on this server. Notifications/resources/list_changed will not be sent.');
+                    $valid = false;
                 }
                 break;
 
             case "notifications/tools/list_changed":
                 if (!$capabilities->toolsListChanged) {
-                    throw McpServerException::methodNotFound($method, 'Tools list changed notifications are not enabled on this server.');
+                    $this->logger->warning('Tools list changed notifications are not enabled on this server. Notifications/tools/list_changed will not be sent.');
+                    $valid = false;
                 }
                 break;
 
             case "notifications/prompts/list_changed":
                 if (!$capabilities->promptsListChanged) {
-                    throw McpServerException::methodNotFound($method, 'Prompts list changed notifications are not enabled on this server.');
+                    $this->logger->warning('Prompts list changed notifications are not enabled on this server. Notifications/prompts/list_changed will not be sent.');
+                    $valid = false;
                 }
                 break;
 
@@ -316,21 +396,8 @@ class Protocol
             default:
                 break;
         }
-    }
 
-    /**
-     * Parse a method string into type and action
-     */
-    private function parseMethod(string $method): array
-    {
-        if (str_contains($method, '/')) {
-            $parts = explode('/', $method, 2);
-            if (count($parts) === 2) {
-                return [$parts[0], $parts[1]];
-            }
-        }
-
-        return [$method, ''];
+        return $valid;
     }
 
     /**
@@ -351,6 +418,36 @@ class Protocol
         $this->logger->info('Client disconnected', ['clientId' => $sessionId, 'reason' => $reason ?? 'N/A']);
 
         $this->sessionManager->deleteSession($sessionId);
+    }
+
+    /**
+     * Handle list changed event from registry
+     */
+    private function handleListChanged(string $listType): void
+    {
+        $listChangeUri = "mcp://changes/{$listType}";
+
+        $subscribers = $this->subscriptionManager->getSubscribers($listChangeUri);
+        if (empty($subscribers)) {
+            return;
+        }
+
+        $method = "notifications/{$listType}/list_changed";
+
+        if (!$this->canSendNotification($method)) {
+            return;
+        }
+
+        $notification = Notification::make($method);
+
+        foreach ($subscribers as $sessionId) {
+            $this->sendNotification($sessionId, $notification);
+        }
+
+        $this->logger->debug("Sent list change notification", [
+            'list_type' => $listType,
+            'subscriber_count' => count($subscribers)
+        ]);
     }
 
     /**

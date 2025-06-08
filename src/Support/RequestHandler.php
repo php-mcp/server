@@ -10,6 +10,7 @@ use PhpMcp\Server\Contracts\SessionInterface;
 use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\JsonRpc\Contents\TextContent;
 use PhpMcp\Server\JsonRpc\Results\CallToolResult;
+use PhpMcp\Server\JsonRpc\Results\CompletionCompleteResult;
 use PhpMcp\Server\JsonRpc\Results\EmptyResult;
 use PhpMcp\Server\JsonRpc\Results\GetPromptResult;
 use PhpMcp\Server\JsonRpc\Results\InitializeResult;
@@ -21,6 +22,7 @@ use PhpMcp\Server\JsonRpc\Results\ReadResourceResult;
 use PhpMcp\Server\Protocol;
 use PhpMcp\Server\Registry;
 use PhpMcp\Server\Session\SessionManager;
+use PhpMcp\Server\Session\SubscriptionManager;
 use PhpMcp\Server\Traits\ResponseFormatter;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
@@ -38,7 +40,7 @@ class RequestHandler
     public function __construct(
         protected Configuration $configuration,
         protected Registry $registry,
-        protected SessionManager $sessionManager,
+        protected SubscriptionManager $subscriptionManager,
         protected ?SchemaValidator $schemaValidator = null,
         protected ?ArgumentPreparer $argumentPreparer = null,
     ) {
@@ -62,7 +64,7 @@ class RequestHandler
             ]);
         }
 
-        $serverProtocolVersion = Protocol::SUPPORTED_PROTOCOL_VERSIONS[count(Protocol::SUPPORTED_PROTOCOL_VERSIONS) - 1];
+        $serverProtocolVersion = Protocol::LATEST_PROTOCOL_VERSION;
 
         $clientInfo = $params['clientInfo'] ?? null;
         if (! is_array($clientInfo)) {
@@ -94,7 +96,7 @@ class RequestHandler
         $cursor = $params['cursor'] ?? null;
         $limit = $this->configuration->paginationLimit;
         $offset = $this->decodeCursor($cursor);
-        $allItems = $this->registry->allTools()->getArrayCopy();
+        $allItems = $this->registry->getTools();
         $pagedItems = array_slice($allItems, $offset, $limit);
         $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
 
@@ -106,7 +108,7 @@ class RequestHandler
         $cursor = $params['cursor'] ?? null;
         $limit = $this->configuration->paginationLimit;
         $offset = $this->decodeCursor($cursor);
-        $allItems = $this->registry->allResources()->getArrayCopy();
+        $allItems = $this->registry->getResources();
         $pagedItems = array_slice($allItems, $offset, $limit);
         $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
 
@@ -118,7 +120,7 @@ class RequestHandler
         $cursor = $params['cursor'] ?? null;
         $limit = $this->configuration->paginationLimit;
         $offset = $this->decodeCursor($cursor);
-        $allItems = $this->registry->allResourceTemplates()->getArrayCopy();
+        $allItems = $this->registry->getResourceTemplates();
         $pagedItems = array_slice($allItems, $offset, $limit);
         $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
 
@@ -130,7 +132,7 @@ class RequestHandler
         $cursor = $params['cursor'] ?? null;
         $limit = $this->configuration->paginationLimit;
         $offset = $this->decodeCursor($cursor);
-        $allItems = $this->registry->allPrompts()->getArrayCopy();
+        $allItems = $this->registry->getPrompts();
         $pagedItems = array_slice($allItems, $offset, $limit);
         $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
 
@@ -259,31 +261,27 @@ class RequestHandler
         }
     }
 
+
     public function handleResourceSubscribe(array $params, SessionInterface $session): EmptyResult
     {
         $uri = $params['uri'] ?? null;
-        if (! is_string($uri) || empty($uri)) {
-            throw McpServerException::invalidParams("Missing or invalid 'uri' parameter for resources/subscribe.");
+        if (!is_string($uri) || empty($uri)) {
+            throw McpServerException::invalidParams("Missing or invalid 'uri' parameter");
         }
 
-        $subscriptions = $session->get('subscriptions', []);
-        $subscriptions[$uri] = true;
-        $session->set('subscriptions', $subscriptions);
-
+        $this->subscriptionManager->subscribe($session->getId(), $uri);
         return new EmptyResult();
     }
+
 
     public function handleResourceUnsubscribe(array $params, SessionInterface $session): EmptyResult
     {
         $uri = $params['uri'] ?? null;
-        if (! is_string($uri) || empty($uri)) {
-            throw McpServerException::invalidParams("Missing or invalid 'uri' parameter for resources/unsubscribe.");
+        if (!is_string($uri) || empty($uri)) {
+            throw McpServerException::invalidParams("Missing or invalid 'uri' parameter");
         }
 
-        $subscriptions = $session->get('subscriptions', []);
-        unset($subscriptions[$uri]);
-        $session->set('subscriptions', $subscriptions);
-
+        $this->subscriptionManager->unsubscribe($session->getId(), $uri);
         return new EmptyResult();
     }
 
@@ -361,6 +359,45 @@ class RequestHandler
         $this->logger->info("Log level set to '{$level}'.", ['sessionId' => $session->getId()]);
 
         return new EmptyResult();
+    }
+
+    public function handleCompletionComplete(array $params, SessionInterface $session): CompletionCompleteResult
+    {
+        $ref = $params['ref'] ?? null;
+        $argumentContext = $params['argument'] ?? null;
+
+        if (
+            !is_array($ref)
+            || !isset($ref['type'])
+            || !is_array($argumentContext)
+            || !isset($argumentContext['name'])
+            || !array_key_exists('value', $argumentContext)
+        ) {
+            throw McpServerException::invalidParams("Missing or invalid 'ref' or 'argument' parameters for completion/complete.");
+        }
+
+        $type = $ref['type'];
+        $name = $argumentContext['name'];
+        $value = $argumentContext['value'];
+
+        $completionValues = [];
+        $total = null;
+        $hasMore = null;
+
+        // TODO: Implement actual completion logic here.
+        // This requires a way to:
+        // 1. Find the target prompt or resource template definition.
+        // 2. Determine if that definition has a completion provider for the given $argName.
+        // 3. Invoke that provider with $currentValue and $session (for context).
+
+        // --- Placeholder/Example Logic ---
+        if ($name === 'userId') {
+            $completionValues = ['101', '102', '103'];
+            $total = 3;
+        }
+        // --- End Placeholder ---
+
+        return new CompletionCompleteResult($completionValues, $total, $hasMore);
     }
 
     public function handleNotificationInitialized(array $params, SessionInterface $session): EmptyResult

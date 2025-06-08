@@ -90,7 +90,7 @@ class Server
             'saveToCache' => $shouldSaveCache,
         ]);
 
-        $this->registry->clearDiscoveredElements($shouldSaveCache);
+        $this->registry->clear();
 
         try {
             $discoverer = new Discoverer($this->registry, $this->configuration->logger);
@@ -101,7 +101,7 @@ class Server
             $this->configuration->logger->info('Element discovery process finished.');
 
             if ($shouldSaveCache) {
-                $this->registry->saveDiscoveredElementsToCache();
+                $this->registry->save();
             }
         } catch (Throwable $e) {
             $this->discoveryRan = false;

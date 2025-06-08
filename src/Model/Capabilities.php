@@ -25,9 +25,11 @@ class Capabilities
         public readonly bool $promptsEnabled = true,
         public readonly bool $promptsListChanged = false,
         public readonly bool $loggingEnabled = false,
+        public readonly bool $completionsEnabled = false,
         public readonly ?string $instructions = null,
         public readonly ?array $experimental = null
-    ) {}
+    ) {
+    }
 
     /**
      * Factory method to create a Capabilities instance for the server.
@@ -40,6 +42,7 @@ class Capabilities
      * @param  bool  $promptsEnabled  Whether the prompts capability is generally enabled.
      * @param  bool  $promptsListChanged  Whether the server supports 'prompts/listChanged' notifications.
      * @param  bool  $loggingEnabled  Whether the server supports 'logging/setLevel'.
+     * @param  bool  $completionsEnabled  Whether the server supports 'completions/get'.
      * @param  string|null  $instructions  Optional static instructions text provided during initialization.
      * @param  array<string, mixed>|null  $experimental  Optional experimental capabilities declared by the server.
      */
@@ -52,6 +55,7 @@ class Capabilities
         bool $promptsEnabled = true,
         bool $promptsListChanged = false,
         bool $loggingEnabled = false,
+        bool $completionsEnabled = false,
         ?string $instructions = null,
         ?array $experimental = null
     ): self {
@@ -97,15 +101,13 @@ class Capabilities
         if ($this->loggingEnabled) {
             $data['logging'] = new stdClass();
         }
+        if ($this->completionsEnabled) {
+            $data['completions'] = new stdClass();
+        }
         if ($this->experimental !== null && ! empty($this->experimental)) {
             $data['experimental'] = $this->experimental;
         }
 
-        // Return empty object if no capabilities are effectively enabled/declared
-        // This might deviate slightly from spec if e.g. only 'tools' is true but listChanged is false,
-        // spec implies {'tools': {}} should still be sent. Let's keep it simple for now.
-        // Correction: Spec implies the key should exist if the capability is enabled.
-        // Let's ensure keys are present if the *Enabled flag is true.
         return empty($data) ? new stdClass() : $data;
     }
 }
