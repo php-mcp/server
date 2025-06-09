@@ -184,7 +184,8 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
             }
 
             try {
-                $baseUri = $request->getUri()->withPath($this->messagePath)->withQuery('')->withFragment('');
+                $scheme = $request->getHeaderLine('X-Forwarded-Proto') ?: $request->getUri()->getScheme();
+                $baseUri = $request->getUri()->withScheme($scheme)->withPath($this->messagePath)->withQuery('')->withFragment('');
                 $postEndpointWithId = (string) $baseUri->withQuery("clientId={$clientId}");
                 $this->sendSseEvent($sseStream, 'endpoint', $postEndpointWithId, "init-{$clientId}");
 
