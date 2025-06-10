@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpMcp\Server\Support;
+namespace PhpMcp\Server;
 
 use JsonException;
 use PhpMcp\Schema\JsonRpc\Request;
@@ -39,12 +39,13 @@ use PhpMcp\Schema\Result\ReadResourceResult;
 use PhpMcp\Server\Protocol;
 use PhpMcp\Server\Registry;
 use PhpMcp\Server\Session\SubscriptionManager;
+use PhpMcp\Server\Support\SchemaValidator;
 use PhpMcp\Server\Traits\ResponseFormatter;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
-class RequestHandler
+class Dispatcher
 {
     use ResponseFormatter;
 
@@ -159,7 +160,7 @@ class RequestHandler
         $toolName = $request->name;
         $arguments = $request->arguments;
 
-        ['tool' => $tool, 'invoker' => $invoker] = $this->registry->getTool($toolName);
+        ['tool' => $tool, 'handler' => $handler] = $this->registry->getTool($toolName);
         if (! $tool) {
             throw McpServerException::methodNotFound("Tool '{$toolName}' not found.");
         }
@@ -187,7 +188,7 @@ class RequestHandler
         }
 
         try {
-            $result = $invoker->invoke($this->container, $arguments);
+            $result = $handler->handle($this->container, $arguments);
             $formattedResult = $this->formatToolResult($result);
 
             return new CallToolResult($formattedResult, false);
@@ -230,7 +231,7 @@ class RequestHandler
     {
         $uri = $request->uri;
 
-        ['resource' => $resource, 'invoker' => $invoker, 'variables' => $uriVariables] = $this->registry->getResource($uri);
+        ['resource' => $resource, 'handler' => $handler, 'variables' => $uriVariables] = $this->registry->getResource($uri);
 
         if (! $resource) {
             throw McpServerException::invalidParams("Resource URI '{$uri}' not found.");
@@ -238,7 +239,7 @@ class RequestHandler
 
         try {
             $arguments = array_merge($uriVariables, ['uri' => $uri]);
-            $result = $invoker->invoke($this->container, $arguments);
+            $result = $handler->handle($this->container, $arguments);
             $contents = $this->formatResourceContents($result, $uri, $resource->mimeType);
 
             return new ReadResourceResult($contents);
@@ -281,7 +282,7 @@ class RequestHandler
         $promptName = $request->name;
         $arguments = $request->arguments;
 
-        ['prompt' => $prompt, 'invoker' => $invoker] = $this->registry->getPrompt($promptName);
+        ['prompt' => $prompt, 'handler' => $handler] = $this->registry->getPrompt($promptName);
         if (! $prompt) {
             throw McpServerException::invalidParams("Prompt '{$promptName}' not found.");
         }
@@ -295,7 +296,7 @@ class RequestHandler
         }
 
         try {
-            $result = $invoker->invoke($this->container, $arguments);
+            $result = $handler->handle($this->container, $arguments);
             $messages = $this->formatPromptMessages($result);
 
             return new GetPromptResult($messages, $prompt->description);

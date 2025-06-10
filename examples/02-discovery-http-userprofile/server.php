@@ -71,8 +71,8 @@ try {
 
     $server->discover(__DIR__, ['.']);
 
-    $transport = new HttpServerTransport('127.0.0.1', 8080, 'mcp');
-    // $transport = new StreamableHttpServerTransport('127.0.0.1', 8080, 'mcp');
+    // $transport = new HttpServerTransport('127.0.0.1', 8080, 'mcp');
+    $transport = new StreamableHttpServerTransport('127.0.0.1', 8080, 'mcp');
 
     $server->listen($transport);
 
