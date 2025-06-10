@@ -39,7 +39,9 @@ declare(strict_types=1);
 chdir(__DIR__);
 require_once '../../vendor/autoload.php';
 require_once 'McpElements.php';
+require_once 'UserIdCompletionProvider.php';
 
+use PhpMcp\Schema\ServerCapabilities;
 use PhpMcp\Server\Defaults\BasicContainer;
 use PhpMcp\Server\Server;
 use PhpMcp\Server\Transports\HttpServerTransport;
@@ -65,6 +67,7 @@ try {
 
     $server = Server::make()
         ->withServerInfo('HTTP User Profiles', '1.0.0')
+        ->withCapabilities(ServerCapabilities::make(completionsEnabled: true))
         ->withLogger($logger)
         ->withContainer($container)
         ->build();
