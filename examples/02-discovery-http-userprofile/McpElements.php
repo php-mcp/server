@@ -2,6 +2,7 @@
 
 namespace Mcp\HttpUserProfileExample;
 
+use PhpMcp\Server\Attributes\CompletionProvider;
 use PhpMcp\Server\Attributes\McpPrompt;
 use PhpMcp\Server\Attributes\McpResource;
 use PhpMcp\Server\Attributes\McpResourceTemplate;
@@ -40,8 +41,11 @@ class McpElements
         description: 'Get profile information for a specific user ID.',
         mimeType: 'application/json'
     )]
-    public function getUserProfile(string $userId): array
-    {
+
+    public function getUserProfile(
+        #[CompletionProvider(providerClass: UserIdCompletionProvider::class)]
+        string $userId
+    ): array {
         $this->logger->info('Reading resource: user profile', ['userId' => $userId]);
         if (! isset($this->users[$userId])) {
             // Throwing an exception that Processor can turn into an error response
@@ -87,7 +91,7 @@ class McpElements
         $user = $this->users[$userId];
         $message = "Welcome, {$user['name']}!";
         if ($customMessage) {
-            $message .= ' '.$customMessage;
+            $message .= ' ' . $customMessage;
         }
         // Simulate sending
         $this->logger->info("Simulated sending message to {$user['email']}: {$message}");
@@ -105,8 +109,11 @@ class McpElements
      * @throws McpServerException If user not found.
      */
     #[McpPrompt(name: 'generate_bio_prompt')]
-    public function generateBio(string $userId, string $tone = 'professional'): array
-    {
+    public function generateBio(
+        #[CompletionProvider(providerClass: UserIdCompletionProvider::class)]
+        string $userId,
+        string $tone = 'professional'
+    ): array {
         $this->logger->info('Executing prompt: generate_bio', ['userId' => $userId, 'tone' => $tone]);
         if (! isset($this->users[$userId])) {
             throw McpServerException::invalidParams("User not found for bio prompt: {$userId}");

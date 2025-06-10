@@ -9,6 +9,7 @@ use PhpMcp\Schema\PromptArgument;
 use PhpMcp\Schema\Resource;
 use PhpMcp\Schema\ResourceTemplate;
 use PhpMcp\Schema\Tool;
+use PhpMcp\Server\Attributes\CompletionProvider;
 use PhpMcp\Server\Attributes\McpPrompt;
 use PhpMcp\Server\Attributes\McpResource;
 use PhpMcp\Server\Attributes\McpResourceTemplate;
@@ -231,6 +232,7 @@ class Discoverer
                     $handler = new Handler($className, $methodName);
                     $this->registry->registerPrompt($prompt, $handler, true);
                     $discoveredCount['prompts']++;
+                    $this->discoverAndRegisterCompletionProviders('ref/prompt', $instance->name, $method);
                     break;
 
                 case McpResourceTemplate::class:
@@ -243,12 +245,34 @@ class Discoverer
                     $handler = new Handler($className, $methodName);
                     $this->registry->registerResourceTemplate($resourceTemplate, $handler, true);
                     $discoveredCount['resourceTemplates']++;
+                    $this->discoverAndRegisterCompletionProviders('ref/resource', $instance->uriTemplate, $method);
                     break;
             }
         } catch (McpServerException $e) {
             $this->logger->error("Failed to process MCP attribute on {$className}::{$methodName}", ['attribute' => $attributeClassName, 'exception' => $e->getMessage(), 'trace' => $e->getPrevious() ? $e->getPrevious()->getTraceAsString() : $e->getTraceAsString()]);
         } catch (Throwable $e) {
             $this->logger->error("Unexpected error processing attribute on {$className}::{$methodName}", ['attribute' => $attributeClassName, 'exception' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+        }
+    }
+
+    /**
+     * Discover and register completion providers for a given MCP Element.
+     *
+     * @param 'ref/prompt'|'ref/resource'|'ref/tool' $refType
+     */
+    private function discoverAndRegisterCompletionProviders(string $refType, string $identifier, ReflectionMethod $handlerMethod): void
+    {
+        foreach ($handlerMethod->getParameters() as $param) {
+            $reflectionType = $param->getType();
+            if ($reflectionType instanceof \ReflectionNamedType && !$reflectionType->isBuiltin()) {
+                continue;
+            }
+
+            $completionAttributes = $param->getAttributes(CompletionProvider::class, ReflectionAttribute::IS_INSTANCEOF);
+            if (!empty($completionAttributes)) {
+                $attributeInstance = $completionAttributes[0]->newInstance();
+                $this->registry->registerCompletionProvider($refType, $identifier, $param->getName(), $attributeInstance->providerClass);
+            }
         }
     }
 
@@ -353,7 +377,7 @@ class Discoverer
 
         if (! empty($potentialClasses)) {
             if (! class_exists($potentialClasses[0], false)) {
-                $this->logger->debug('getClassFromFile returning potential non-class type', ['file' => $filePath, 'type' => $potentialClasses[0]]);
+                $this->logger->debug('getClassFromFile returning potential non-class type. Are you sure this class has been autoloaded?', ['file' => $filePath, 'type' => $potentialClasses[0]]);
             }
 
             return $potentialClasses[0];

@@ -119,6 +119,12 @@ class Protocol
 
         $session = $this->sessionManager->getSession($sessionId);
 
+        if ($session === null) {
+            $error = Error::forInvalidRequest('Invalid or expired session. Please re-initialize the session.', $message->id);
+            $this->transport->sendMessage($error, $sessionId, $context);
+            return;
+        }
+
         $response = null;
 
         if ($message instanceof BatchRequest) {
