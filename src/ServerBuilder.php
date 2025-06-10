@@ -21,7 +21,7 @@ use PhpMcp\Server\Session\ArraySessionHandler;
 use PhpMcp\Server\Session\CacheSessionHandler;
 use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Support\HandlerResolver;
-use PhpMcp\Server\Support\MethodInvoker;
+use PhpMcp\Server\Support\Handler;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -88,7 +88,9 @@ final class ServerBuilder
      * > */
     private array $manualPrompts = [];
 
-    public function __construct() {}
+    public function __construct()
+    {
+    }
 
     /**
      * Sets the server's identity. Required.
@@ -300,8 +302,8 @@ final class ServerBuilder
                 $inputSchema = $schemaGenerator->fromMethodParameters($reflectionMethod);
 
                 $tool = Tool::make($name, $inputSchema, $description, $data['annotations']);
-                $invoker = new MethodInvoker($className, $methodName);
-                $registry->registerTool($tool, $invoker, true);
+                $handler = new Handler($className, $methodName);
+                $registry->registerTool($tool, $handler, true);
 
                 $logger->debug("Registered manual tool {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
@@ -326,8 +328,8 @@ final class ServerBuilder
                 $annotations = $data['annotations'];
 
                 $resource = Resource::make($uri, $name, $description, $mimeType, $annotations, $size);
-                $invoker = new MethodInvoker($className, $methodName);
-                $registry->registerResource($resource, $invoker, true);
+                $handler = new Handler($className, $methodName);
+                $registry->registerResource($resource, $handler, true);
 
                 $logger->debug("Registered manual resource {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
@@ -351,8 +353,8 @@ final class ServerBuilder
                 $annotations = $data['annotations'];
 
                 $template = ResourceTemplate::make($uriTemplate, $name, $description, $mimeType, $annotations);
-                $invoker = new MethodInvoker($className, $methodName);
-                $registry->registerResourceTemplate($template, $invoker, true);
+                $handler = new Handler($className, $methodName);
+                $registry->registerResourceTemplate($template, $handler, true);
 
                 $logger->debug("Registered manual template {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
@@ -391,8 +393,8 @@ final class ServerBuilder
                 }
 
                 $prompt = Prompt::make($name, $description, $arguments);
-                $invoker = new MethodInvoker($className, $methodName);
-                $registry->registerPrompt($prompt, $invoker, true);
+                $handler = new Handler($className, $methodName);
+                $registry->registerPrompt($prompt, $handler, true);
                 $logger->debug("Registered manual prompt {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
                 $errorCount++;

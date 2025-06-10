@@ -27,5 +27,6 @@ final class McpResource
         public ?string $mimeType = null,
         public ?int $size = null,
         public ?Annotations $annotations = null,
-    ) {}
+    ) {
+    }
 }

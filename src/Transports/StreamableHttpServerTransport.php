@@ -167,9 +167,9 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
             try {
                 return match ($method) {
-                    'GET' => $this->handleGetRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
-                    'POST' => $this->handlePostRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
-                    'DELETE' => $this->handleDeleteRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
+                    'GET' => $this->handleGetRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
+                    'POST' => $this->handlePostRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
+                    'DELETE' => $this->handleDeleteRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
                     default => $addCors($this->handleUnsupportedRequest($request)),
                 };
             } catch (Throwable $e) {

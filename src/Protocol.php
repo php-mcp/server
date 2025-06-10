@@ -51,12 +51,12 @@ class Protocol
         protected Configuration $configuration,
         protected Registry $registry,
         protected SessionManager $sessionManager,
-        protected ?RequestHandler $requestHandler = null,
+        protected ?Dispatcher $dispatcher = null,
         protected ?SubscriptionManager $subscriptionManager = null,
     ) {
         $this->logger = $this->configuration->logger;
         $this->subscriptionManager ??= new SubscriptionManager($this->logger);
-        $this->requestHandler ??= new RequestHandler($this->configuration, $this->registry, $this->subscriptionManager);
+        $this->dispatcher ??= new Dispatcher($this->configuration, $this->registry, $this->subscriptionManager);
 
         $this->sessionManager->on('session_deleted', function (string $sessionId) {
             $this->subscriptionManager->cleanupSession($sessionId);
@@ -174,7 +174,7 @@ class Protocol
 
             $this->assertRequestCapability($request->method);
 
-            $result = $this->requestHandler->handleRequest($request, $session);
+            $result = $this->dispatcher->handleRequest($request, $session);
 
             return Response::make($request->id, $result);
         } catch (McpServerException $e) {
@@ -207,7 +207,7 @@ class Protocol
         $params = $notification->params;
 
         try {
-            $this->requestHandler->handleNotification($notification, $session);
+            $this->dispatcher->handleNotification($notification, $session);
         } catch (Throwable $e) {
             $this->logger->error('Error while processing notification', ['method' => $method, 'exception' => $e->getMessage()]);
             return;
