@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace PhpMcp\Server\Exception;
 
-use PhpMcp\Server\JsonRpc\Messages\Error as JsonRpcError;
+use PhpMcp\Schema\JsonRpc\Error as JsonRpcError;
 
 /**
  * Exception related to violations of the JSON-RPC 2.0 or MCP structure

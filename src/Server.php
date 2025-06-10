@@ -41,8 +41,7 @@ class Server
         protected readonly Registry $registry,
         protected readonly Protocol $protocol,
         protected readonly SessionManager $sessionManager,
-    ) {
-    }
+    ) {}
 
     public static function make(): ServerBuilder
     {
@@ -98,7 +97,6 @@ class Server
             $discoverer->discover($realBasePath, $scanDirs, $excludeDirs);
 
             $this->discoveryRan = true;
-            $this->configuration->logger->info('Element discovery process finished.');
 
             if ($shouldSaveCache) {
                 $this->registry->save();

@@ -4,31 +4,37 @@ declare(strict_types=1);
 
 namespace PhpMcp\Server;
 
+use PhpMcp\Schema\Annotations;
+use PhpMcp\Schema\Implementation;
+use PhpMcp\Schema\Prompt;
+use PhpMcp\Schema\PromptArgument;
+use PhpMcp\Schema\Resource;
+use PhpMcp\Schema\ResourceTemplate;
+use PhpMcp\Schema\ServerCapabilities;
+use PhpMcp\Schema\Tool;
+use PhpMcp\Schema\ToolAnnotations;
+use PhpMcp\Server\Contracts\SessionHandlerInterface;
 use PhpMcp\Server\Defaults\BasicContainer;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DefinitionException;
-use PhpMcp\Server\Model\Capabilities;
 use PhpMcp\Server\Session\ArraySessionHandler;
 use PhpMcp\Server\Session\CacheSessionHandler;
 use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Support\HandlerResolver;
-use PhpMcp\Server\Support\RequestHandler;
+use PhpMcp\Server\Support\MethodInvoker;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Psr\SimpleCache\CacheInterface;
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
-use SessionHandlerInterface;
 use Throwable;
 
 final class ServerBuilder
 {
-    private ?string $name = null;
+    private ?Implementation $serverInfo = null;
 
-    private ?string $version = null;
-
-    private ?Capabilities $capabilities = null;
+    private ?ServerCapabilities $capabilities = null;
 
     private ?LoggerInterface $logger = null;
 
@@ -46,26 +52,50 @@ final class ServerBuilder
 
     private ?int $paginationLimit = 50;
 
-    // Temporary storage for manual registrations
+    /** @var array<
+     *     array{handler: array|string,
+     *     name: string|null,
+     *     description: string|null,
+     *     annotations: ToolAnnotations|null}
+     * > */
     private array $manualTools = [];
 
+    /** @var array<
+     *     array{handler: array|string,
+     *     uri: string,
+     *     name: string|null,
+     *     description: string|null,
+     *     mimeType: string|null,
+     *     size: int|null,
+     *     annotations: Annotations|null}
+     * > */
     private array $manualResources = [];
 
+    /** @var array<
+     *     array{handler: array|string,
+     *     uriTemplate: string,
+     *     name: string|null,
+     *     description: string|null,
+     *     mimeType: string|null,
+     *     annotations: Annotations|null}
+     * > */
     private array $manualResourceTemplates = [];
 
+    /** @var array<
+     *     array{handler: array|string,
+     *     name: string|null,
+     *     description: string|null}
+     * > */
     private array $manualPrompts = [];
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     /**
      * Sets the server's identity. Required.
      */
     public function withServerInfo(string $name, string $version): self
     {
-        $this->name = trim($name);
-        $this->version = trim($version);
+        $this->serverInfo = Implementation::make(name: trim($name), version: trim($version));
 
         return $this;
     }
@@ -73,7 +103,7 @@ final class ServerBuilder
     /**
      * Configures the server's declared capabilities.
      */
-    public function withCapabilities(Capabilities $capabilities): self
+    public function withCapabilities(ServerCapabilities $capabilities): self
     {
         $this->capabilities = $capabilities;
 
@@ -160,7 +190,7 @@ final class ServerBuilder
     /**
      * Manually registers a tool handler.
      */
-    public function withTool(array|string $handler, ?string $name = null, ?string $description = null, ?array $annotations = null): self
+    public function withTool(array|string $handler, ?string $name = null, ?string $description = null, ?ToolAnnotations $annotations = null): self
     {
         $this->manualTools[] = compact('handler', 'name', 'description', 'annotations');
 
@@ -170,9 +200,9 @@ final class ServerBuilder
     /**
      * Manually registers a resource handler.
      */
-    public function withResource(array|string $handler, string $uri, ?string $name = null, ?string $description = null, ?string $mimeType = null, ?int $size = null): self
+    public function withResource(array|string $handler, string $uri, ?string $name = null, ?string $description = null, ?string $mimeType = null, ?int $size = null, ?Annotations $annotations = null): self
     {
-        $this->manualResources[] = compact('handler', 'uri', 'name', 'description', 'mimeType', 'size');
+        $this->manualResources[] = compact('handler', 'uri', 'name', 'description', 'mimeType', 'size', 'annotations');
 
         return $this;
     }
@@ -180,9 +210,9 @@ final class ServerBuilder
     /**
      * Manually registers a resource template handler.
      */
-    public function withResourceTemplate(array|string $handler, string $uriTemplate, ?string $name = null, ?string $description = null, ?string $mimeType = null): self
+    public function withResourceTemplate(array|string $handler, string $uriTemplate, ?string $name = null, ?string $description = null, ?string $mimeType = null, ?Annotations $annotations = null): self
     {
-        $this->manualResourceTemplates[] = compact('handler', 'uriTemplate', 'name', 'description', 'mimeType');
+        $this->manualResourceTemplates[] = compact('handler', 'uriTemplate', 'name', 'description', 'mimeType', 'annotations');
 
         return $this;
     }
@@ -204,7 +234,7 @@ final class ServerBuilder
      */
     public function build(): Server
     {
-        if ($this->name === null || $this->version === null || $this->name === '' || $this->version === '') {
+        if ($this->serverInfo === null) {
             throw new ConfigurationException('Server name and version must be provided using withServerInfo().');
         }
 
@@ -212,11 +242,10 @@ final class ServerBuilder
         $cache = $this->cache;
         $logger = $this->logger ?? new NullLogger();
         $container = $this->container ?? new BasicContainer();
-        $capabilities = $this->capabilities ?? Capabilities::forServer();
+        $capabilities = $this->capabilities ?? ServerCapabilities::make();
 
         $configuration = new Configuration(
-            serverName: $this->name,
-            serverVersion: $this->version,
+            serverInfo: $this->serverInfo,
             capabilities: $capabilities,
             logger: $logger,
             loop: $loop,
@@ -259,17 +288,22 @@ final class ServerBuilder
         // Register Tools
         foreach ($this->manualTools as $data) {
             try {
-                $resolvedHandler = HandlerResolver::resolve($data['handler']);
-                $def = Definitions\ToolDefinition::fromReflection(
-                    $resolvedHandler['reflectionMethod'],
-                    $data['name'],
-                    $data['description'],
-                    $data['annotations'],
-                    $docBlockParser,
-                    $schemaGenerator
-                );
-                $registry->registerTool($def, true);
-                $logger->debug("Registered manual tool '{$def->toolName}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
+                $reflectionMethod = HandlerResolver::resolve($data['handler']);
+                $className = $reflectionMethod->getDeclaringClass()->getName();
+                $methodName = $reflectionMethod->getName();
+                $docBlock = $docBlockParser->parseDocBlock($reflectionMethod->getDocComment() ?? null);
+
+                $name = $data['name'] ?? ($reflectionMethod->getName() === '__invoke'
+                    ? $reflectionMethod->getDeclaringClass()->getShortName()
+                    : $reflectionMethod->getName());
+                $description = $data['description'] ?? $docBlockParser->getSummary($docBlock) ?? null;
+                $inputSchema = $schemaGenerator->fromMethodParameters($reflectionMethod);
+
+                $tool = Tool::make($name, $inputSchema, $description, $data['annotations']);
+                $invoker = new MethodInvoker($className, $methodName);
+                $registry->registerTool($tool, $invoker, true);
+
+                $logger->debug("Registered manual tool {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual tool', ['handler' => $data['handler'], 'name' => $data['name'], 'exception' => $e]);
@@ -279,19 +313,23 @@ final class ServerBuilder
         // Register Resources
         foreach ($this->manualResources as $data) {
             try {
-                $resolvedHandler = HandlerResolver::resolve($data['handler']);
-                $def = Definitions\ResourceDefinition::fromReflection(
-                    $resolvedHandler['reflectionMethod'],
-                    $data['name'],
-                    $data['description'],
-                    $data['uri'],
-                    $data['mimeType'],
-                    $data['size'],
-                    $data['annotations'],
-                    $docBlockParser
-                );
-                $registry->registerResource($def, true);
-                $logger->debug("Registered manual resource '{$def->uri}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
+                $reflectionMethod = HandlerResolver::resolve($data['handler']);
+                $className = $reflectionMethod->getDeclaringClass()->getName();
+                $methodName = $reflectionMethod->getName();
+                $docBlock = $docBlockParser->parseDocBlock($reflectionMethod->getDocComment() ?? null);
+
+                $uri = $data['uri'];
+                $name = $data['name'] ?? ($methodName === '__invoke' ? $reflectionMethod->getDeclaringClass()->getShortName() : $methodName);
+                $description = $data['description'] ?? $docBlockParser->getSummary($docBlock) ?? null;
+                $mimeType = $data['mimeType'];
+                $size = $data['size'];
+                $annotations = $data['annotations'];
+
+                $resource = Resource::make($uri, $name, $description, $mimeType, $annotations, $size);
+                $invoker = new MethodInvoker($className, $methodName);
+                $registry->registerResource($resource, $invoker, true);
+
+                $logger->debug("Registered manual resource {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual resource', ['handler' => $data['handler'], 'uri' => $data['uri'], 'exception' => $e]);
@@ -301,18 +339,22 @@ final class ServerBuilder
         // Register Templates
         foreach ($this->manualResourceTemplates as $data) {
             try {
-                $resolvedHandler = HandlerResolver::resolve($data['handler']);
-                $def = Definitions\ResourceTemplateDefinition::fromReflection(
-                    $resolvedHandler['reflectionMethod'],
-                    $data['name'],
-                    $data['description'],
-                    $data['uriTemplate'],
-                    $data['mimeType'],
-                    $data['annotations'],
-                    $docBlockParser
-                );
-                $registry->registerResourceTemplate($def, true);
-                $logger->debug("Registered manual template '{$def->uriTemplate}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
+                $reflectionMethod = HandlerResolver::resolve($data['handler']);
+                $className = $reflectionMethod->getDeclaringClass()->getName();
+                $methodName = $reflectionMethod->getName();
+                $docBlock = $docBlockParser->parseDocBlock($reflectionMethod->getDocComment() ?? null);
+
+                $uriTemplate = $data['uriTemplate'];
+                $name = $data['name'] ?? ($methodName === '__invoke' ? $reflectionMethod->getDeclaringClass()->getShortName() : $methodName);
+                $description = $data['description'] ?? $docBlockParser->getSummary($docBlock) ?? null;
+                $mimeType = $data['mimeType'];
+                $annotations = $data['annotations'];
+
+                $template = ResourceTemplate::make($uriTemplate, $name, $description, $mimeType, $annotations);
+                $invoker = new MethodInvoker($className, $methodName);
+                $registry->registerResourceTemplate($template, $invoker, true);
+
+                $logger->debug("Registered manual template {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual template', ['handler' => $data['handler'], 'uriTemplate' => $data['uriTemplate'], 'exception' => $e]);
@@ -322,15 +364,36 @@ final class ServerBuilder
         // Register Prompts
         foreach ($this->manualPrompts as $data) {
             try {
-                $resolvedHandler = HandlerResolver::resolve($data['handler']);
-                $def = Definitions\PromptDefinition::fromReflection(
-                    $resolvedHandler['reflectionMethod'],
-                    $data['name'],
-                    $data['description'],
-                    $docBlockParser
-                );
-                $registry->registerPrompt($def, true);
-                $logger->debug("Registered manual prompt '{$def->promptName}' from handler {$resolvedHandler['className']}::{$resolvedHandler['methodName']}");
+                $reflectionMethod = HandlerResolver::resolve($data['handler']);
+                $className = $reflectionMethod->getDeclaringClass()->getName();
+                $methodName = $reflectionMethod->getName();
+                $docBlock = $docBlockParser->parseDocBlock($reflectionMethod->getDocComment() ?? null);
+
+                $name = $data['name'] ?? ($methodName === '__invoke' ? $reflectionMethod->getDeclaringClass()->getShortName() : $methodName);
+                $description = $data['description'] ?? $docBlockParser->getSummary($docBlock) ?? null;
+
+                $arguments = [];
+                $paramTags = $docBlockParser->getParamTags($docBlock);
+                foreach ($reflectionMethod->getParameters() as $param) {
+                    $reflectionType = $param->getType();
+
+                    // Basic DI check (heuristic)
+                    if ($reflectionType instanceof \ReflectionNamedType && ! $reflectionType->isBuiltin()) {
+                        continue;
+                    }
+
+                    $paramTag = $paramTags['$' . $param->getName()] ?? null;
+                    $arguments[] = PromptArgument::make(
+                        name: $param->getName(),
+                        description: $paramTag ? trim((string) $paramTag->getDescription()) : null,
+                        required: ! $param->isOptional() && ! $param->isDefaultValueAvailable()
+                    );
+                }
+
+                $prompt = Prompt::make($name, $description, $arguments);
+                $invoker = new MethodInvoker($className, $methodName);
+                $registry->registerPrompt($prompt, $invoker, true);
+                $logger->debug("Registered manual prompt {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
                 $errorCount++;
                 $logger->error('Failed to register manual prompt', ['handler' => $data['handler'], 'name' => $data['name'], 'exception' => $e]);

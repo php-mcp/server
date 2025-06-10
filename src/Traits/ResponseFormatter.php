@@ -3,14 +3,16 @@
 namespace PhpMcp\Server\Traits;
 
 use JsonException;
-use PhpMcp\Server\JsonRpc\Contents\AudioContent;
-use PhpMcp\Server\JsonRpc\Contents\Content;
-use PhpMcp\Server\JsonRpc\Contents\EmbeddedResource;
-use PhpMcp\Server\JsonRpc\Contents\ImageContent;
-use PhpMcp\Server\JsonRpc\Contents\PromptMessage;
-use PhpMcp\Server\JsonRpc\Contents\ResourceContent;
-use PhpMcp\Server\JsonRpc\Contents\TextContent;
-use PhpMcp\Server\Model\Role;
+use PhpMcp\Schema\Content\AudioContent;
+use PhpMcp\Schema\Content\BlobResourceContents;
+use PhpMcp\Schema\Enum\Role;
+use PhpMcp\Schema\Content\Content;
+use PhpMcp\Schema\Content\EmbeddedResource;
+use PhpMcp\Schema\Content\ImageContent;
+use PhpMcp\Schema\Content\PromptMessage;
+use PhpMcp\Schema\Content\ResourceContents;
+use PhpMcp\Schema\Content\TextContent;
+use PhpMcp\Schema\Content\TextResourceContents;
 use Throwable;
 
 /**
@@ -37,10 +39,7 @@ trait ResponseFormatter
         }
 
         if ($toolExecutionResult === null) {
-            if (($outputSchema['type'] ?? 'mixed') !== 'void') {
-                return [TextContent::make('(null)')];
-            }
-            return [];
+            return [TextContent::make('(null)')];
         }
 
         if (is_bool($toolExecutionResult)) {
@@ -71,7 +70,7 @@ trait ResponseFormatter
         $errorMessage .= ' (Type: ' . get_class($toolError) . ')';
 
         return [
-            new TextContent($errorMessage),
+            TextContent::make($errorMessage),
         ];
     }
 
@@ -98,7 +97,7 @@ trait ResponseFormatter
      */
     protected function formatResourceContents(mixed $readResult, string $uri, ?string $defaultMimeType): array
     {
-        if ($readResult instanceof ResourceContent) {
+        if ($readResult instanceof ResourceContents) {
             return [$readResult];
         }
 
@@ -106,30 +105,28 @@ trait ResponseFormatter
             return [$readResult->resource];
         }
 
-        if (is_array($readResult) && ! empty($readResult) && $readResult[array_key_first($readResult)] instanceof ResourceContent) {
+        if (is_array($readResult) && ! empty($readResult) && $readResult[array_key_first($readResult)] instanceof ResourceContents) {
             return $readResult;
         }
 
         if (is_array($readResult) && ! empty($readResult) && $readResult[array_key_first($readResult)] instanceof EmbeddedResource) {
-            return array_map(fn ($item) => $item->resource, $readResult);
+            return array_map(fn($item) => $item->resource, $readResult);
         }
 
         if (is_string($readResult)) {
             $mimeType = $defaultMimeType ?? $this->guessMimeTypeFromString($readResult);
 
-            return [new ResourceContent($uri, $mimeType, $readResult)];
+            return [TextResourceContents::make($uri, $mimeType, $readResult)];
         }
 
         if (is_resource($readResult) && get_resource_type($readResult) === 'stream') {
-            $result = ResourceContent::fromStream(
+            $result = BlobResourceContents::fromStream(
                 $uri,
                 $readResult,
                 $defaultMimeType ?? 'application/octet-stream'
             );
 
-            if (is_resource($readResult)) {
-                @fclose($readResult);
-            }
+            @fclose($readResult);
 
             return [$result];
         }
@@ -137,17 +134,17 @@ trait ResponseFormatter
         if (is_array($readResult) && isset($readResult['blob']) && is_string($readResult['blob'])) {
             $mimeType = $readResult['mimeType'] ?? $defaultMimeType ?? 'application/octet-stream';
 
-            return [new ResourceContent($uri, $mimeType, null, $readResult['blob'])];
+            return [BlobResourceContents::make($uri, $mimeType, $readResult['blob'])];
         }
 
         if (is_array($readResult) && isset($readResult['text']) && is_string($readResult['text'])) {
             $mimeType = $readResult['mimeType'] ?? $defaultMimeType ?? 'text/plain';
 
-            return [new ResourceContent($uri, $mimeType, $readResult['text'])];
+            return [TextResourceContents::make($uri, $mimeType, $readResult['text'])];
         }
 
         if ($readResult instanceof \SplFileInfo && $readResult->isFile() && $readResult->isReadable()) {
-            return [ResourceContent::fromSplFileInfo($uri, $readResult, $defaultMimeType)];
+            return [BlobResourceContents::fromSplFileInfo($uri, $readResult, $defaultMimeType)];
         }
 
         if (is_array($readResult)) {
@@ -156,7 +153,7 @@ trait ResponseFormatter
                 try {
                     $jsonString = json_encode($readResult, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT);
 
-                    return [new ResourceContent($uri, $defaultMimeType, $jsonString)];
+                    return [TextResourceContents::make($uri, $defaultMimeType, $jsonString)];
                 } catch (\JsonException $e) {
                     $this->logger->warning('MCP SDK: Failed to JSON encode array resource result', [
                         'uri' => $uri,
@@ -175,7 +172,7 @@ trait ResponseFormatter
                     'usedMimeType' => $mimeType,
                 ]);
 
-                return [new ResourceContent($uri, $mimeType, $jsonString)];
+                return [TextResourceContents::make($uri, $mimeType, $jsonString)];
             } catch (\JsonException $e) {
                 $this->logger->error('MCP SDK: Failed to encode array resource result as JSON', [
                     'uri' => $uri,
@@ -238,10 +235,10 @@ trait ResponseFormatter
 
             $result = [];
             if (isset($promptGenerationResult['user'])) {
-                $result[] = PromptMessage::user($promptGenerationResult['user']);
+                $result[] = PromptMessage::make(Role::User, $promptGenerationResult['user']);
             }
             if (isset($promptGenerationResult['assistant'])) {
-                $result[] = PromptMessage::assistant($promptGenerationResult['assistant']);
+                $result[] = PromptMessage::make(Role::Assistant, $promptGenerationResult['assistant']);
             }
 
             if (! empty($result)) {
@@ -297,7 +294,7 @@ trait ResponseFormatter
                             if (! isset($content['text']) || ! is_string($content['text'])) {
                                 throw new \RuntimeException("Invalid 'text' content: Missing or invalid 'text' string.");
                             }
-                            $contentObj = new TextContent($content['text']);
+                            $contentObj = TextContent::make($content['text']);
                             break;
 
                         case 'image':
@@ -307,7 +304,7 @@ trait ResponseFormatter
                             if (! isset($content['mimeType']) || ! is_string($content['mimeType'])) {
                                 throw new \RuntimeException("Invalid 'image' content: Missing or invalid 'mimeType' string.");
                             }
-                            $contentObj = new ImageContent($content['data'], $content['mimeType']);
+                            $contentObj = ImageContent::make($content['data'], $content['mimeType']);
                             break;
 
                         case 'audio':
@@ -317,7 +314,7 @@ trait ResponseFormatter
                             if (! isset($content['mimeType']) || ! is_string($content['mimeType'])) {
                                 throw new \RuntimeException("Invalid 'audio' content: Missing or invalid 'mimeType' string.");
                             }
-                            $contentObj = new AudioContent($content['data'], $content['mimeType']);
+                            $contentObj = AudioContent::make($content['data'], $content['mimeType']);
                             break;
 
                         case 'resource':
@@ -332,12 +329,11 @@ trait ResponseFormatter
 
                             $resourceObj = null;
                             if (isset($resource['text']) && is_string($resource['text'])) {
-                                $resourceObj = new ResourceContent($resource['uri'], $resource['mimeType'] ?? 'text/plain', $resource['text']);
+                                $resourceObj = TextResourceContents::make($resource['uri'], $resource['mimeType'] ?? 'text/plain', $resource['text']);
                             } elseif (isset($resource['blob']) && is_string($resource['blob'])) {
-                                $resourceObj = new ResourceContent(
+                                $resourceObj = BlobResourceContents::make(
                                     $resource['uri'],
                                     $resource['mimeType'] ?? 'application/octet-stream',
-                                    null,
                                     $resource['blob']
                                 );
                             } else {

@@ -5,12 +5,17 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Transports;
 
 use Evenement\EventEmitterTrait;
+use PhpMcp\Schema\Constants;
+use PhpMcp\Schema\JsonRpc\BatchRequest;
 use PhpMcp\Server\Contracts\LoggerAwareInterface;
 use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\TransportException;
-use PhpMcp\Server\JsonRpc\Messages\Message as JsonRpcMessage;
-use PhpMcp\Server\JsonRpc\Messages\Error as JsonRpcError;
+use PhpMcp\Schema\JsonRpc\Notification;
+use PhpMcp\Schema\JsonRpc\Request;
+use PhpMcp\Schema\JsonRpc\Error;
+use PhpMcp\Schema\JsonRpc\Message;
+use PhpMcp\Server\Exception\McpServerException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use React\ChildProcess\Process;
@@ -176,10 +181,10 @@ class StdioServerTransport implements ServerTransportInterface, LoggerAwareInter
             }
 
             try {
-                $message = JsonRpcMessage::parseRequest($trimmedLine);
+                $message = self::parseRequest($trimmedLine);
             } catch (Throwable $e) {
                 $this->logger->error('Error parsing message', ['exception' => $e]);
-                $error = JsonRpcError::parseError("Invalid JSON: " . $e->getMessage());
+                $error = Error::forParseError("Invalid JSON: " . $e->getMessage());
                 $this->sendMessage($error, self::CLIENT_ID);
                 continue;
             }
@@ -188,10 +193,29 @@ class StdioServerTransport implements ServerTransportInterface, LoggerAwareInter
         }
     }
 
+    public static function parseRequest(string $message): Request|Notification|BatchRequest
+    {
+        $messageData = json_decode($message, true, 512, JSON_THROW_ON_ERROR);
+
+        $isBatch = array_is_list($messageData) && count($messageData) > 0 && is_array($messageData[0] ?? null);
+
+        if ($isBatch) {
+            return BatchRequest::fromArray($messageData);
+        } elseif (isset($messageData['method'])) {
+            if (isset($messageData['id']) && $messageData['id'] !== null) {
+                return Request::fromArray($messageData);
+            } else {
+                return Notification::fromArray($messageData);
+            }
+        }
+
+        throw new McpServerException('Invalid JSON-RPC message');
+    }
+
     /**
      * Sends a raw, framed message to STDOUT.
      */
-    public function sendMessage(JsonRpcMessage $message, string $sessionId, array $context = []): PromiseInterface
+    public function sendMessage(Message $message, string $sessionId, array $context = []): PromiseInterface
     {
         if ($this->closing || ! $this->stdout || ! $this->stdout->isWritable()) {
             return reject(new TransportException('Stdio transport is closed or STDOUT is not writable.'));

@@ -3,7 +3,7 @@
 namespace PhpMcp\Server\Attributes;
 
 use Attribute;
-use PhpMcp\Server\Model\ToolAnnotations;
+use PhpMcp\Schema\ToolAnnotations;
 
 #[Attribute(Attribute::TARGET_METHOD | Attribute::TARGET_CLASS)]
 class McpTool
@@ -17,6 +17,5 @@ class McpTool
         public ?string $name = null,
         public ?string $description = null,
         public ?ToolAnnotations $annotations = null,
-    ) {
-    }
+    ) {}
 }
