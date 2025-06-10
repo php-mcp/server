@@ -5,29 +5,43 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Support;
 
 use JsonException;
+use PhpMcp\Schema\JsonRpc\Request;
+use PhpMcp\Schema\JsonRpc\Notification;
+use PhpMcp\Schema\JsonRpc\Result;
+use PhpMcp\Schema\Notification\InitializedNotification;
+use PhpMcp\Schema\Request\CallToolRequest;
+use PhpMcp\Schema\Request\CompletionCompleteRequest;
+use PhpMcp\Schema\Request\GetPromptRequest;
+use PhpMcp\Schema\Request\InitializeRequest;
+use PhpMcp\Schema\Request\ListPromptsRequest;
+use PhpMcp\Schema\Request\ListResourcesRequest;
+use PhpMcp\Schema\Request\ListResourceTemplatesRequest;
+use PhpMcp\Schema\Request\ListToolsRequest;
+use PhpMcp\Schema\Request\PingRequest;
+use PhpMcp\Schema\Request\ReadResourceRequest;
+use PhpMcp\Schema\Request\ResourceSubscribeRequest;
+use PhpMcp\Schema\Request\ResourceUnsubscribeRequest;
+use PhpMcp\Schema\Request\SetLogLevelRequest;
 use PhpMcp\Server\Configuration;
 use PhpMcp\Server\Contracts\SessionInterface;
 use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\JsonRpc\Contents\TextContent;
-use PhpMcp\Server\JsonRpc\Results\CallToolResult;
-use PhpMcp\Server\JsonRpc\Results\CompletionCompleteResult;
-use PhpMcp\Server\JsonRpc\Results\EmptyResult;
-use PhpMcp\Server\JsonRpc\Results\GetPromptResult;
-use PhpMcp\Server\JsonRpc\Results\InitializeResult;
-use PhpMcp\Server\JsonRpc\Results\ListPromptsResult;
-use PhpMcp\Server\JsonRpc\Results\ListResourcesResult;
-use PhpMcp\Server\JsonRpc\Results\ListResourceTemplatesResult;
-use PhpMcp\Server\JsonRpc\Results\ListToolsResult;
-use PhpMcp\Server\JsonRpc\Results\ReadResourceResult;
+use PhpMcp\Schema\Result\CallToolResult;
+use PhpMcp\Schema\Result\CompletionCompleteResult;
+use PhpMcp\Schema\Result\EmptyResult;
+use PhpMcp\Schema\Result\GetPromptResult;
+use PhpMcp\Schema\Result\InitializeResult;
+use PhpMcp\Schema\Result\ListPromptsResult;
+use PhpMcp\Schema\Result\ListResourcesResult;
+use PhpMcp\Schema\Result\ListResourceTemplatesResult;
+use PhpMcp\Schema\Result\ListToolsResult;
+use PhpMcp\Schema\Result\ReadResourceResult;
 use PhpMcp\Server\Protocol;
 use PhpMcp\Server\Registry;
-use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Session\SubscriptionManager;
 use PhpMcp\Server\Traits\ResponseFormatter;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
-use Psr\Log\LogLevel;
-use stdClass;
 use Throwable;
 
 class RequestHandler
@@ -42,60 +56,97 @@ class RequestHandler
         protected Registry $registry,
         protected SubscriptionManager $subscriptionManager,
         protected ?SchemaValidator $schemaValidator = null,
-        protected ?ArgumentPreparer $argumentPreparer = null,
     ) {
         $this->container = $this->configuration->container;
         $this->logger = $this->configuration->logger;
 
         $this->schemaValidator ??= new SchemaValidator($this->logger);
-        $this->argumentPreparer ??= new ArgumentPreparer($this->logger);
     }
 
-    public function handleInitialize(array $params, SessionInterface $session): InitializeResult
+    public function handleRequest(Request $request, SessionInterface $session): Result
     {
-        $protocolVersion = $params['protocolVersion'] ?? null;
-        if (! $protocolVersion) {
-            throw McpServerException::invalidParams("Missing 'protocolVersion' parameter.");
+        switch ($request->method) {
+            case 'initialize':
+                $request = InitializeRequest::fromRequest($request);
+                return $this->handleInitialize($request, $session);
+            case 'ping':
+                $request = PingRequest::fromRequest($request);
+                return $this->handlePing($request);
+            case 'tools/list':
+                $request = ListToolsRequest::fromRequest($request);
+                return $this->handleToolList($request);
+            case 'tools/call':
+                $request = CallToolRequest::fromRequest($request);
+                return $this->handleToolCall($request);
+            case 'resources/list':
+                $request = ListResourcesRequest::fromRequest($request);
+                return $this->handleResourcesList($request);
+            case 'resources/templates/list':
+                $request = ListResourceTemplatesRequest::fromRequest($request);
+                return $this->handleResourceTemplateList($request);
+            case 'resources/read':
+                $request = ReadResourceRequest::fromRequest($request);
+                return $this->handleResourceRead($request);
+            case 'resources/subscribe':
+                $request = ResourceSubscribeRequest::fromRequest($request);
+                return $this->handleResourceSubscribe($request, $session);
+            case 'resources/unsubscribe':
+                $request = ResourceUnsubscribeRequest::fromRequest($request);
+                return $this->handleResourceUnsubscribe($request, $session);
+            case 'prompts/list':
+                $request = ListPromptsRequest::fromRequest($request);
+                return $this->handlePromptsList($request);
+            case 'prompts/get':
+                $request = GetPromptRequest::fromRequest($request);
+                return $this->handlePromptGet($request);
+            case 'logging/setLevel':
+                $request = SetLogLevelRequest::fromRequest($request);
+                return $this->handleLoggingSetLevel($request, $session);
+            case 'completion/complete':
+                $request = CompletionCompleteRequest::fromRequest($request);
+                return $this->handleCompletionComplete($request, $session);
+            default:
+                throw McpServerException::methodNotFound("Method '{$request->method}' not found.");
         }
+    }
 
-        if (! in_array($protocolVersion, Protocol::SUPPORTED_PROTOCOL_VERSIONS)) {
-            $this->logger->warning("Unsupported protocol version: {$protocolVersion}", [
+    public function handleNotification(Notification $notification, SessionInterface $session): void
+    {
+        switch ($notification->method) {
+            case 'notifications/initialized':
+                $notification = InitializedNotification::fromNotification($notification);
+                $this->handleNotificationInitialized($notification, $session);
+        }
+    }
+
+    public function handleInitialize(InitializeRequest $request, SessionInterface $session): InitializeResult
+    {
+        if (! in_array($request->protocolVersion, Protocol::SUPPORTED_PROTOCOL_VERSIONS)) {
+            $this->logger->warning("Unsupported protocol version: {$request->protocolVersion}", [
                 'supportedVersions' => Protocol::SUPPORTED_PROTOCOL_VERSIONS,
             ]);
         }
 
-        $serverProtocolVersion = Protocol::LATEST_PROTOCOL_VERSION;
+        $protocolVersion = Protocol::LATEST_PROTOCOL_VERSION;
 
-        $clientInfo = $params['clientInfo'] ?? null;
-        if (! is_array($clientInfo)) {
-            throw McpServerException::invalidParams("Missing or invalid 'clientInfo' parameter.");
-        }
+        $session->set('client_info', $request->clientInfo);
 
-        $session->set('client_info', $clientInfo);
 
-        $serverInfo = [
-            'name' => $this->configuration->serverName,
-            'version' => $this->configuration->serverVersion,
-        ];
+        $serverInfo = $this->configuration->serverInfo;
+        $capabilities = $this->configuration->capabilities;
 
-        $serverCapabilities = $this->configuration->capabilities;
-        $responseCapabilities = $serverCapabilities->toInitializeResponseArray();
-
-        $instructions = $serverCapabilities->instructions;
-
-        return new InitializeResult($serverInfo, $serverProtocolVersion, $responseCapabilities, $instructions);
+        return new InitializeResult($protocolVersion, $capabilities, $serverInfo);
     }
 
-    public function handlePing(): EmptyResult
+    public function handlePing(PingRequest $request): EmptyResult
     {
         return new EmptyResult();
     }
 
-    public function handleToolList(array $params): ListToolsResult
+    public function handleToolList(ListToolsRequest $request): ListToolsResult
     {
-        $cursor = $params['cursor'] ?? null;
         $limit = $this->configuration->paginationLimit;
-        $offset = $this->decodeCursor($cursor);
+        $offset = $this->decodeCursor($request->cursor);
         $allItems = $this->registry->getTools();
         $pagedItems = array_slice($allItems, $offset, $limit);
         $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
@@ -103,63 +154,17 @@ class RequestHandler
         return new ListToolsResult(array_values($pagedItems), $nextCursor);
     }
 
-    public function handleResourcesList(array $params): ListResourcesResult
+    public function handleToolCall(CallToolRequest $request): CallToolResult
     {
-        $cursor = $params['cursor'] ?? null;
-        $limit = $this->configuration->paginationLimit;
-        $offset = $this->decodeCursor($cursor);
-        $allItems = $this->registry->getResources();
-        $pagedItems = array_slice($allItems, $offset, $limit);
-        $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
+        $toolName = $request->name;
+        $arguments = $request->arguments;
 
-        return new ListResourcesResult(array_values($pagedItems), $nextCursor);
-    }
-
-    public function handleResourceTemplateList(array $params): ListResourceTemplatesResult
-    {
-        $cursor = $params['cursor'] ?? null;
-        $limit = $this->configuration->paginationLimit;
-        $offset = $this->decodeCursor($cursor);
-        $allItems = $this->registry->getResourceTemplates();
-        $pagedItems = array_slice($allItems, $offset, $limit);
-        $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
-
-        return new ListResourceTemplatesResult(array_values($pagedItems), $nextCursor);
-    }
-
-    public function handlePromptsList(array $params): ListPromptsResult
-    {
-        $cursor = $params['cursor'] ?? null;
-        $limit = $this->configuration->paginationLimit;
-        $offset = $this->decodeCursor($cursor);
-        $allItems = $this->registry->getPrompts();
-        $pagedItems = array_slice($allItems, $offset, $limit);
-        $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
-
-        return new ListPromptsResult(array_values($pagedItems), $nextCursor);
-    }
-
-    public function handleToolCall(array $params): CallToolResult
-    {
-        $toolName = $params['name'] ?? null;
-        $arguments = $params['arguments'] ?? null;
-
-        if (! is_string($toolName) || empty($toolName)) {
-            throw McpServerException::invalidParams("Missing or invalid 'name' parameter for tools/call.");
-        }
-
-        if ($arguments === null || $arguments === []) {
-            $arguments = new stdClass();
-        } elseif (! is_array($arguments) && ! $arguments instanceof stdClass) {
-            throw McpServerException::invalidParams("Parameter 'arguments' must be an object/array for tools/call.");
-        }
-
-        $definition = $this->registry->findTool($toolName);
-        if (! $definition) {
+        ['tool' => $tool, 'invoker' => $invoker] = $this->registry->getTool($toolName);
+        if (! $tool) {
             throw McpServerException::methodNotFound("Tool '{$toolName}' not found.");
         }
 
-        $inputSchema = $definition->inputSchema;
+        $inputSchema = $tool->inputSchema;
 
         $validationErrors = $this->schemaValidator->validateAgainstJsonSchema($arguments, $inputSchema);
 
@@ -181,21 +186,9 @@ class RequestHandler
             throw McpServerException::invalidParams($summaryMessage, data: ['validation_errors' => $validationErrors]);
         }
 
-        $argumentsForPhpCall = (array) $arguments;
-
         try {
-            $instance = $this->container->get($definition->className);
-            $methodName = $definition->methodName;
-
-            $args = $this->argumentPreparer->prepareMethodArguments(
-                $instance,
-                $methodName,
-                $argumentsForPhpCall,
-                $inputSchema
-            );
-
-            $toolExecutionResult = $instance->{$methodName}(...$args);
-            $formattedResult = $this->formatToolResult($toolExecutionResult);
+            $result = $invoker->invoke($this->container, $arguments);
+            $formattedResult = $this->formatToolResult($result);
 
             return new CallToolResult($formattedResult, false);
         } catch (JsonException $e) {
@@ -211,43 +204,42 @@ class RequestHandler
         }
     }
 
-    public function handleResourceRead(array $params): ReadResourceResult
+    public function handleResourcesList(ListResourcesRequest $request): ListResourcesResult
     {
-        $uri = $params['uri'] ?? null;
-        if (! is_string($uri) || empty($uri)) {
-            throw McpServerException::invalidParams("Missing or invalid 'uri' parameter for resources/read.");
-        }
+        $limit = $this->configuration->paginationLimit;
+        $offset = $this->decodeCursor($request->cursor);
+        $allItems = $this->registry->getResources();
+        $pagedItems = array_slice($allItems, $offset, $limit);
+        $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
 
-        $definition = null;
-        $uriVariables = [];
+        return new ListResourcesResult(array_values($pagedItems), $nextCursor);
+    }
 
-        $definition = $this->registry->findResourceByUri($uri);
+    public function handleResourceTemplateList(ListResourceTemplatesRequest $request): ListResourceTemplatesResult
+    {
+        $limit = $this->configuration->paginationLimit;
+        $offset = $this->decodeCursor($request->cursor);
+        $allItems = $this->registry->getResourceTemplates();
+        $pagedItems = array_slice($allItems, $offset, $limit);
+        $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
 
-        if (! $definition) {
-            $templateResult = $this->registry->findResourceTemplateByUri($uri);
-            if ($templateResult) {
-                $definition = $templateResult['definition'];
-                $uriVariables = $templateResult['variables'];
-            } else {
-                throw McpServerException::invalidParams("Resource URI '{$uri}' not found or no handler available.");
-            }
+        return new ListResourceTemplatesResult(array_values($pagedItems), $nextCursor);
+    }
+
+    public function handleResourceRead(ReadResourceRequest $request): ReadResourceResult
+    {
+        $uri = $request->uri;
+
+        ['resource' => $resource, 'invoker' => $invoker, 'variables' => $uriVariables] = $this->registry->getResource($uri);
+
+        if (! $resource) {
+            throw McpServerException::invalidParams("Resource URI '{$uri}' not found.");
         }
 
         try {
-            $instance = $this->container->get($definition->className);
-            $methodName = $definition->methodName;
-
-            $methodParams = array_merge($uriVariables, ['uri' => $uri]);
-
-            $args = $this->argumentPreparer->prepareMethodArguments(
-                $instance,
-                $methodName,
-                $methodParams,
-                []
-            );
-
-            $readResult = $instance->{$methodName}(...$args);
-            $contents = $this->formatResourceContents($readResult, $uri, $definition->mimeType);
+            $arguments = array_merge($uriVariables, ['uri' => $uri]);
+            $result = $invoker->invoke($this->container, $arguments);
+            $contents = $this->formatResourceContents($result, $uri, $resource->mimeType);
 
             return new ReadResourceResult($contents);
         } catch (JsonException $e) {
@@ -261,70 +253,52 @@ class RequestHandler
         }
     }
 
-
-    public function handleResourceSubscribe(array $params, SessionInterface $session): EmptyResult
+    public function handleResourceSubscribe(ResourceSubscribeRequest $request, SessionInterface $session): EmptyResult
     {
-        $uri = $params['uri'] ?? null;
-        if (!is_string($uri) || empty($uri)) {
-            throw McpServerException::invalidParams("Missing or invalid 'uri' parameter");
-        }
-
-        $this->subscriptionManager->subscribe($session->getId(), $uri);
+        $this->subscriptionManager->subscribe($session->getId(), $request->uri);
         return new EmptyResult();
     }
 
-
-    public function handleResourceUnsubscribe(array $params, SessionInterface $session): EmptyResult
+    public function handleResourceUnsubscribe(ResourceUnsubscribeRequest $request, SessionInterface $session): EmptyResult
     {
-        $uri = $params['uri'] ?? null;
-        if (!is_string($uri) || empty($uri)) {
-            throw McpServerException::invalidParams("Missing or invalid 'uri' parameter");
-        }
-
-        $this->subscriptionManager->unsubscribe($session->getId(), $uri);
+        $this->subscriptionManager->unsubscribe($session->getId(), $request->uri);
         return new EmptyResult();
     }
 
-    public function handlePromptGet(array $params): GetPromptResult
+    public function handlePromptsList(ListPromptsRequest $request): ListPromptsResult
     {
-        $promptName = $params['name'] ?? null;
-        $arguments = $params['arguments'] ?? [];
+        $limit = $this->configuration->paginationLimit;
+        $offset = $this->decodeCursor($request->cursor);
+        $allItems = $this->registry->getPrompts();
+        $pagedItems = array_slice($allItems, $offset, $limit);
+        $nextCursor = $this->encodeNextCursor($offset, count($pagedItems), count($allItems), $limit);
 
-        if (! is_string($promptName) || empty($promptName)) {
-            throw McpServerException::invalidParams("Missing or invalid 'name' parameter for prompts/get.");
-        }
-        if (! is_array($arguments) && ! $arguments instanceof stdClass) {
-            throw McpServerException::invalidParams("Parameter 'arguments' must be an object/array for prompts/get.");
-        }
+        return new ListPromptsResult(array_values($pagedItems), $nextCursor);
+    }
 
-        $definition = $this->registry->findPrompt($promptName);
-        if (! $definition) {
+    public function handlePromptGet(GetPromptRequest $request): GetPromptResult
+    {
+        $promptName = $request->name;
+        $arguments = $request->arguments;
+
+        ['prompt' => $prompt, 'invoker' => $invoker] = $this->registry->getPrompt($promptName);
+        if (! $prompt) {
             throw McpServerException::invalidParams("Prompt '{$promptName}' not found.");
         }
 
         $arguments = (array) $arguments;
 
-        foreach ($definition->arguments as $argDef) {
+        foreach ($prompt->arguments as $argDef) {
             if ($argDef->required && ! array_key_exists($argDef->name, $arguments)) {
                 throw McpServerException::invalidParams("Missing required argument '{$argDef->name}' for prompt '{$promptName}'.");
             }
         }
 
         try {
-            $instance = $this->container->get($definition->className);
-            $methodName = $definition->methodName;
+            $result = $invoker->invoke($this->container, $arguments);
+            $messages = $this->formatPromptMessages($result);
 
-            $args = $this->argumentPreparer->prepareMethodArguments(
-                $instance,
-                $methodName,
-                $arguments,
-                []
-            );
-
-            $promptGenerationResult = $instance->{$methodName}(...$args);
-            $messages = $this->formatPromptMessages($promptGenerationResult);
-
-            return new GetPromptResult($messages, $definition->description);
+            return new GetPromptResult($messages, $prompt->description);
         } catch (JsonException $e) {
             $this->logger->warning('MCP SDK: Failed to JSON encode prompt messages.', ['exception' => $e, 'promptName' => $promptName]);
             throw McpServerException::internalError("Failed to serialize prompt messages for '{$promptName}'.", $e);
@@ -336,49 +310,21 @@ class RequestHandler
         }
     }
 
-    public function handleLoggingSetLevel(array $params, SessionInterface $session): EmptyResult
+    public function handleLoggingSetLevel(SetLogLevelRequest $request, SessionInterface $session): EmptyResult
     {
-        $level = $params['level'] ?? null;
-        $validLevels = [
-            LogLevel::EMERGENCY,
-            LogLevel::ALERT,
-            LogLevel::CRITICAL,
-            LogLevel::ERROR,
-            LogLevel::WARNING,
-            LogLevel::NOTICE,
-            LogLevel::INFO,
-            LogLevel::DEBUG,
-        ];
+        $level = $request->level;
 
-        if (! is_string($level) || ! in_array(strtolower($level), $validLevels)) {
-            throw McpServerException::invalidParams("Invalid or missing 'level'. Must be one of: " . implode(', ', $validLevels));
-        }
+        $session->set('log_level', $level->value);
 
-        $session->set('log_level', strtolower($level));
-
-        $this->logger->info("Log level set to '{$level}'.", ['sessionId' => $session->getId()]);
+        $this->logger->info("Log level set to '{$level->value}'.", ['sessionId' => $session->getId()]);
 
         return new EmptyResult();
     }
 
-    public function handleCompletionComplete(array $params, SessionInterface $session): CompletionCompleteResult
+    public function handleCompletionComplete(CompletionCompleteRequest $request, SessionInterface $session): CompletionCompleteResult
     {
-        $ref = $params['ref'] ?? null;
-        $argumentContext = $params['argument'] ?? null;
-
-        if (
-            !is_array($ref)
-            || !isset($ref['type'])
-            || !is_array($argumentContext)
-            || !isset($argumentContext['name'])
-            || !array_key_exists('value', $argumentContext)
-        ) {
-            throw McpServerException::invalidParams("Missing or invalid 'ref' or 'argument' parameters for completion/complete.");
-        }
-
-        $type = $ref['type'];
-        $name = $argumentContext['name'];
-        $value = $argumentContext['value'];
+        $ref = $request->ref;
+        $argument = $request->argument;
 
         $completionValues = [];
         $total = null;
@@ -390,17 +336,17 @@ class RequestHandler
         // 2. Determine if that definition has a completion provider for the given $argName.
         // 3. Invoke that provider with $currentValue and $session (for context).
 
-        // --- Placeholder/Example Logic ---
-        if ($name === 'userId') {
+        // --- Example Logic ---
+        if ($argument['name'] === 'userId') {
             $completionValues = ['101', '102', '103'];
             $total = 3;
         }
-        // --- End Placeholder ---
+        // --- End Example ---
 
         return new CompletionCompleteResult($completionValues, $total, $hasMore);
     }
 
-    public function handleNotificationInitialized(array $params, SessionInterface $session): EmptyResult
+    public function handleNotificationInitialized(InitializedNotification $notification, SessionInterface $session): EmptyResult
     {
         $session->set('initialized', true);
 

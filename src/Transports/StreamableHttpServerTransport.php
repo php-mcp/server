@@ -12,12 +12,13 @@ use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\Exception\TransportException;
-use PhpMcp\Server\JsonRpc\Messages\Message as JsonRpcMessage;
-use PhpMcp\Server\JsonRpc\Messages\BatchRequest;
-use PhpMcp\Server\JsonRpc\Messages\BatchResponse;
-use PhpMcp\Server\JsonRpc\Messages\Error as JsonRpcError;
-use PhpMcp\Server\JsonRpc\Messages\Request as JsonRpcRequest;
-use PhpMcp\Server\JsonRpc\Messages\Response as JsonRpcResponse;
+use PhpMcp\Schema\JsonRpc\Message;
+use PhpMcp\Schema\JsonRpc\BatchRequest;
+use PhpMcp\Schema\JsonRpc\BatchResponse;
+use PhpMcp\Schema\JsonRpc\Error;
+use PhpMcp\Schema\JsonRpc\Notification;
+use PhpMcp\Schema\JsonRpc\Request;
+use PhpMcp\Schema\JsonRpc\Response;
 use PhpMcp\Server\Support\RandomIdGenerator;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
@@ -143,7 +144,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
             $this->logger->debug("Request received", ['method' => $method, 'path' => $path, 'target' => $this->mcpPath]);
 
             if ($path !== $this->mcpPath) {
-                $error = JsonRpcError::invalidRequest("Not found: {$path}");
+                $error = Error::forInvalidRequest("Not found: {$path}");
                 return new HttpResponse(404, ['Content-Type' => 'application/json'], json_encode($error));
             }
 
@@ -166,9 +167,9 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
             try {
                 return match ($method) {
-                    'GET' => $this->handleGetRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
-                    'POST' => $this->handlePostRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
-                    'DELETE' => $this->handleDeleteRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
+                    'GET' => $this->handleGetRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
+                    'POST' => $this->handlePostRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
+                    'DELETE' => $this->handleDeleteRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
                     default => $addCors($this->handleUnsupportedRequest($request)),
                 };
             } catch (Throwable $e) {
@@ -181,14 +182,14 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
     {
         $acceptHeader = $request->getHeaderLine('Accept');
         if (!str_contains($acceptHeader, 'text/event-stream')) {
-            $error = JsonRpcError::connectionAborted("Not Acceptable: Client must accept text/event-stream for GET requests.");
+            $error = Error::forInvalidRequest("Not Acceptable: Client must accept text/event-stream for GET requests.");
             return resolve(new HttpResponse(406, ['Content-Type' => 'application/json'], json_encode($error)));
         }
 
         $sessionId = $request->getHeaderLine('Mcp-Session-Id');
         if (empty($sessionId)) {
             $this->logger->warning("GET request without Mcp-Session-Id.");
-            $error = JsonRpcError::invalidRequest("Mcp-Session-Id header required for GET requests.");
+            $error = Error::forInvalidRequest("Mcp-Session-Id header required for GET requests.");
             return resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
         }
 
@@ -227,13 +228,13 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
         $acceptHeader = $request->getHeaderLine('Accept');
         if (!str_contains($acceptHeader, 'application/json') && !str_contains($acceptHeader, 'text/event-stream')) {
-            $error = JsonRpcError::connectionAborted("Not Acceptable: Client must accept application/json or text/event-stream");
+            $error = Error::forInvalidRequest("Not Acceptable: Client must accept application/json or text/event-stream");
             $deferred->resolve(new HttpResponse(406, ['Content-Type' => 'application/json'], json_encode($error)));
             return $deferred->promise();
         }
 
         if (!str_contains($request->getHeaderLine('Content-Type'), 'application/json')) {
-            $error = JsonRpcError::connectionAborted("Unsupported Media Type: Content-Type must be application/json");
+            $error = Error::forInvalidRequest("Unsupported Media Type: Content-Type must be application/json");
             $deferred->resolve(new HttpResponse(415, ['Content-Type' => 'application/json'], json_encode($error)));
             return $deferred->promise();
         }
@@ -242,27 +243,27 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
         if (empty($body)) {
             $this->logger->warning("Received empty POST body");
-            $error = JsonRpcError::invalidRequest("Empty request body.");
+            $error = Error::forInvalidRequest("Empty request body.");
             $deferred->resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
             return $deferred->promise();
         }
 
         try {
-            $message = JsonRpcMessage::parseRequest($body);
+            $message = self::parseRequest($body);
         } catch (Throwable $e) {
             $this->logger->error("Failed to parse MCP message from POST body", ['error' => $e->getMessage()]);
-            $error = JsonRpcError::parseError("Invalid JSON: " . $e->getMessage());
+            $error = Error::forParseError("Invalid JSON: " . $e->getMessage());
             $deferred->resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
             return $deferred->promise();
         }
 
-        $isInitializeRequest = ($message instanceof JsonRpcRequest && $message->method === 'initialize');
+        $isInitializeRequest = ($message instanceof Request && $message->method === 'initialize');
         $sessionId = null;
 
         if ($isInitializeRequest) {
             if ($request->hasHeader('Mcp-Session-Id')) {
                 $this->logger->warning("Client sent Mcp-Session-Id with InitializeRequest. Ignoring.", ['clientSentId' => $request->getHeaderLine('Mcp-Session-Id')]);
-                $error = JsonRpcError::invalidRequest("Invalid request: Session already initialized. Mcp-Session-Id header not allowed with InitializeRequest.");
+                $error = Error::forInvalidRequest("Invalid request: Session already initialized. Mcp-Session-Id header not allowed with InitializeRequest.", $message->id);
                 $deferred->resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
                 return $deferred->promise();
             }
@@ -274,7 +275,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
             if (empty($sessionId)) {
                 $this->logger->warning("POST request without Mcp-Session-Id.");
-                $error = JsonRpcError::invalidRequest("Mcp-Session-Id header required for POST requests.");
+                $error = Error::forInvalidRequest("Mcp-Session-Id header required for POST requests.", $message->id);
                 $deferred->resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
                 return $deferred->promise();
             }
@@ -286,7 +287,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
         $hasRequests = false;
         $nRequests = 0;
-        if ($message instanceof JsonRpcRequest) {
+        if ($message instanceof Request) {
             $hasRequests = true;
             $nRequests = 1;
         } elseif ($message instanceof BatchRequest) {
@@ -368,7 +369,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         $sessionId = $request->getHeaderLine('Mcp-Session-Id');
         if (empty($sessionId)) {
             $this->logger->warning("DELETE request without Mcp-Session-Id.");
-            $error = JsonRpcError::invalidRequest("Mcp-Session-Id header required for DELETE.");
+            $error = Error::forInvalidRequest("Mcp-Session-Id header required for DELETE.");
             return resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
         }
 
@@ -391,7 +392,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
     private function handleUnsupportedRequest(ServerRequestInterface $request): HttpResponse
     {
-        $error = JsonRpcError::connectionAborted("Method not allowed: {$request->getMethod()}");
+        $error = Error::forInvalidRequest("Method not allowed: {$request->getMethod()}");
         $headers = [
             'Content-Type' => 'application/json',
             'Allow' => 'GET, POST, DELETE, OPTIONS',
@@ -408,21 +409,40 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         ]);
 
         if ($e instanceof TransportException) {
-            $error = JsonRpcError::connectionAborted("Transport Error: " . $e->getMessage());
+            $error = Error::forInternalError("Transport Error: " . $e->getMessage());
             return new HttpResponse(500, ['Content-Type' => 'application/json'], json_encode($error));
         }
 
-        $error = JsonRpcError::connectionAborted("Internal Server Error during HTTP request processing.");
+        $error = Error::forInternalError("Internal Server Error during HTTP request processing.");
         return new HttpResponse(500, ['Content-Type' => 'application/json'], json_encode($error));
     }
 
-    public function sendMessage(JsonRpcMessage $message, string $sessionId, array $context = []): PromiseInterface
+    public static function parseRequest(string $message): Request|Notification|BatchRequest
+    {
+        $messageData = json_decode($message, true, 512, JSON_THROW_ON_ERROR);
+
+        $isBatch = array_is_list($messageData) && count($messageData) > 0 && is_array($messageData[0] ?? null);
+
+        if ($isBatch) {
+            return BatchRequest::fromArray($messageData);
+        } elseif (isset($messageData['method'])) {
+            if (isset($messageData['id']) && $messageData['id'] !== null) {
+                return Request::fromArray($messageData);
+            } else {
+                return Notification::fromArray($messageData);
+            }
+        }
+
+        throw new McpServerException('Invalid JSON-RPC message');
+    }
+
+    public function sendMessage(Message $message, string $sessionId, array $context = []): PromiseInterface
     {
         if ($this->closing) {
             return reject(new TransportException('Transport is closing.'));
         }
 
-        $isInitializeResponse = ($context['is_initialize_request'] ?? false) && ($message instanceof JsonRpcResponse);
+        $isInitializeResponse = ($context['is_initialize_request'] ?? false) && ($message instanceof Response);
 
         switch ($context['type'] ?? null) {
             case 'post_202_sent':
@@ -443,13 +463,13 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
                 $sentCountThisCall = 0;
 
-                if ($message instanceof JsonRpcResponse || $message instanceof JsonRpcError) {
+                if ($message instanceof Response || $message instanceof Error) {
                     $json = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                     $eventId = $this->eventStore ? $this->eventStore->storeEvent($streamId, $json) : null;
                     $this->sendSseEventToStream($stream, $json, $eventId);
                     $sentCountThisCall = 1;
                 } elseif ($message instanceof BatchResponse) {
-                    foreach ($message->all() as $singleResponse) {
+                    foreach ($message->getAll() as $singleResponse) {
                         $json = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                         $eventId = $this->eventStore ? $this->eventStore->storeEvent($streamId, $json) : null;
                         $this->sendSseEventToStream($stream, $json, $eventId);
@@ -496,12 +516,12 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
                     $this->logger->warning("GET SSE stream is not writable.", ['sessionId' => $sessionId]);
                     return reject(new TransportException("GET SSE stream not writable."));
                 }
-                if ($message instanceof JsonRpcResponse || $message instanceof JsonRpcError) {
+                if ($message instanceof Response || $message instanceof Error) {
                     $json = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                     $eventId = $this->eventStore ? $this->eventStore->storeEvent('GET_STREAM', $json) : null;
                     $this->sendSseEventToStream($this->getStream, $json, $eventId);
                 } elseif ($message instanceof BatchResponse) {
-                    foreach ($message->all() as $singleResponse) {
+                    foreach ($message->getAll() as $singleResponse) {
                         $json = json_encode($singleResponse, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                         $eventId = $this->eventStore ? $this->eventStore->storeEvent('GET_STREAM', $json) : null;
                         $this->sendSseEventToStream($this->getStream, $json, $eventId);

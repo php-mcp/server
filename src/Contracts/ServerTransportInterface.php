@@ -6,7 +6,7 @@ namespace PhpMcp\Server\Contracts;
 
 use Evenement\EventEmitterInterface;
 use PhpMcp\Server\Exception\TransportException;
-use PhpMcp\Server\JsonRpc\Messages\Message;
+use PhpMcp\Schema\JsonRpc\Message;
 use React\Promise\PromiseInterface;
 
 /**

@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Exception;
 
 use Exception;
-use PhpMcp\Server\JsonRpc\Messages\Error as JsonRpcError;
+use PhpMcp\Schema\Constants;
+use PhpMcp\Schema\JsonRpc\Error as JsonRpcError;
 use Throwable;
 
 /**
@@ -57,7 +58,7 @@ class McpServerException extends Exception
      */
     public function toJsonRpcError(string|int $id): JsonRpcError
     {
-        $code = ($this->code >= -32768 && $this->code <= -32000) ? $this->code : JsonRpcError::CODE_INTERNAL_ERROR;
+        $code = ($this->code >= -32768 && $this->code <= -32000) ? $this->code : Constants::INTERNAL_ERROR;
 
         return new JsonRpcError(
             jsonrpc: '2.0',
@@ -68,27 +69,25 @@ class McpServerException extends Exception
         );
     }
 
-    // --- Static Factory Methods for Common JSON-RPC Errors ---
-
     public static function parseError(string $details, ?Throwable $previous = null): self
     {
-        return new ProtocolException('Parse error: ' . $details, JsonRpcError::CODE_PARSE_ERROR, null, $previous);
+        return new ProtocolException('Parse error: ' . $details, Constants::PARSE_ERROR, null, $previous);
     }
 
     public static function invalidRequest(?string $details = 'Invalid Request', ?Throwable $previous = null): self
     {
-        return new ProtocolException($details, JsonRpcError::CODE_INVALID_REQUEST, null, $previous);
+        return new ProtocolException($details, Constants::INVALID_REQUEST, null, $previous);
     }
 
     public static function methodNotFound(string $methodName, ?string $message = null, ?Throwable $previous = null): self
     {
-        return new ProtocolException($message ?? "Method not found: {$methodName}", JsonRpcError::CODE_METHOD_NOT_FOUND, null, $previous);
+        return new ProtocolException($message ?? "Method not found: {$methodName}", Constants::METHOD_NOT_FOUND, null, $previous);
     }
 
     public static function invalidParams(string $message = 'Invalid params', $data = null, ?Throwable $previous = null): self
     {
         // Pass data (e.g., validation errors) through
-        return new ProtocolException($message, JsonRpcError::CODE_INVALID_PARAMS, $data, $previous);
+        return new ProtocolException($message, Constants::INVALID_PARAMS, $data, $previous);
     }
 
     public static function internalError(?string $details = 'Internal server error', ?Throwable $previous = null): self
@@ -100,7 +99,7 @@ class McpServerException extends Exception
             $message .= ' (See server logs)';
         }
 
-        return new McpServerException($message, JsonRpcError::CODE_INTERNAL_ERROR, null, $previous);
+        return new McpServerException($message, Constants::INTERNAL_ERROR, null, $previous);
     }
 
     public static function toolExecutionFailed(string $toolName, ?Throwable $previous = null): self
@@ -110,7 +109,7 @@ class McpServerException extends Exception
             $message .= ': ' . $previous->getMessage();
         }
 
-        return new McpServerException($message, JsonRpcError::CODE_INTERNAL_ERROR, null, $previous);
+        return new McpServerException($message, Constants::INTERNAL_ERROR, null, $previous);
     }
 
     public static function resourceReadFailed(string $uri, ?Throwable $previous = null): self
@@ -120,7 +119,7 @@ class McpServerException extends Exception
             $message .= ': ' . $previous->getMessage();
         }
 
-        return new McpServerException($message, JsonRpcError::CODE_INTERNAL_ERROR, null, $previous);
+        return new McpServerException($message, Constants::INTERNAL_ERROR, null, $previous);
     }
 
     public static function promptGenerationFailed(string $promptName, ?Throwable $previous = null): self
@@ -130,6 +129,6 @@ class McpServerException extends Exception
             $message .= ': ' . $previous->getMessage();
         }
 
-        return new McpServerException($message, JsonRpcError::CODE_INTERNAL_ERROR, null, $previous);
+        return new McpServerException($message, Constants::INTERNAL_ERROR, null, $previous);
     }
 }

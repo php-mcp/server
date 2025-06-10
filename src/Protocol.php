@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace PhpMcp\Server;
 
+use PhpMcp\Schema\Constants;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Contracts\SessionInterface;
 use PhpMcp\Server\Exception\McpServerException;
-use PhpMcp\Server\JsonRpc\Messages\BatchRequest;
-use PhpMcp\Server\JsonRpc\Messages\BatchResponse;
-use PhpMcp\Server\JsonRpc\Messages\Error;
-use PhpMcp\Server\JsonRpc\Messages\Notification;
-use PhpMcp\Server\JsonRpc\Messages\Request;
-use PhpMcp\Server\JsonRpc\Messages\Response;
+use PhpMcp\Schema\JsonRpc\BatchRequest;
+use PhpMcp\Schema\JsonRpc\BatchResponse;
+use PhpMcp\Schema\JsonRpc\Error;
+use PhpMcp\Schema\JsonRpc\Notification;
+use PhpMcp\Schema\JsonRpc\Request;
+use PhpMcp\Schema\JsonRpc\Response;
+use PhpMcp\Schema\Notification\PromptListChangedNotification;
+use PhpMcp\Schema\Notification\ResourceListChangedNotification;
+use PhpMcp\Schema\Notification\ResourceUpdatedNotification;
+use PhpMcp\Schema\Notification\RootsListChangedNotification;
+use PhpMcp\Schema\Notification\ToolListChangedNotification;
 use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Session\SubscriptionManager;
 use PhpMcp\Server\Support\RequestHandler;
@@ -141,21 +147,19 @@ class Protocol
     /**
      * Process a batch message
      */
-    private function processBatchRequest(BatchRequest $batch, SessionInterface $session): BatchResponse
+    private function processBatchRequest(BatchRequest $batch, SessionInterface $session): ?BatchResponse
     {
-        $batchResponse = new BatchResponse();
+        $items = [];
 
         foreach ($batch->getNotifications() as $notification) {
             $this->processNotification($notification, $session);
         }
 
         foreach ($batch->getRequests() as $request) {
-            $response = $this->processRequest($request, $session);
-
-            $batchResponse->add($response);
+            $items[] = $this->processRequest($request, $session);
         }
 
-        return $batchResponse;
+        return empty($items) ? null : new BatchResponse($items);
     }
 
     /**
@@ -163,46 +167,32 @@ class Protocol
      */
     private function processRequest(Request $request, SessionInterface $session): Response|Error
     {
-        $method = $request->method;
-        $params = $request->params;
-
         try {
-            if ($method !== 'initialize') {
+            if ($request->method !== 'initialize') {
                 $this->assertSessionInitialized($session);
             }
 
-            $this->assertRequestCapability($method);
+            $this->assertRequestCapability($request->method);
 
-            $result = match ($method) {
-                'initialize' => $this->requestHandler->handleInitialize($params, $session),
-                'ping' => $this->requestHandler->handlePing($session),
-                'tools/list' => $this->requestHandler->handleToolList($params),
-                'tools/call' => $this->requestHandler->handleToolCall($params),
-                'resources/list' => $this->requestHandler->handleResourcesList($params),
-                'resources/read' => $this->requestHandler->handleResourceRead($params),
-                'resources/subscribe' => $this->requestHandler->handleResourceSubscribe($params, $session),
-                'resources/unsubscribe' => $this->requestHandler->handleResourceUnsubscribe($params, $session),
-                'resources/templates/list' => $this->requestHandler->handleResourceTemplateList($params),
-                'prompts/list' => $this->requestHandler->handlePromptsList($params),
-                'prompts/get' => $this->requestHandler->handlePromptGet($params),
-                'logging/setLevel' => $this->requestHandler->handleLoggingSetLevel($params, $session),
-                'completion/complete' => $this->requestHandler->handleCompletionComplete($params, $session),
-                default => throw McpServerException::methodNotFound($method),
-            };
+            $result = $this->requestHandler->handleRequest($request, $session);
 
-            return Response::make($result, $request->id);
+            return Response::make($request->id, $result);
         } catch (McpServerException $e) {
-            $this->logger->debug('MCP Processor caught McpServerException', ['method' => $method, 'code' => $e->getCode(), 'message' => $e->getMessage(), 'data' => $e->getData()]);
+            $this->logger->debug('MCP Processor caught McpServerException', ['method' => $request->method, 'code' => $e->getCode(), 'message' => $e->getMessage(), 'data' => $e->getData()]);
 
             return $e->toJsonRpcError($request->id);
         } catch (Throwable $e) {
-            $this->logger->error('MCP Processor caught unexpected error', ['method' => $method, 'exception' => $e->getMessage()]);
+            $this->logger->error('MCP Processor caught unexpected error', [
+                'method' => $request->method,
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
             return new Error(
                 jsonrpc: '2.0',
                 id: $request->id,
-                code: Error::CODE_INTERNAL_ERROR,
-                message: 'Internal error processing method ' . $method,
+                code: Constants::INTERNAL_ERROR,
+                message: 'Internal error processing method ' . $request->method,
                 data: $e->getMessage()
             );
         }
@@ -217,9 +207,7 @@ class Protocol
         $params = $notification->params;
 
         try {
-            if ($method === 'notifications/initialized') {
-                $this->requestHandler->handleNotificationInitialized($params, $session);
-            }
+            $this->requestHandler->handleNotification($notification, $session);
         } catch (Throwable $e) {
             $this->logger->error('Error while processing notification', ['method' => $method, 'exception' => $e->getMessage()]);
             return;
@@ -254,7 +242,7 @@ class Protocol
     /**
      * Notify subscribers about resource content change
      */
-    public function notifyResourceChanged(string $uri): void
+    public function notifyResourceUpdated(string $uri): void
     {
         $subscribers = $this->subscriptionManager->getSubscribers($uri);
 
@@ -262,10 +250,7 @@ class Protocol
             return;
         }
 
-        $notification = Notification::make(
-            'notifications/resources/updated',
-            ['uri' => $uri]
-        );
+        $notification = ResourceUpdatedNotification::make($uri);
 
         foreach ($subscribers as $sessionId) {
             $this->sendNotification($sessionId, $notification);
@@ -302,7 +287,7 @@ class Protocol
 
             case 'tools/list':
             case 'tools/call':
-                if (!$capabilities->toolsEnabled) {
+                if ($capabilities->tools === null) {
                     throw McpServerException::methodNotFound($method, 'Tools are not enabled on this server.');
                 }
                 break;
@@ -310,36 +295,36 @@ class Protocol
             case 'resources/list':
             case 'resources/templates/list':
             case 'resources/read':
-                if (!$capabilities->resourcesEnabled) {
+                if ($capabilities->resources === null) {
                     throw McpServerException::methodNotFound($method, 'Resources are not enabled on this server.');
                 }
                 break;
 
             case 'resources/subscribe':
             case 'resources/unsubscribe':
-                if (!$capabilities->resourcesEnabled) {
+                if ($capabilities->resources === null) {
                     throw McpServerException::methodNotFound($method, 'Resources are not enabled on this server.');
                 }
-                if (!$capabilities->resourcesSubscribe) {
+                if (!$capabilities->resources['subscribe']) {
                     throw McpServerException::methodNotFound($method, 'Resources subscription is not enabled on this server.');
                 }
                 break;
 
             case 'prompts/list':
             case 'prompts/get':
-                if (!$capabilities->promptsEnabled) {
+                if ($capabilities->prompts === null) {
                     throw McpServerException::methodNotFound($method, 'Prompts are not enabled on this server.');
                 }
                 break;
 
             case 'logging/setLevel':
-                if (!$capabilities->loggingEnabled) {
+                if ($capabilities->logging === null) {
                     throw McpServerException::methodNotFound($method, 'Logging is not enabled on this server.');
                 }
                 break;
 
             case 'completion/complete':
-                if (!$capabilities->completionsEnabled) {
+                if ($capabilities->completions === null) {
                     throw McpServerException::methodNotFound($method, 'Completions are not enabled on this server.');
                 }
                 break;
@@ -357,7 +342,7 @@ class Protocol
 
         switch ($method) {
             case 'notifications/message':
-                if (!$capabilities->loggingEnabled) {
+                if ($capabilities->logging === null) {
                     $this->logger->warning('Logging is not enabled on this server. Notifications/message will not be sent.');
                     $valid = false;
                 }
@@ -365,21 +350,21 @@ class Protocol
 
             case "notifications/resources/updated":
             case "notifications/resources/list_changed":
-                if (!$capabilities->resourcesListChanged) {
+                if ($capabilities->resources === null || !$capabilities->resources['listChanged']) {
                     $this->logger->warning('Resources list changed notifications are not enabled on this server. Notifications/resources/list_changed will not be sent.');
                     $valid = false;
                 }
                 break;
 
             case "notifications/tools/list_changed":
-                if (!$capabilities->toolsListChanged) {
+                if ($capabilities->tools === null || !$capabilities->tools['listChanged']) {
                     $this->logger->warning('Tools list changed notifications are not enabled on this server. Notifications/tools/list_changed will not be sent.');
                     $valid = false;
                 }
                 break;
 
             case "notifications/prompts/list_changed":
-                if (!$capabilities->promptsListChanged) {
+                if ($capabilities->prompts === null || !$capabilities->prompts['listChanged']) {
                     $this->logger->warning('Prompts list changed notifications are not enabled on this server. Notifications/prompts/list_changed will not be sent.');
                     $valid = false;
                 }
@@ -432,13 +417,17 @@ class Protocol
             return;
         }
 
-        $method = "notifications/{$listType}/list_changed";
+        $notification = match ($listType) {
+            'resources' => ResourceListChangedNotification::make(),
+            'tools' => ToolListChangedNotification::make(),
+            'prompts' => PromptListChangedNotification::make(),
+            'roots' => RootsListChangedNotification::make(),
+            default => throw new \InvalidArgumentException("Invalid list type: {$listType}"),
+        };
 
-        if (!$this->canSendNotification($method)) {
+        if (!$this->canSendNotification($notification->method)) {
             return;
         }
-
-        $notification = Notification::make($method);
 
         foreach ($subscribers as $sessionId) {
             $this->sendNotification($sessionId, $notification);

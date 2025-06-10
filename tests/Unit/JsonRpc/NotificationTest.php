@@ -3,7 +3,7 @@
 namespace PhpMcp\Server\Tests\Unit\JsonRpc;
 
 use PhpMcp\Server\Exception\ProtocolException;
-use PhpMcp\Server\JsonRpc\Messages\Notification;
+use PhpMcp\Schema\JsonRpc\Notification;
 
 test('notification construction sets properties correctly', function () {
     $notification = new Notification('2.0', 'test.method', ['param1' => 'value1']);
@@ -60,27 +60,27 @@ test('fromArray handles missing params', function () {
 
 test('fromArray throws ProtocolException for invalid jsonrpc version', function () {
     $data = ['jsonrpc' => '1.0', 'method' => 'test.method'];
-    expect(fn () => Notification::fromArray($data))->toThrow(ProtocolException::class); // UPDATED
+    expect(fn() => Notification::fromArray($data))->toThrow(ProtocolException::class); // UPDATED
 });
 
 test('fromArray throws ProtocolException for missing jsonrpc', function () {
     $data = ['method' => 'test.method'];
-    expect(fn () => Notification::fromArray($data))->toThrow(ProtocolException::class); // UPDATED
+    expect(fn() => Notification::fromArray($data))->toThrow(ProtocolException::class); // UPDATED
 });
 
 test('fromArray throws ProtocolException for missing method', function () {
     $data = ['jsonrpc' => '2.0'];
-    expect(fn () => Notification::fromArray($data))->toThrow(ProtocolException::class); // UPDATED
+    expect(fn() => Notification::fromArray($data))->toThrow(ProtocolException::class); // UPDATED
 });
 
 test('fromArray throws ProtocolException for non-string method', function () {
     $data = ['jsonrpc' => '2.0', 'method' => 123];
-    expect(fn () => Notification::fromArray($data))->toThrow(ProtocolException::class); // UPDATED
+    expect(fn() => Notification::fromArray($data))->toThrow(ProtocolException::class); // UPDATED
 });
 
 test('fromArray throws ProtocolException if params is not an array/object', function () {
     $data = ['jsonrpc' => '2.0', 'method' => 'test', 'params' => 'string'];
-    expect(fn () => Notification::fromArray($data))->toThrow(ProtocolException::class);
+    expect(fn() => Notification::fromArray($data))->toThrow(ProtocolException::class);
 });
 
 test('toArray returns correct structure with params', function () {

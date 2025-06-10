@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace PhpMcp\Server\Support;
 
+use PhpMcp\Schema\Prompt;
+use PhpMcp\Schema\PromptArgument;
+use PhpMcp\Schema\Resource;
+use PhpMcp\Schema\ResourceTemplate;
+use PhpMcp\Schema\Tool;
 use PhpMcp\Server\Attributes\McpPrompt;
 use PhpMcp\Server\Attributes\McpResource;
 use PhpMcp\Server\Attributes\McpResourceTemplate;
@@ -13,6 +18,7 @@ use PhpMcp\Server\Definitions\ResourceDefinition;
 use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
 use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\Exception\McpServerException;
+use PhpMcp\Server\Handler;
 use PhpMcp\Server\Registry;
 use Psr\Log\LoggerInterface;
 use ReflectionAttribute;
@@ -25,8 +31,6 @@ use Throwable;
 
 class Discoverer
 {
-    private AttributeFinder $attributeFinder;
-
     private DocBlockParser $docBlockParser;
 
     private SchemaGenerator $schemaGenerator;
@@ -36,9 +40,7 @@ class Discoverer
         private LoggerInterface $logger,
         ?DocBlockParser $docBlockParser = null,
         ?SchemaGenerator $schemaGenerator = null,
-        ?AttributeFinder $attributeFinder = null
     ) {
-        $this->attributeFinder = $attributeFinder ?? new AttributeFinder();
         $this->docBlockParser = $docBlockParser ?? new DocBlockParser($this->logger);
         $this->schemaGenerator = $schemaGenerator ?? new SchemaGenerator($this->docBlockParser);
     }
@@ -92,7 +94,7 @@ class Discoverer
         }
 
         $duration = microtime(true) - $startTime;
-        $this->logger->info('MCP: Attribute discovery finished.', [
+        $this->logger->info('Attribute discovery finished.', [
             'duration_sec' => round($duration, 3),
             'tools' => $discoveredCount['tools'],
             'resources' => $discoveredCount['resources'],
@@ -133,10 +135,7 @@ class Discoverer
                 if ($invokeMethod->isPublic() && ! $invokeMethod->isStatic()) {
                     $attributeTypes = [McpTool::class, McpResource::class, McpPrompt::class, McpResourceTemplate::class];
                     foreach ($attributeTypes as $attributeType) {
-                        $classAttribute = $this->attributeFinder->getFirstClassAttribute(
-                            $reflectionClass,
-                            $attributeType
-                        );
+                        $classAttribute = $reflectionClass->getAttributes($attributeType, ReflectionAttribute::IS_INSTANCEOF)[0] ?? null;
                         if ($classAttribute) {
                             $this->processMethod($invokeMethod, $discoveredCount, $classAttribute);
                             $processedViaClassAttribute = true;
@@ -156,10 +155,7 @@ class Discoverer
                     }
                     $attributeTypes = [McpTool::class, McpResource::class, McpPrompt::class, McpResourceTemplate::class];
                     foreach ($attributeTypes as $attributeType) {
-                        $methodAttribute = $this->attributeFinder->getFirstMethodAttribute(
-                            $method,
-                            $attributeType
-                        );
+                        $methodAttribute = $method->getAttributes($attributeType, ReflectionAttribute::IS_INSTANCEOF)[0] ?? null;
                         if ($methodAttribute) {
                             $this->processMethod($method, $discoveredCount, $methodAttribute);
                             break;
@@ -190,6 +186,7 @@ class Discoverer
     private function processMethod(ReflectionMethod $method, array &$discoveredCount, ReflectionAttribute $attribute): void
     {
         $className = $method->getDeclaringClass()->getName();
+        $classShortName = $method->getDeclaringClass()->getShortName();
         $methodName = $method->getName();
         $attributeClassName = $attribute->getName();
 
@@ -198,61 +195,58 @@ class Discoverer
 
             switch ($attributeClassName) {
                 case McpTool::class:
-                    $definition = ToolDefinition::fromReflection(
-                        $method,
-                        $instance->name,
-                        $instance->description,
-                        $instance->annotations,
-                        $this->docBlockParser,
-                        $this->schemaGenerator
-                    );
-                    $this->registry->registerTool($definition);
+                    $docBlock = $this->docBlockParser->parseDocBlock($method->getDocComment() ?? null);
+                    $name = $instance->name ?? ($methodName === '__invoke' ? $classShortName : $methodName);
+                    $description = $instance->description ?? $this->docBlockParser->getSummary($docBlock) ?? null;
+                    $inputSchema = $this->schemaGenerator->fromMethodParameters($method);
+                    $tool = Tool::make($name, $inputSchema, $description, $instance->annotations);
+                    $invoker = new MethodInvoker($className, $methodName);
+                    $this->registry->registerTool($tool, $invoker, true);
                     $discoveredCount['tools']++;
                     break;
 
                 case McpResource::class:
-                    if (! isset($instance->uri)) {
-                        throw new McpServerException("McpResource attribute on {$className}::{$methodName} requires a 'uri'.");
-                    }
-                    $definition = ResourceDefinition::fromReflection(
-                        $method,
-                        $instance->name,
-                        $instance->description,
-                        $instance->uri,
-                        $instance->mimeType,
-                        $instance->annotations,
-                        $instance->size,
-                        $this->docBlockParser
-                    );
-                    $this->registry->registerResource($definition);
+                    $docBlock = $this->docBlockParser->parseDocBlock($method->getDocComment() ?? null);
+                    $name = $instance->name ?? ($methodName === '__invoke' ? $classShortName : $methodName);
+                    $description = $instance->description ?? $this->docBlockParser->getSummary($docBlock) ?? null;
+                    $mimeType = $instance->mimeType;
+                    $size = $instance->size;
+                    $annotations = $instance->annotations;
+                    $resource = Resource::make($instance->uri, $name, $description, $mimeType, $annotations, $size);
+                    $invoker = new MethodInvoker($className, $methodName);
+                    $this->registry->registerResource($resource, $invoker, true);
                     $discoveredCount['resources']++;
                     break;
 
                 case McpPrompt::class:
-                    $definition = PromptDefinition::fromReflection(
-                        $method,
-                        $instance->name,
-                        $instance->description,
-                        $this->docBlockParser
-                    );
-                    $this->registry->registerPrompt($definition);
+                    $docBlock = $this->docBlockParser->parseDocBlock($method->getDocComment() ?? null);
+                    $name = $instance->name ?? ($methodName === '__invoke' ? $classShortName : $methodName);
+                    $description = $instance->description ?? $this->docBlockParser->getSummary($docBlock) ?? null;
+                    $arguments = [];
+                    $paramTags = $this->docBlockParser->getParamTags($docBlock);
+                    foreach ($method->getParameters() as $param) {
+                        $reflectionType = $param->getType();
+                        if ($reflectionType instanceof \ReflectionNamedType && ! $reflectionType->isBuiltin()) {
+                            continue;
+                        }
+                        $paramTag = $paramTags['$' . $param->getName()] ?? null;
+                        $arguments[] = PromptArgument::make($param->getName(), $paramTag ? trim((string) $paramTag->getDescription()) : null, ! $param->isOptional() && ! $param->isDefaultValueAvailable());
+                    }
+                    $prompt = Prompt::make($name, $description, $arguments);
+                    $invoker = new MethodInvoker($className, $methodName);
+                    $this->registry->registerPrompt($prompt, $invoker, true);
                     $discoveredCount['prompts']++;
                     break;
 
                 case McpResourceTemplate::class:
-                    if (! isset($instance->uriTemplate)) {
-                        throw new McpServerException("McpResourceTemplate attribute on {$className}::{$methodName} requires a 'uriTemplate'.");
-                    }
-                    $definition = ResourceTemplateDefinition::fromReflection(
-                        $method,
-                        $instance->name,
-                        $instance->description,
-                        $instance->uriTemplate,
-                        $instance->mimeType,
-                        $instance->annotations,
-                        $this->docBlockParser
-                    );
-                    $this->registry->registerResourceTemplate($definition);
+                    $docBlock = $this->docBlockParser->parseDocBlock($method->getDocComment() ?? null);
+                    $name = $instance->name ?? ($methodName === '__invoke' ? $classShortName : $methodName);
+                    $description = $instance->description ?? $this->docBlockParser->getSummary($docBlock) ?? null;
+                    $mimeType = $instance->mimeType;
+                    $annotations = $instance->annotations;
+                    $resourceTemplate = ResourceTemplate::make($instance->uriTemplate, $name, $description, $mimeType, $annotations);
+                    $invoker = new MethodInvoker($className, $methodName);
+                    $this->registry->registerResourceTemplate($resourceTemplate, $invoker, true);
                     $discoveredCount['resourceTemplates']++;
                     break;
             }
