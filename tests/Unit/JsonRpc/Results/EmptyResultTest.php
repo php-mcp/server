@@ -3,7 +3,7 @@
 namespace PhpMcp\Server\Tests\Unit\JsonRpc\Results;
 
 use PhpMcp\Server\JsonRpc\Result;
-use PhpMcp\Server\JsonRpc\Results\EmptyResult;
+use PhpMcp\Schema\Result\EmptyResult;
 
 test('EmptyResult extends the Result base class', function () {
     $result = new EmptyResult();

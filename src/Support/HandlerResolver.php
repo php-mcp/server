@@ -21,13 +21,12 @@ class HandlerResolver
      * - A string: InvokableClassName::class (which will resolve to its '__invoke' method)
      *
      * @param array|string $handler The handler to resolve.
-     * @return array{className: class-string, methodName: string, reflectionMethod: ReflectionMethod}
-     *               An associative array containing 'className', 'methodName', and 'reflectionMethod'.
+     * @return ReflectionMethod
      *
      * @throws InvalidArgumentException If the handler format is invalid, the class/method doesn't exist,
      *                                  or the method is unsuitable (e.g., static, private, abstract).
      */
-    public static function resolve(array|string $handler): array
+    public static function resolve(array|string $handler): ReflectionMethod
     {
         $className = null;
         $methodName = null;
@@ -69,11 +68,7 @@ class HandlerResolver
                 throw new InvalidArgumentException("Handler method '{$className}::{$methodName}' cannot be a constructor or destructor.");
             }
 
-            return [
-                'className' => $className,
-                'methodName' => $methodName,
-                'reflectionMethod' => $reflectionMethod,
-            ];
+            return $reflectionMethod;
         } catch (ReflectionException $e) {
             // This typically occurs if class_exists passed but ReflectionMethod still fails (rare)
             throw new InvalidArgumentException("Reflection error for handler '{$className}::{$methodName}': {$e->getMessage()}", 0, $e);

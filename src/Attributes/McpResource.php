@@ -3,7 +3,7 @@
 namespace PhpMcp\Server\Attributes;
 
 use Attribute;
-use PhpMcp\Server\Model\Annotations;
+use PhpMcp\Schema\Annotations;
 
 /**
  * Marks a PHP class as representing or handling a specific MCP Resource instance.
@@ -27,6 +27,5 @@ final class McpResource
         public ?string $mimeType = null,
         public ?int $size = null,
         public ?Annotations $annotations = null,
-    ) {
-    }
+    ) {}
 }

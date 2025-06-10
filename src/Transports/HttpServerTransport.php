@@ -5,12 +5,18 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Transports;
 
 use Evenement\EventEmitterTrait;
+use PhpMcp\Schema\Constants;
 use PhpMcp\Server\Contracts\IdGeneratorInterface;
 use PhpMcp\Server\Contracts\LoggerAwareInterface;
 use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\TransportException;
-use PhpMcp\Server\JsonRpc\Messages\Message as JsonRpcMessage;
+use PhpMcp\Schema\JsonRpc\Message;
+use PhpMcp\Schema\JsonRpc\Request;
+use PhpMcp\Schema\JsonRpc\Notification;
+use PhpMcp\Schema\JsonRpc\BatchRequest;
+use PhpMcp\Schema\JsonRpc\Error;
+use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\Support\RandomIdGenerator;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
@@ -217,21 +223,27 @@ class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterf
     {
         $queryParams = $request->getQueryParams();
         $sessionId = $queryParams['clientId'] ?? null;
+        $jsonEncodeFlags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
 
         if (! $sessionId || ! is_string($sessionId)) {
             $this->logger->warning('Received POST without valid clientId query parameter.');
+            $error = Error::forInvalidRequest('Missing or invalid clientId query parameter');
 
-            return new Response(400, ['Content-Type' => 'text/plain'], 'Missing or invalid clientId query parameter');
+            return new Response(400, ['Content-Type' => 'application/json'], json_encode($error, $jsonEncodeFlags));
         }
 
         if (! isset($this->activeSseStreams[$sessionId])) {
             $this->logger->warning('Received POST for unknown or disconnected sessionId.', ['sessionId' => $sessionId]);
 
-            return new Response(404, ['Content-Type' => 'text/plain'], 'Session ID not found or disconnected');
+            $error = Error::forInvalidRequest('Session ID not found or disconnected');
+
+            return new Response(404, ['Content-Type' => 'application/json'], json_encode($error, $jsonEncodeFlags));
         }
 
         if (! str_contains(strtolower($request->getHeaderLine('Content-Type')), 'application/json')) {
-            return new Response(415, ['Content-Type' => 'text/plain'], 'Content-Type must be application/json');
+            $error = Error::forInvalidRequest('Content-Type must be application/json');
+
+            return new Response(415, ['Content-Type' => 'application/json'], json_encode($error, $jsonEncodeFlags));
         }
 
         $body = $request->getBody()->getContents();
@@ -239,14 +251,19 @@ class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterf
         if (empty($body)) {
             $this->logger->warning('Received empty POST body', ['sessionId' => $sessionId]);
 
-            return new Response(400, ['Content-Type' => 'text/plain'], 'Empty request body');
+            $error = Error::forInvalidRequest('Empty request body');
+
+            return new Response(400, ['Content-Type' => 'application/json'], json_encode($error, $jsonEncodeFlags));
         }
 
         try {
-            $message = JsonRpcMessage::parseRequest($body);
+            $message = self::parseRequest($body);
         } catch (Throwable $e) {
             $this->logger->error('Error parsing message', ['sessionId' => $sessionId, 'exception' => $e]);
-            return new Response(400, ['Content-Type' => 'text/plain'], 'Invalid JSON-RPC message: ' . $e->getMessage());
+
+            $error = Error::forParseError('Invalid JSON-RPC message: ' . $e->getMessage());
+
+            return new Response(400, ['Content-Type' => 'application/json'], json_encode($error, $jsonEncodeFlags));
         }
 
         $this->emit('message', [$message, $sessionId]);
@@ -254,11 +271,30 @@ class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterf
         return new Response(202, ['Content-Type' => 'text/plain'], 'Accepted');
     }
 
+    public static function parseRequest(string $message): Request|Notification|BatchRequest
+    {
+        $messageData = json_decode($message, true, 512, JSON_THROW_ON_ERROR);
+
+        $isBatch = array_is_list($messageData) && count($messageData) > 0 && is_array($messageData[0] ?? null);
+
+        if ($isBatch) {
+            return BatchRequest::fromArray($messageData);
+        } elseif (isset($messageData['method'])) {
+            if (isset($messageData['id']) && $messageData['id'] !== null) {
+                return Request::fromArray($messageData);
+            } else {
+                return Notification::fromArray($messageData);
+            }
+        }
+
+        throw new McpServerException('Invalid JSON-RPC message');
+    }
+
 
     /**
      * Sends a raw JSON-RPC message frame to a specific client via SSE.
      */
-    public function sendMessage(JsonRpcMessage $message, string $sessionId, array $context = []): PromiseInterface
+    public function sendMessage(Message $message, string $sessionId, array $context = []): PromiseInterface
     {
         if (! isset($this->activeSseStreams[$sessionId])) {
             return reject(new TransportException("Cannot send message: Client '{$sessionId}' not connected via SSE."));
