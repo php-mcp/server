@@ -17,5 +17,6 @@ class McpTool
         public ?string $name = null,
         public ?string $description = null,
         public ?ToolAnnotations $annotations = null,
-    ) {}
+    ) {
+    }
 }

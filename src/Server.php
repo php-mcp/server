@@ -41,7 +41,8 @@ class Server
         protected readonly Registry $registry,
         protected readonly Protocol $protocol,
         protected readonly SessionManager $sessionManager,
-    ) {}
+    ) {
+    }
 
     public static function make(): ServerBuilder
     {

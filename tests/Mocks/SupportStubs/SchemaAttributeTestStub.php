@@ -31,13 +31,11 @@ class SchemaAttributeTestStub
      * @param int $count Count with multipleOf constraint
      */
     public function numericConstraints(
-        #[Schema(minimum: 18, maximum: 120)] 
+        #[Schema(minimum: 18, maximum: 120)]
         int $age,
-
         #[Schema(minimum: 0, maximum: 5, exclusiveMaximum: true)]
         float $rating,
-
-        #[Schema(minimum: 0, multipleOf: 10)] 
+        #[Schema(minimum: 0, multipleOf: 10)]
         int $count
     ): void {
     }
@@ -50,9 +48,9 @@ class SchemaAttributeTestStub
      * @param array $mixed Mixed array with no constraints
      */
     public function arrayConstraints(
-        #[Schema(minItems: 1, uniqueItems: true)] 
+        #[Schema(minItems: 1, uniqueItems: true)]
         array $tags,
-        #[Schema(minItems: 1, maxItems: 5, items: new ArrayItems(minimum: 0, maximum: 100))] 
+        #[Schema(minItems: 1, maxItems: 5, items: new ArrayItems(minimum: 0, maximum: 100))]
         array $scores,
         array $mixed
     ): void {
@@ -72,10 +70,9 @@ class SchemaAttributeTestStub
                 new Property('age', minimum: 18)
             ],
             required: ['name', 'email']
-        )] 
+        )]
         array $user,
-
-        #[Schema(additionalProperties: true)] 
+        #[Schema(additionalProperties: true)]
         array $config
     ): void {
     }
@@ -88,14 +85,16 @@ class SchemaAttributeTestStub
     public function nestedConstraints(
         #[Schema(
             properties: [
-                new Property('customer', 
+                new Property(
+                    'customer',
                     properties: [
                         new Property('id', pattern: '^CUS-[0-9]{6}$'),
                         new Property('name', minLength: 2)
                     ],
                     required: ['id']
                 ),
-                new Property('items', 
+                new Property(
+                    'items',
                     minItems: 1,
                     items: new ArrayItems(
                         properties: [
@@ -121,11 +120,11 @@ class SchemaAttributeTestStub
     public function typePrecedenceTest(
         string $numericString,  // PHP says string
 
-        #[Schema(format: Format::EMAIL)] 
+        #[Schema(format: Format::EMAIL)]
         string $stringWithFormat,  // PHP + Schema
 
-        #[Schema(items: new ArrayItems(minimum: 1, maximum: 100))] 
+        #[Schema(items: new ArrayItems(minimum: 1, maximum: 100))]
         array $arrayWithItems  // Schema overrides DocBlock
     ): void {
     }
-} 
+}

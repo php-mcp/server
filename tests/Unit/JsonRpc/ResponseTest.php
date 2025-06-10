@@ -41,24 +41,24 @@ test('response construction allows null ID for error response', function () {
 });
 
 test('response constructor throws exception if ID present but no result/error', function () {
-    expect(fn() => new Response('2.0', 1, null, null))
+    expect(fn () => new Response('2.0', 1, null, null))
         ->toThrow(InvalidArgumentException::class, 'must have either result or error');
 });
 
 test('response constructor throws exception if ID null but no error', function () {
-    expect(fn() => new Response('2.0', null, null, null))
+    expect(fn () => new Response('2.0', null, null, null))
         ->toThrow(InvalidArgumentException::class, 'must have an error object');
 });
 
 test('response constructor throws exception if ID null and result present', function () {
-    expect(fn() => new Response('2.0', null, ['data'], null))
+    expect(fn () => new Response('2.0', null, ['data'], null))
         ->toThrow(InvalidArgumentException::class, 'response with null ID must have an error object');
 });
 
 test('response throws exception if both result and error are provided with ID', function () {
     $result = new EmptyResult();
     $error = new Error(100, 'Test error');
-    expect(fn() => new Response('2.0', 1, $result, $error))->toThrow(InvalidArgumentException::class);
+    expect(fn () => new Response('2.0', 1, $result, $error))->toThrow(InvalidArgumentException::class);
 });
 
 test('success static method creates success response', function () {
@@ -175,39 +175,39 @@ test('fromArray creates valid error response with null ID', function () {
 
 test('fromArray throws exception for invalid jsonrpc version', function () {
     $data = ['jsonrpc' => '1.0', 'id' => 1, 'result' => []];
-    expect(fn() => Response::fromArray($data))->toThrow(ProtocolException::class);
+    expect(fn () => Response::fromArray($data))->toThrow(ProtocolException::class);
 });
 
 test('fromArray throws exception for response with ID but missing result/error', function () {
     $data = ['jsonrpc' => '2.0', 'id' => 1];
-    expect(fn() => Response::fromArray($data))->toThrow(ProtocolException::class, 'must contain either "result" or "error"');
+    expect(fn () => Response::fromArray($data))->toThrow(ProtocolException::class, 'must contain either "result" or "error"');
 });
 
 test('fromArray throws exception for response with null ID but missing error', function () {
     $data = ['jsonrpc' => '2.0', 'id' => null];
-    expect(fn() => Response::fromArray($data))->toThrow(ProtocolException::class, 'must contain "error" when ID is null');
+    expect(fn () => Response::fromArray($data))->toThrow(ProtocolException::class, 'must contain "error" when ID is null');
 });
 
 test('fromArray throws exception for response with null ID and result present', function () {
     $data = ['jsonrpc' => '2.0', 'id' => null, 'result' => 'abc', 'error' => ['code' => -32700, 'message' => 'e']];
     $dataOnlyResult = ['jsonrpc' => '2.0', 'id' => null, 'result' => 'abc'];
-    expect(fn() => Response::fromArray($dataOnlyResult))
+    expect(fn () => Response::fromArray($dataOnlyResult))
         ->toThrow(ProtocolException::class, 'must contain "error" when ID is null');
 });
 
 test('fromArray throws exception for invalid ID type', function () {
     $data = ['jsonrpc' => '2.0', 'id' => [], 'result' => 'ok'];
-    expect(fn() => Response::fromArray($data))->toThrow(ProtocolException::class, 'Invalid "id" field type');
+    expect(fn () => Response::fromArray($data))->toThrow(ProtocolException::class, 'Invalid "id" field type');
 });
 
 test('fromArray throws exception for non-object error', function () {
     $data = ['jsonrpc' => '2.0', 'id' => 1, 'error' => 'not an object'];
-    expect(fn() => Response::fromArray($data))->toThrow(ProtocolException::class, 'Invalid "error" field');
+    expect(fn () => Response::fromArray($data))->toThrow(ProtocolException::class, 'Invalid "error" field');
 });
 
 test('fromArray throws exception for invalid error object structure', function () {
     $data = ['jsonrpc' => '2.0', 'id' => 1, 'error' => ['code_missing' => -1]];
-    expect(fn() => Response::fromArray($data))
+    expect(fn () => Response::fromArray($data))
         ->toThrow(ProtocolException::class, 'Invalid "error" object structure');
 });
 

@@ -14,14 +14,15 @@ use ReflectionParameter;
 use Throwable;
 use TypeError;
 
-class MethodInvoker
+class Handler
 {
     public function __construct(
         public readonly string $className,
         public readonly string $methodName,
-    ) {}
+    ) {
+    }
 
-    public function invoke(ContainerInterface $container, array $arguments): mixed
+    public function handle(ContainerInterface $container, array $arguments): mixed
     {
         $instance = $container->get($this->className);
         $arguments = $this->prepareArguments($instance, $arguments);

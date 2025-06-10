@@ -13,12 +13,7 @@ use PhpMcp\Server\Attributes\McpPrompt;
 use PhpMcp\Server\Attributes\McpResource;
 use PhpMcp\Server\Attributes\McpResourceTemplate;
 use PhpMcp\Server\Attributes\McpTool;
-use PhpMcp\Server\Definitions\PromptDefinition;
-use PhpMcp\Server\Definitions\ResourceDefinition;
-use PhpMcp\Server\Definitions\ResourceTemplateDefinition;
-use PhpMcp\Server\Definitions\ToolDefinition;
 use PhpMcp\Server\Exception\McpServerException;
-use PhpMcp\Server\Handler;
 use PhpMcp\Server\Registry;
 use Psr\Log\LoggerInterface;
 use ReflectionAttribute;
@@ -200,8 +195,8 @@ class Discoverer
                     $description = $instance->description ?? $this->docBlockParser->getSummary($docBlock) ?? null;
                     $inputSchema = $this->schemaGenerator->fromMethodParameters($method);
                     $tool = Tool::make($name, $inputSchema, $description, $instance->annotations);
-                    $invoker = new MethodInvoker($className, $methodName);
-                    $this->registry->registerTool($tool, $invoker, true);
+                    $handler = new Handler($className, $methodName);
+                    $this->registry->registerTool($tool, $handler, true);
                     $discoveredCount['tools']++;
                     break;
 
@@ -213,8 +208,8 @@ class Discoverer
                     $size = $instance->size;
                     $annotations = $instance->annotations;
                     $resource = Resource::make($instance->uri, $name, $description, $mimeType, $annotations, $size);
-                    $invoker = new MethodInvoker($className, $methodName);
-                    $this->registry->registerResource($resource, $invoker, true);
+                    $handler = new Handler($className, $methodName);
+                    $this->registry->registerResource($resource, $handler, true);
                     $discoveredCount['resources']++;
                     break;
 
@@ -233,8 +228,8 @@ class Discoverer
                         $arguments[] = PromptArgument::make($param->getName(), $paramTag ? trim((string) $paramTag->getDescription()) : null, ! $param->isOptional() && ! $param->isDefaultValueAvailable());
                     }
                     $prompt = Prompt::make($name, $description, $arguments);
-                    $invoker = new MethodInvoker($className, $methodName);
-                    $this->registry->registerPrompt($prompt, $invoker, true);
+                    $handler = new Handler($className, $methodName);
+                    $this->registry->registerPrompt($prompt, $handler, true);
                     $discoveredCount['prompts']++;
                     break;
 
@@ -245,8 +240,8 @@ class Discoverer
                     $mimeType = $instance->mimeType;
                     $annotations = $instance->annotations;
                     $resourceTemplate = ResourceTemplate::make($instance->uriTemplate, $name, $description, $mimeType, $annotations);
-                    $invoker = new MethodInvoker($className, $methodName);
-                    $this->registry->registerResourceTemplate($resourceTemplate, $invoker, true);
+                    $handler = new Handler($className, $methodName);
+                    $this->registry->registerResourceTemplate($resourceTemplate, $handler, true);
                     $discoveredCount['resourceTemplates']++;
                     break;
             }

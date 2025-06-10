@@ -11,7 +11,7 @@ use PhpMcp\Schema\Resource;
 use PhpMcp\Schema\ResourceTemplate;
 use PhpMcp\Schema\Tool;
 use PhpMcp\Server\Exception\DefinitionException;
-use PhpMcp\Server\Support\MethodInvoker;
+use PhpMcp\Server\Support\Handler;
 use PhpMcp\Server\Support\UriTemplateMatcher;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
@@ -24,16 +24,16 @@ class Registry implements EventEmitterInterface
 
     private const DISCOVERED_ELEMENTS_CACHE_KEY = 'mcp_server_discovered_elements';
 
-    /** @var array<string, array{tool: Tool, invoker: MethodInvoker}> */
+    /** @var array<string, array{tool: Tool, handler: Handler}> */
     private array $tools = [];
 
-    /** @var array<string, array{resource: Resource, invoker: MethodInvoker}> */
+    /** @var array<string, array{resource: Resource, handler: Handler}> */
     private array $resources = [];
 
-    /** @var array<string, array{prompt: Prompt, invoker: MethodInvoker}> */
+    /** @var array<string, array{prompt: Prompt, handler: Handler}> */
     private array $prompts = [];
 
-    /** @var array<string, array{resourceTemplate: ResourceTemplate, invoker: MethodInvoker}> */
+    /** @var array<string, array{resourceTemplate: ResourceTemplate, handler: Handler}> */
     private array $resourceTemplates = [];
 
     /** @var array<string, true> */
@@ -104,7 +104,7 @@ class Registry implements EventEmitterInterface
                 $loadCount = 0;
 
                 foreach ($cached['tools'] ?? [] as $toolData) {
-                    if (!isset($toolData['tool']) || !isset($toolData['invoker'])) {
+                    if (!isset($toolData['tool']) || !isset($toolData['handler'])) {
                         $this->logger->warning('Invalid tool data found in registry cache, ignoring.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'data' => $toolData]);
                         continue;
                     }
@@ -113,7 +113,7 @@ class Registry implements EventEmitterInterface
                     if (! isset($this->manualToolNames[$toolName])) {
                         $this->tools[$toolName] = [
                             'tool' => Tool::fromArray($toolData['tool']),
-                            'invoker' => MethodInvoker::fromArray($toolData['invoker']),
+                            'handler' => Handler::fromArray($toolData['handler']),
                         ];
                         $loadCount++;
                     } else {
@@ -122,7 +122,7 @@ class Registry implements EventEmitterInterface
                 }
 
                 foreach ($cached['resources'] ?? [] as $resourceData) {
-                    if (!isset($resourceData['resource']) || !isset($resourceData['invoker'])) {
+                    if (!isset($resourceData['resource']) || !isset($resourceData['handler'])) {
                         $this->logger->warning('Invalid resource data found in registry cache, ignoring.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'data' => $resourceData]);
                         continue;
                     }
@@ -131,7 +131,7 @@ class Registry implements EventEmitterInterface
                     if (! isset($this->manualResourceUris[$uri])) {
                         $this->resources[$uri] = [
                             'resource' => Resource::fromArray($resourceData['resource']),
-                            'invoker' => MethodInvoker::fromArray($resourceData['invoker']),
+                            'handler' => Handler::fromArray($resourceData['handler']),
                         ];
                         $loadCount++;
                     } else {
@@ -140,7 +140,7 @@ class Registry implements EventEmitterInterface
                 }
 
                 foreach ($cached['prompts'] ?? [] as $promptData) {
-                    if (!isset($promptData['prompt']) || !isset($promptData['invoker'])) {
+                    if (!isset($promptData['prompt']) || !isset($promptData['handler'])) {
                         $this->logger->warning('Invalid prompt data found in registry cache, ignoring.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'data' => $promptData]);
                         continue;
                     }
@@ -149,7 +149,7 @@ class Registry implements EventEmitterInterface
                     if (! isset($this->manualPromptNames[$promptName])) {
                         $this->prompts[$promptName] = [
                             'prompt' => Prompt::fromArray($promptData['prompt']),
-                            'invoker' => MethodInvoker::fromArray($promptData['invoker']),
+                            'handler' => Handler::fromArray($promptData['handler']),
                         ];
                         $loadCount++;
                     } else {
@@ -158,7 +158,7 @@ class Registry implements EventEmitterInterface
                 }
 
                 foreach ($cached['resourceTemplates'] ?? [] as $templateData) {
-                    if (!isset($templateData['resourceTemplate']) || !isset($templateData['invoker'])) {
+                    if (!isset($templateData['resourceTemplate']) || !isset($templateData['handler'])) {
                         $this->logger->warning('Invalid resource template data found in registry cache, ignoring.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'data' => $templateData]);
                         continue;
                     }
@@ -167,7 +167,7 @@ class Registry implements EventEmitterInterface
                     if (! isset($this->manualTemplateUris[$uriTemplate])) {
                         $this->resourceTemplates[$uriTemplate] = [
                             'resourceTemplate' => ResourceTemplate::fromArray($templateData['resourceTemplate']),
-                            'invoker' => MethodInvoker::fromArray($templateData['invoker']),
+                            'handler' => Handler::fromArray($templateData['handler']),
                         ];
                         $loadCount++;
                     } else {
@@ -190,7 +190,7 @@ class Registry implements EventEmitterInterface
         }
     }
 
-    public function registerTool(Tool $tool, MethodInvoker $invoker, bool $isManual = false): void
+    public function registerTool(Tool $tool, Handler $handler, bool $isManual = false): void
     {
         $toolName = $tool->name;
         $exists = isset($this->tools[$toolName]);
@@ -208,7 +208,7 @@ class Registry implements EventEmitterInterface
 
         $this->tools[$toolName] = [
             'tool' => $tool,
-            'invoker' => $invoker,
+            'handler' => $handler,
         ];
 
         if ($isManual) {
@@ -220,7 +220,7 @@ class Registry implements EventEmitterInterface
         $this->checkAndEmitChange('tools', $this->tools);
     }
 
-    public function registerResource(Resource $resource, MethodInvoker $invoker, bool $isManual = false): void
+    public function registerResource(Resource $resource, Handler $handler, bool $isManual = false): void
     {
         $uri = $resource->uri;
         $exists = isset($this->resources[$uri]);
@@ -237,7 +237,7 @@ class Registry implements EventEmitterInterface
 
         $this->resources[$uri] = [
             'resource' => $resource,
-            'invoker' => $invoker,
+            'handler' => $handler,
         ];
 
         if ($isManual) {
@@ -249,7 +249,7 @@ class Registry implements EventEmitterInterface
         $this->checkAndEmitChange('resources', $this->resources);
     }
 
-    public function registerResourceTemplate(ResourceTemplate $template, MethodInvoker $invoker, bool $isManual = false): void
+    public function registerResourceTemplate(ResourceTemplate $template, Handler $handler, bool $isManual = false): void
     {
         $uriTemplate = $template->uriTemplate;
         $exists = isset($this->resourceTemplates[$uriTemplate]);
@@ -266,7 +266,7 @@ class Registry implements EventEmitterInterface
 
         $this->resourceTemplates[$uriTemplate] = [
             'resourceTemplate' => $template,
-            'invoker' => $invoker,
+            'handler' => $handler,
         ];
 
         if ($isManual) {
@@ -278,7 +278,7 @@ class Registry implements EventEmitterInterface
         // No listChanged for templates
     }
 
-    public function registerPrompt(Prompt $prompt, MethodInvoker $invoker, bool $isManual = false): void
+    public function registerPrompt(Prompt $prompt, Handler $handler, bool $isManual = false): void
     {
         $promptName = $prompt->name;
         $exists = isset($this->prompts[$promptName]);
@@ -295,7 +295,7 @@ class Registry implements EventEmitterInterface
 
         $this->prompts[$promptName] = [
             'prompt' => $prompt,
-            'invoker' => $invoker,
+            'handler' => $handler,
         ];
 
         if ($isManual) {
@@ -351,7 +351,7 @@ class Registry implements EventEmitterInterface
             if (! isset($this->manualToolNames[$name])) {
                 $discoveredData['tools'][$name] = [
                     'tool' => $tool['tool']->toArray(),
-                    'invoker' => $tool['invoker']->toArray(),
+                    'handler' => $tool['handler']->toArray(),
                 ];
             }
         }
@@ -360,7 +360,7 @@ class Registry implements EventEmitterInterface
             if (! isset($this->manualResourceUris[$uri])) {
                 $discoveredData['resources'][$uri] = [
                     'resource' => $resource['resource']->toArray(),
-                    'invoker' => $resource['invoker']->toArray(),
+                    'handler' => $resource['handler']->toArray(),
                 ];
             }
         }
@@ -369,7 +369,7 @@ class Registry implements EventEmitterInterface
             if (! isset($this->manualPromptNames[$name])) {
                 $discoveredData['prompts'][$name] = [
                     'prompt' => $prompt['prompt']->toArray(),
-                    'invoker' => $prompt['invoker']->toArray(),
+                    'handler' => $prompt['handler']->toArray(),
                 ];
             }
         }
@@ -378,7 +378,7 @@ class Registry implements EventEmitterInterface
             if (! isset($this->manualTemplateUris[$uriTemplate])) {
                 $discoveredData['resourceTemplates'][$uriTemplate] = [
                     'resourceTemplate' => $template['resourceTemplate']->toArray(),
-                    'invoker' => $template['invoker']->toArray(),
+                    'handler' => $template['handler']->toArray(),
                 ];
             }
         }
@@ -456,7 +456,7 @@ class Registry implements EventEmitterInterface
         }
     }
 
-    /** @return array{tool: Tool, invoker: MethodInvoker}|null */
+    /** @return array{tool: Tool, handler: Handler}|null */
     public function getTool(string $name): ?array
     {
         return $this->tools[$name] ?? null;
@@ -464,7 +464,7 @@ class Registry implements EventEmitterInterface
 
     /** @return array{
      *      resource: Resource,
-     *      invoker: MethodInvoker,
+     *      handler: Handler,
      *      variables: array<string, string>,
      * }|null */
     public function getResource(string $uri, bool $includeTemplates = true): ?array
@@ -494,7 +494,7 @@ class Registry implements EventEmitterInterface
             if ($variables !== null) {
                 return [
                     'resource' => $template['resourceTemplate'],
-                    'invoker' => $template['invoker'],
+                    'handler' => $template['handler'],
                     'variables' => $variables,
                 ];
             }
@@ -505,7 +505,7 @@ class Registry implements EventEmitterInterface
         return null;
     }
 
-    /** @return array{prompt: Prompt, invoker: MethodInvoker}|null */
+    /** @return array{prompt: Prompt, handler: Handler}|null */
     public function getPrompt(string $name): ?array
     {
         return $this->prompts[$name] ?? null;
@@ -514,24 +514,24 @@ class Registry implements EventEmitterInterface
     /** @return array<string, Tool> */
     public function getTools(): array
     {
-        return array_map(fn($registration) => $registration['tool'], $this->tools);
+        return array_map(fn ($registration) => $registration['tool'], $this->tools);
     }
 
     /** @return array<string, Resource> */
     public function getResources(): array
     {
-        return array_map(fn($registration) => $registration['resource'], $this->resources);
+        return array_map(fn ($registration) => $registration['resource'], $this->resources);
     }
 
     /** @return array<string, Prompt> */
     public function getPrompts(): array
     {
-        return array_map(fn($registration) => $registration['prompt'], $this->prompts);
+        return array_map(fn ($registration) => $registration['prompt'], $this->prompts);
     }
 
     /** @return array<string, ResourceTemplate> */
     public function getResourceTemplates(): array
     {
-        return array_map(fn($registration) => $registration['resourceTemplate'], $this->resourceTemplates);
+        return array_map(fn ($registration) => $registration['resourceTemplate'], $this->resourceTemplates);
     }
 }
