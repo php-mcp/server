@@ -39,6 +39,11 @@ class UriTemplateMatcher
         $this->regex = '#^' . implode('', $regexParts) . '$#';
     }
 
+    public function getVariables(): array
+    {
+        return $this->variableNames;
+    }
+
     public function match(string $uri): ?array
     {
         if (preg_match($this->regex, $uri, $matches)) {

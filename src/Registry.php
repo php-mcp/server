@@ -10,6 +10,7 @@ use PhpMcp\Schema\Prompt;
 use PhpMcp\Schema\Resource;
 use PhpMcp\Schema\ResourceTemplate;
 use PhpMcp\Schema\Tool;
+use PhpMcp\Server\Contracts\CompletionProviderInterface;
 use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\Support\Handler;
 use PhpMcp\Server\Support\UriTemplateMatcher;
@@ -53,6 +54,30 @@ class Registry implements EventEmitterInterface
         'resources' => '',
         'resource_templates' => '',
         'prompts' => '',
+    ];
+
+    /**
+     * Stores completion providers.
+     * Structure:
+     * [
+     *     'ref/prompt' => [ // Ref Type
+     *         'prompt_name_1' => [ // Element Name/URI
+     *             'argument_name_A' => 'ProviderClassFQCN_For_Prompt1_ArgA',
+     *             'argument_name_B' => 'ProviderClassFQCN_For_Prompt1_ArgB',
+     *         ],
+     *         'prompt_name_2' => [ //... ],
+     *     ],
+     *     'ref/resource' => [ // Ref Type (for URI templates)
+     *         'resource_template_uri_1' => [ // Element URI Template
+     *             'uri_variable_name_X' => 'ProviderClassFQCN_For_Template1_VarX',
+     *         ],
+     *     ],
+     * ]
+     * @var array<string, array<string, array<string, class-string<ArgumentCompletionProviderInterface>>>>
+     */
+    private array $completionProviders = [
+        'ref/prompt' => [],
+        'ref/resource' => [],
     ];
 
     private bool $notificationsEnabled = true;
@@ -307,6 +332,23 @@ class Registry implements EventEmitterInterface
         $this->checkAndEmitChange('prompts', $this->prompts);
     }
 
+    /**
+     * @param 'ref/prompt'|'ref/resource' $refType
+     * @param string $identifier Name for prompts, URI template for resource templates
+     * @param string $argument The argument name to register the completion provider for.
+     * @param class-string<CompletionProviderInterface> $providerClass
+     */
+    public function registerCompletionProvider(string $refType, string $identifier, string $argument, string $providerClass): void
+    {
+        if (!in_array($refType, ['ref/prompt', 'ref/resource'])) {
+            $this->logger->warning("Invalid refType '{$refType}' for completion provider registration.");
+            return;
+        }
+
+        $this->completionProviders[$refType][$identifier][$argument] = $providerClass;
+        $this->logger->debug("Registered completion provider for {$refType} '{$identifier}', argument '{$argument}'", ['provider' => $providerClass]);
+    }
+
     public function enableNotifications(): void
     {
         $this->notificationsEnabled = true;
@@ -505,6 +547,36 @@ class Registry implements EventEmitterInterface
         return null;
     }
 
+    /** @return array{
+     *      resourceTemplate: ResourceTemplate,
+     *      handler: Handler,
+     *      variables: array<string, string>,
+     * }|null */
+    public function getResourceTemplate(string $uriTemplate): ?array
+    {
+        $registration = $this->resourceTemplates[$uriTemplate] ?? null;
+        if (!$registration) {
+            return null;
+        }
+
+        try {
+            $matcher = new UriTemplateMatcher($uriTemplate);
+            $variables = $matcher->getVariables();
+        } catch (\InvalidArgumentException $e) {
+            $this->logger->warning('Invalid resource template encountered during matching', [
+                'template' => $registration['resourceTemplate']->uriTemplate,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+
+        return [
+            'resourceTemplate' => $registration['resourceTemplate'],
+            'handler' => $registration['handler'],
+            'variables' => $variables,
+        ];
+    }
+
     /** @return array{prompt: Prompt, handler: Handler}|null */
     public function getPrompt(string $name): ?array
     {
@@ -514,24 +586,35 @@ class Registry implements EventEmitterInterface
     /** @return array<string, Tool> */
     public function getTools(): array
     {
-        return array_map(fn ($registration) => $registration['tool'], $this->tools);
+        return array_map(fn($registration) => $registration['tool'], $this->tools);
     }
 
     /** @return array<string, Resource> */
     public function getResources(): array
     {
-        return array_map(fn ($registration) => $registration['resource'], $this->resources);
+        return array_map(fn($registration) => $registration['resource'], $this->resources);
     }
 
     /** @return array<string, Prompt> */
     public function getPrompts(): array
     {
-        return array_map(fn ($registration) => $registration['prompt'], $this->prompts);
+        return array_map(fn($registration) => $registration['prompt'], $this->prompts);
     }
 
     /** @return array<string, ResourceTemplate> */
     public function getResourceTemplates(): array
     {
-        return array_map(fn ($registration) => $registration['resourceTemplate'], $this->resourceTemplates);
+        return array_map(fn($registration) => $registration['resourceTemplate'], $this->resourceTemplates);
+    }
+
+    /**
+     * @param 'ref/prompt'|'ref/resource' $refType
+     * @param string $elementIdentifier Name for prompts, URI template for resource templates
+     * @param string $argumentName
+     * @return class-string<ArgumentCompletionProviderInterface>|null
+     */
+    public function getCompletionProvider(string $refType, string $identifier, string $argument): ?string
+    {
+        return $this->completionProviders[$refType][$identifier][$argument] ?? null;
     }
 }

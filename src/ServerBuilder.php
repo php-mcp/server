@@ -13,6 +13,7 @@ use PhpMcp\Schema\ResourceTemplate;
 use PhpMcp\Schema\ServerCapabilities;
 use PhpMcp\Schema\Tool;
 use PhpMcp\Schema\ToolAnnotations;
+use PhpMcp\Server\Attributes\CompletionProvider;
 use PhpMcp\Server\Contracts\SessionHandlerInterface;
 use PhpMcp\Server\Defaults\BasicContainer;
 use PhpMcp\Server\Exception\ConfigurationException;
@@ -88,9 +89,7 @@ final class ServerBuilder
      * > */
     private array $manualPrompts = [];
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     /**
      * Sets the server's identity. Required.
@@ -264,7 +263,7 @@ final class ServerBuilder
 
         $registry->disableNotifications();
 
-        $this->performManualRegistrations($registry, $logger);
+        $this->registerManualElements($registry, $logger);
 
         $registry->enableNotifications();
 
@@ -277,7 +276,7 @@ final class ServerBuilder
      * Helper to perform the actual registration based on stored data.
      * Moved into the builder.
      */
-    private function performManualRegistrations(Registry $registry, LoggerInterface $logger): void
+    private function registerManualElements(Registry $registry, LoggerInterface $logger): void
     {
         if (empty($this->manualTools) && empty($this->manualResources) && empty($this->manualResourceTemplates) && empty($this->manualPrompts)) {
             return;
@@ -356,6 +355,8 @@ final class ServerBuilder
                 $handler = new Handler($className, $methodName);
                 $registry->registerResourceTemplate($template, $handler, true);
 
+                $this->registerManualCompletionProviders('ref/resource', $uriTemplate, $reflectionMethod, $registry);
+
                 $logger->debug("Registered manual template {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
                 $errorCount++;
@@ -395,6 +396,9 @@ final class ServerBuilder
                 $prompt = Prompt::make($name, $description, $arguments);
                 $handler = new Handler($className, $methodName);
                 $registry->registerPrompt($prompt, $handler, true);
+
+                $this->registerManualCompletionProviders('ref/prompt', $name, $reflectionMethod, $registry);
+
                 $logger->debug("Registered manual prompt {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
                 $errorCount++;
@@ -407,5 +411,29 @@ final class ServerBuilder
         }
 
         $logger->debug('Manual element registration complete.');
+    }
+
+    /**
+     * Register completion providers for a given MCP Element.
+     *
+     * @param 'ref/prompt'|'ref/resource' $refType
+     * @param string $identifier The identifier of the MCP Element (prompt name, resource template URI)
+     * @param \ReflectionMethod $handlerMethod The method to register completion providers for
+     * @param Registry $registry The registry to register the completion providers to
+     */
+    private function registerManualCompletionProviders(string $refType, string $identifier, \ReflectionMethod $handlerMethod, Registry $registry): void
+    {
+        foreach ($handlerMethod->getParameters() as $param) {
+            $reflectionType = $param->getType();
+            if ($reflectionType instanceof \ReflectionNamedType && !$reflectionType->isBuiltin()) {
+                continue;
+            }
+
+            $completionAttributes = $param->getAttributes(CompletionProvider::class, \ReflectionAttribute::IS_INSTANCEOF);
+            if (!empty($completionAttributes)) {
+                $attributeInstance = $completionAttributes[0]->newInstance();
+                $registry->registerCompletionProvider($refType, $identifier, $param->getName(), $attributeInstance->providerClass);
+            }
+        }
     }
 }

@@ -325,26 +325,66 @@ class Dispatcher
     public function handleCompletionComplete(CompletionCompleteRequest $request, SessionInterface $session): CompletionCompleteResult
     {
         $ref = $request->ref;
-        $argument = $request->argument;
+        $argumentName = $request->argument['name'];
+        $currentValue = $request->argument['value'];
 
-        $completionValues = [];
-        $total = null;
-        $hasMore = null;
+        $identifier = null;
 
-        // TODO: Implement actual completion logic here.
-        // This requires a way to:
-        // 1. Find the target prompt or resource template definition.
-        // 2. Determine if that definition has a completion provider for the given $argName.
-        // 3. Invoke that provider with $currentValue and $session (for context).
+        if ($ref->type === 'ref/prompt') {
+            $identifier = $ref->name;
+            ['prompt' => $prompt] = $this->registry->getPrompt($identifier);
+            if (! $prompt) {
+                throw McpServerException::invalidParams("Prompt '{$identifier}' not found.");
+            }
 
-        // --- Example Logic ---
-        if ($argument['name'] === 'userId') {
-            $completionValues = ['101', '102', '103'];
-            $total = 3;
+            $foundArg = false;
+            foreach ($prompt->arguments as $arg) {
+                if ($arg->name === $argumentName) {
+                    $foundArg = true;
+                    break;
+                }
+            }
+            if (! $foundArg) {
+                throw McpServerException::invalidParams("Argument '{$argumentName}' not found in prompt '{$identifier}'.");
+            }
+        } else if ($ref->type === 'ref/resource') {
+            $identifier = $ref->uri;
+            ['resourceTemplate' => $resourceTemplate, 'variables' => $uriVariables] = $this->registry->getResourceTemplate($identifier);
+            if (! $resourceTemplate) {
+                throw McpServerException::invalidParams("Resource template '{$identifier}' not found.");
+            }
+
+            $foundArg = false;
+            foreach ($uriVariables as $uriVariableName) {
+                if ($uriVariableName === $argumentName) {
+                    $foundArg = true;
+                    break;
+                }
+            }
+
+            if (! $foundArg) {
+                throw McpServerException::invalidParams("URI variable '{$argumentName}' not found in resource template '{$identifier}'.");
+            }
+        } else {
+            throw McpServerException::invalidParams("Invalid ref type '{$ref->type}' for completion complete request.");
         }
-        // --- End Example ---
 
-        return new CompletionCompleteResult($completionValues, $total, $hasMore);
+        $providerClass = $this->registry->getCompletionProvider($ref->type, $identifier, $argumentName);
+        if (! $providerClass) {
+            $this->logger->warning("No completion provider found for argument '{$argumentName}' in '{$ref->type}' '{$identifier}'.");
+            return new CompletionCompleteResult([]);
+        }
+
+        $provider = $this->container->get($providerClass);
+
+        $completions = $provider->getCompletions($currentValue, $session);
+
+        $total = count($completions);
+        $hasMore = $total > 100;
+
+        $pagedCompletions = array_slice($completions, 0, 100);
+
+        return new CompletionCompleteResult($pagedCompletions, $total, $hasMore);
     }
 
     public function handleNotificationInitialized(InitializedNotification $notification, SessionInterface $session): EmptyResult
