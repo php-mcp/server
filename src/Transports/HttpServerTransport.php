@@ -39,20 +39,20 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
 
     protected LoopInterface $loop;
 
-    private ?SocketServer $socket = null;
+    protected ?SocketServer $socket = null;
 
-    private ?HttpServer $http = null;
+    protected ?HttpServer $http = null;
 
     /** @var array<string, ThroughStream> clientId => SSE Stream */
-    private array $activeSseStreams = [];
+    protected array $activeSseStreams = [];
 
-    private bool $listening = false;
+    protected bool $listening = false;
 
-    private bool $closing = false;
+    protected bool $closing = false;
 
-    private string $ssePath;
+    protected string $ssePath;
 
-    private string $messagePath;
+    protected string $messagePath;
 
     /**
      * @param  string  $host  Host to bind to (e.g., '127.0.0.1', '0.0.0.0').
@@ -61,10 +61,10 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
      * @param  array|null  $sslContext  Optional SSL context options for React SocketServer (for HTTPS).
      */
     public function __construct(
-        private readonly string $host = '127.0.0.1',
-        private readonly int $port = 8080,
-        private readonly string $mcpPathPrefix = 'mcp', // e.g., /mcp/sse, /mcp/message
-        private readonly ?array $sslContext = null // For enabling HTTPS
+        protected readonly string $host = '127.0.0.1',
+        protected readonly int $port = 8080,
+        protected readonly string $mcpPathPrefix = 'mcp', // e.g., /mcp/sse, /mcp/message
+        protected readonly ?array $sslContext = null // For enabling HTTPS
     ) {
         $this->logger = new NullLogger();
         $this->loop = Loop::get();
@@ -129,7 +129,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
     }
 
     /** Creates the main request handling callback for ReactPHP HttpServer */
-    private function createRequestHandler(): callable
+    protected function createRequestHandler(): callable
     {
         return function (ServerRequestInterface $request) {
             $path = $request->getUri()->getPath();
@@ -154,7 +154,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
     }
 
     /** Handles a new SSE connection request */
-    private function handleSseRequest(ServerRequestInterface $request): Response
+    protected function handleSseRequest(ServerRequestInterface $request): Response
     {
         $clientId = 'sse_' . bin2hex(random_bytes(16));
         $this->logger->info('New SSE connection', ['clientId' => $clientId]);
@@ -208,7 +208,7 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
     }
 
     /** Handles incoming POST requests with messages */
-    private function handleMessagePostRequest(ServerRequestInterface $request): Response
+    protected function handleMessagePostRequest(ServerRequestInterface $request): Response
     {
         $queryParams = $request->getQueryParams();
         $clientId = $queryParams['clientId'] ?? null;
