@@ -16,7 +16,7 @@ use PhpMcp\Schema\JsonRpc\Message;
 use PhpMcp\Schema\JsonRpc\BatchRequest;
 use PhpMcp\Schema\JsonRpc\BatchResponse;
 use PhpMcp\Schema\JsonRpc\Error;
-use PhpMcp\Schema\JsonRpc\Notification;
+use PhpMcp\Schema\JsonRpc\Parser;
 use PhpMcp\Schema\JsonRpc\Request;
 use PhpMcp\Schema\JsonRpc\Response;
 use PhpMcp\Server\Support\RandomIdGenerator;
@@ -56,7 +56,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
      * Keyed by a unique pendingRequestId.
      * @var array<string, Deferred>
      */
-    private array $pendingDirectPostResponses = [];
+    private array $pendingRequests = [];
 
     /**
      * Stores active SSE streams.
@@ -167,9 +167,9 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
             try {
                 return match ($method) {
-                    'GET' => $this->handleGetRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
-                    'POST' => $this->handlePostRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
-                    'DELETE' => $this->handleDeleteRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
+                    'GET' => $this->handleGetRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
+                    'POST' => $this->handlePostRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
+                    'DELETE' => $this->handleDeleteRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
                     default => $addCors($this->handleUnsupportedRequest($request)),
                 };
             } catch (Throwable $e) {
@@ -249,7 +249,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         }
 
         try {
-            $message = self::parseRequest($body);
+            $message = Parser::parse($body);
         } catch (Throwable $e) {
             $this->logger->error("Failed to parse MCP message from POST body", ['error' => $e->getMessage()]);
             $error = Error::forParseError("Invalid JSON: " . $e->getMessage());
@@ -263,7 +263,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         if ($isInitializeRequest) {
             if ($request->hasHeader('Mcp-Session-Id')) {
                 $this->logger->warning("Client sent Mcp-Session-Id with InitializeRequest. Ignoring.", ['clientSentId' => $request->getHeaderLine('Mcp-Session-Id')]);
-                $error = Error::forInvalidRequest("Invalid request: Session already initialized. Mcp-Session-Id header not allowed with InitializeRequest.", $message->id);
+                $error = Error::forInvalidRequest("Invalid request: Session already initialized. Mcp-Session-Id header not allowed with InitializeRequest.", $message->getId());
                 $deferred->resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
                 return $deferred->promise();
             }
@@ -275,7 +275,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
             if (empty($sessionId)) {
                 $this->logger->warning("POST request without Mcp-Session-Id.");
-                $error = Error::forInvalidRequest("Mcp-Session-Id header required for POST requests.", $message->id);
+                $error = Error::forInvalidRequest("Mcp-Session-Id header required for POST requests.", $message->getId());
                 $deferred->resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
                 return $deferred->promise();
             }
@@ -285,17 +285,13 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
             'is_initialize_request' => $isInitializeRequest,
         ];
 
-        $hasRequests = false;
-        $nRequests = 0;
-        if ($message instanceof Request) {
-            $hasRequests = true;
-            $nRequests = 1;
-        } elseif ($message instanceof BatchRequest) {
-            $hasRequests = $message->hasRequests();
-            $nRequests = count($message->getRequests());
-        }
+        $nRequests = match (true) {
+            $message instanceof Request => 1,
+            $message instanceof BatchRequest => $message->nRequests(),
+            default => 0,
+        };
 
-        if (!$hasRequests) {
+        if ($nRequests === 0) {
             $deferred->resolve(new HttpResponse(202));
             $context['type'] = 'post_202_sent';
         } else {
@@ -338,19 +334,19 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
                 $context['nRequests'] = $nRequests;
             } else {
                 $pendingRequestId = $this->idGenerator->generateId();
-                $this->pendingDirectPostResponses[$pendingRequestId] = $deferred;
+                $this->pendingRequests[$pendingRequestId] = $deferred;
 
                 $timeoutTimer = $this->loop->addTimer(30, function () use ($pendingRequestId, $sessionId) {
-                    if (isset($this->pendingDirectPostResponses[$pendingRequestId])) {
-                        $deferred = $this->pendingDirectPostResponses[$pendingRequestId];
-                        unset($this->pendingDirectPostResponses[$pendingRequestId]);
+                    if (isset($this->pendingRequests[$pendingRequestId])) {
+                        $deferred = $this->pendingRequests[$pendingRequestId];
+                        unset($this->pendingRequests[$pendingRequestId]);
                         $this->logger->warning("Timeout waiting for direct JSON response processing.", ['pending_request_id' => $pendingRequestId, 'session_id' => $sessionId]);
                         $errorResponse = McpServerException::internalError("Request processing timed out.")->toJsonRpcError($pendingRequestId);
                         $deferred->resolve(new HttpResponse(500, ['Content-Type' => 'application/json'], json_encode($errorResponse->toArray())));
                     }
                 });
 
-                $this->pendingDirectPostResponses[$pendingRequestId]->promise()->finally(function () use ($timeoutTimer) {
+                $this->pendingRequests[$pendingRequestId]->promise()->finally(function () use ($timeoutTimer) {
                     $this->loop->cancelTimer($timeoutTimer);
                 });
 
@@ -417,25 +413,6 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         return new HttpResponse(500, ['Content-Type' => 'application/json'], json_encode($error));
     }
 
-    public static function parseRequest(string $message): Request|Notification|BatchRequest
-    {
-        $messageData = json_decode($message, true, 512, JSON_THROW_ON_ERROR);
-
-        $isBatch = array_is_list($messageData) && count($messageData) > 0 && is_array($messageData[0] ?? null);
-
-        if ($isBatch) {
-            return BatchRequest::fromArray($messageData);
-        } elseif (isset($messageData['method'])) {
-            if (isset($messageData['id']) && $messageData['id'] !== null) {
-                return Request::fromArray($messageData);
-            } else {
-                return Notification::fromArray($messageData);
-            }
-        }
-
-        throw new McpServerException('Invalid JSON-RPC message');
-    }
-
     public function sendMessage(Message $message, string $sessionId, array $context = []): PromiseInterface
     {
         if ($this->closing) {
@@ -489,13 +466,13 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
             case 'post_json':
                 $pendingRequestId = $context['pending_request_id'];
-                if (!isset($this->pendingDirectPostResponses[$pendingRequestId])) {
+                if (!isset($this->pendingRequests[$pendingRequestId])) {
                     $this->logger->error("Pending direct JSON request not found.", ['pending_request_id' => $pendingRequestId, 'session_id' => $sessionId]);
                     return reject(new TransportException("Pending request {$pendingRequestId} not found."));
                 }
 
-                $deferred = $this->pendingDirectPostResponses[$pendingRequestId];
-                unset($this->pendingDirectPostResponses[$pendingRequestId]);
+                $deferred = $this->pendingRequests[$pendingRequestId];
+                unset($this->pendingRequests[$pendingRequestId]);
 
                 $responseBody = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                 $headers = ['Content-Type' => 'application/json'];
@@ -596,12 +573,12 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
             $this->getStream = null;
         }
 
-        foreach ($this->pendingDirectPostResponses as $pendingRequestId => $deferred) {
+        foreach ($this->pendingRequests as $pendingRequestId => $deferred) {
             $deferred->reject(new TransportException('Transport is closing.'));
         }
 
         $this->activeSseStreams = [];
-        $this->pendingDirectPostResponses = [];
+        $this->pendingRequests = [];
 
         $this->emit('close', ['Transport closed.']);
         $this->removeAllListeners();

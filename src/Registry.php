@@ -346,7 +346,6 @@ class Registry implements EventEmitterInterface
         }
 
         $this->completionProviders[$refType][$identifier][$argument] = $providerClass;
-        $this->logger->debug("Registered completion provider for {$refType} '{$identifier}', argument '{$argument}'", ['provider' => $providerClass]);
     }
 
     public function enableNotifications(): void

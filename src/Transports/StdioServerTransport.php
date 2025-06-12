@@ -5,17 +5,13 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Transports;
 
 use Evenement\EventEmitterTrait;
-use PhpMcp\Schema\Constants;
-use PhpMcp\Schema\JsonRpc\BatchRequest;
+use PhpMcp\Schema\JsonRpc\Parser;
 use PhpMcp\Server\Contracts\LoggerAwareInterface;
 use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\TransportException;
-use PhpMcp\Schema\JsonRpc\Notification;
-use PhpMcp\Schema\JsonRpc\Request;
 use PhpMcp\Schema\JsonRpc\Error;
 use PhpMcp\Schema\JsonRpc\Message;
-use PhpMcp\Server\Exception\McpServerException;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use React\ChildProcess\Process;
@@ -181,7 +177,7 @@ class StdioServerTransport implements ServerTransportInterface, LoggerAwareInter
             }
 
             try {
-                $message = self::parseRequest($trimmedLine);
+                $message = Parser::parse($trimmedLine);
             } catch (Throwable $e) {
                 $this->logger->error('Error parsing message', ['exception' => $e]);
                 $error = Error::forParseError("Invalid JSON: " . $e->getMessage());
@@ -191,25 +187,6 @@ class StdioServerTransport implements ServerTransportInterface, LoggerAwareInter
 
             $this->emit('message', [$message, self::CLIENT_ID]);
         }
-    }
-
-    public static function parseRequest(string $message): Request|Notification|BatchRequest
-    {
-        $messageData = json_decode($message, true, 512, JSON_THROW_ON_ERROR);
-
-        $isBatch = array_is_list($messageData) && count($messageData) > 0 && is_array($messageData[0] ?? null);
-
-        if ($isBatch) {
-            return BatchRequest::fromArray($messageData);
-        } elseif (isset($messageData['method'])) {
-            if (isset($messageData['id']) && $messageData['id'] !== null) {
-                return Request::fromArray($messageData);
-            } else {
-                return Notification::fromArray($messageData);
-            }
-        }
-
-        throw new McpServerException('Invalid JSON-RPC message');
     }
 
     /**
