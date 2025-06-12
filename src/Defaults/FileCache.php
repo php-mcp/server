@@ -193,13 +193,11 @@ class FileCache implements CacheInterface
 
         $handle = @fopen($this->cacheFile, 'rb');
         if ($handle === false) {
-            // TODO: Log error
             return [];
         }
 
         try {
             if (! flock($handle, LOCK_SH)) {
-                // TODO: Log error
                 return [];
             }
             $content = stream_get_contents($handle);
@@ -209,9 +207,8 @@ class FileCache implements CacheInterface
                 return [];
             }
 
-            $data = json_decode($content, true);
-            if (json_last_error() !== JSON_ERROR_NONE || ! is_array($data)) {
-                // TODO: Log error, potentially unlink corrupt file
+            $data = unserialize($content);
+            if ($data === false) {
                 return [];
             }
 
@@ -225,29 +222,25 @@ class FileCache implements CacheInterface
 
     private function writeCacheFile(array $data): bool
     {
-        $jsonData = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            // TODO: Log error
+        $jsonData = serialize($data);
+
+        if ($jsonData === false) {
             return false;
         }
 
         $handle = @fopen($this->cacheFile, 'cb');
         if ($handle === false) {
-            // TODO: Log error
             return false;
         }
 
         try {
             if (! flock($handle, LOCK_EX)) {
-                // TODO: Log error
                 return false;
             }
             if (! ftruncate($handle, 0)) {
-                // TODO: Log error
                 return false;
             }
             if (fwrite($handle, $jsonData) === false) {
-                // TODO: Log error
                 return false;
             }
             fflush($handle);
@@ -256,7 +249,6 @@ class FileCache implements CacheInterface
 
             return true;
         } catch (Throwable $e) {
-            // TODO: Log error
             flock($handle, LOCK_UN); // Ensure lock release on error
 
             return false;
@@ -271,7 +263,6 @@ class FileCache implements CacheInterface
     {
         if (! is_dir($directory)) {
             if (! @mkdir($directory, $this->dirPermission, true)) {
-                // TODO: Log error
                 throw new InvalidArgumentException("Cache directory does not exist and could not be created: {$directory}");
             }
             @chmod($directory, $this->dirPermission);
@@ -291,11 +282,9 @@ class FileCache implements CacheInterface
             try {
                 return (new DateTimeImmutable())->add($ttl)->getTimestamp();
             } catch (Throwable $e) {
-                // TODO: Log error
                 return null;
             }
         }
-        // TODO: Log warning
         throw new InvalidArgumentException('Invalid TTL type provided. Must be null, int, or DateInterval.');
     }
 
@@ -321,9 +310,9 @@ class FileCache implements CacheInterface
     {
         foreach ($keys as $key) {
             if (! is_string($key)) {
-                throw new InvalidArgumentException('Cache key must be a string, got '.gettype($key));
+                throw new InvalidArgumentException('Cache key must be a string, got ' . gettype($key));
             }
-            $this->sanitizeKey($key); // Reuse sanitize validation
+            $this->sanitizeKey($key);
         }
     }
 
