@@ -2,6 +2,21 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v2.3.0 - 2025-06-12
+
+### What's Changed
+
+* Fix: Require react/promise ^3.0 for Promise API Compatibility by @CodeWithKyrian in https://github.com/php-mcp/server/pull/18
+* Fix: Correct object serialization in FileCache using serialize/unserialize by @CodeWithKyrian in https://github.com/php-mcp/server/pull/19
+* check the the header X-Forwarded-Proto for scheme by @bangnokia in https://github.com/php-mcp/server/pull/14
+* Feat: Improve HttpServerTransport Extensibility via Protected Methods by @CodeWithKyrian in https://github.com/php-mcp/server/pull/20
+
+### New Contributors
+
+* @bangnokia made their first contribution in https://github.com/php-mcp/server/pull/14
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/2.2.1...2.3.0
+
 ## v2.2.1 - 2025-06-07
 
 ### What's Changed
@@ -139,6 +154,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
    
