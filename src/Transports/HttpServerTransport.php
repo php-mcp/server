@@ -184,8 +184,8 @@ class HttpServerTransport implements LoggerAwareInterface, LoopAwareInterface, S
             }
 
             try {
-                $postEndpointWithId = $this->messagePath . "?clientId={$clientId}";
-                $this->sendSseEvent($sseStream, 'endpoint', $postEndpointWithId, "init-{$clientId}");
+                $postEndpoint = $this->messagePath . "?clientId={$clientId}";
+                $this->sendSseEvent($sseStream, 'endpoint', $postEndpoint, "init-{$clientId}");
 
                 $this->emit('client_connected', [$clientId]);
             } catch (Throwable $e) {
