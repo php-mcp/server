@@ -17,7 +17,8 @@ test('constructor validates tool name pattern', function (string $toolName, bool
         methodName: 'templateMethod',
         toolName: $toolName,
         description: 'Desc',
-        inputSchema: ['type' => 'object']
+        inputSchema: ['type' => 'object'],
+        annotations: ['title' => 'Test Tool', 'readOnlyHint' => true]
     );
 
     if ($shouldFail) {
@@ -55,6 +56,7 @@ test('fromReflection creates definition with explicit name and description', fun
         $reflectionMethod,
         $attribute->name,
         $attribute->description,
+        $attribute->annotations,
         $this->docBlockParser,
         $this->schemaGenerator
     );
@@ -62,6 +64,38 @@ test('fromReflection creates definition with explicit name and description', fun
     // Assert
     expect($definition->getName())->toBe('explicit-tool-name');
     expect($definition->getDescription())->toBe('Explicit Description');
+    expect($definition->getClassName())->toBe(AllElementsStub::class);
+    expect($definition->getMethodName())->toBe('templateMethod');
+    expect($definition->getInputSchema())->toBe($expectedSchema);
+    expect($definition->getAnnotations())->toBe([]);
+});
+
+test('fromReflection creates definition with explicit annotations', function () {
+    // Arrange
+    $reflectionMethod = new ReflectionMethod(AllElementsStub::class, 'templateMethod');
+    $annotations = ['title' => 'Custom Tool', 'destructiveHint' => true, 'category' => 'admin'];
+
+    $attribute = new McpTool(name: 'explicit-tool-name', description: 'Explicit Description', annotations: $annotations);
+    $expectedSchema = ['type' => 'object', 'properties' => ['id' => ['type' => 'string']]];
+    $docComment = $reflectionMethod->getDocComment() ?: null;
+
+    $this->docBlockParser->shouldReceive('parseDocBlock')->once()->with($docComment)->andReturn(null);
+    $this->schemaGenerator->shouldReceive('fromMethodParameters')->once()->with($reflectionMethod)->andReturn($expectedSchema);
+
+    // Act
+    $definition = ToolDefinition::fromReflection(
+        $reflectionMethod,
+        $attribute->name,
+        $attribute->description,
+        $attribute->annotations,
+        $this->docBlockParser,
+        $this->schemaGenerator
+    );
+
+    // Assert
+    expect($definition->getName())->toBe('explicit-tool-name');
+    expect($definition->getDescription())->toBe('Explicit Description');
+    expect($definition->getAnnotations())->toBe($annotations);
     expect($definition->getClassName())->toBe(AllElementsStub::class);
     expect($definition->getMethodName())->toBe('templateMethod');
     expect($definition->getInputSchema())->toBe($expectedSchema);
@@ -90,6 +124,7 @@ test('fromReflection uses method name and docblock summary as defaults', functio
         $reflectionMethod,
         $attribute->name,
         $attribute->description,
+        $attribute->annotations,
         $this->docBlockParser,
         $this->schemaGenerator
     );
@@ -100,6 +135,7 @@ test('fromReflection uses method name and docblock summary as defaults', functio
     expect($definition->getClassName())->toBe(AllElementsStub::class);
     expect($definition->getMethodName())->toBe('templateMethod');
     expect($definition->getInputSchema())->toBe($expectedSchema);
+    expect($definition->getAnnotations())->toBe([]);
 });
 
 test('fromReflection uses class short name as default tool name for invokable classes', function () {
@@ -114,6 +150,7 @@ test('fromReflection uses class short name as default tool name for invokable cl
         $reflectionMethod,
         null,
         "Some description",
+        null,
         $this->docBlockParser,
         $this->schemaGenerator
     );
@@ -122,6 +159,7 @@ test('fromReflection uses class short name as default tool name for invokable cl
     expect($definition->getClassName())->toBe(ToolOnlyStub::class);
     expect($definition->getMethodName())->toBe('__invoke');
     expect($definition->getInputSchema())->toBe(['type' => 'object']);
+    expect($definition->getAnnotations())->toBe([]);
 });
 
 test('fromReflection handles missing docblock summary', function () {
@@ -140,6 +178,7 @@ test('fromReflection handles missing docblock summary', function () {
         $reflectionMethod,
         $attribute->name,
         $attribute->description,
+        $attribute->annotations,
         $this->docBlockParser,
         $this->schemaGenerator
     );
@@ -150,6 +189,7 @@ test('fromReflection handles missing docblock summary', function () {
     expect($definition->getClassName())->toBe(ToolOnlyStub::class);
     expect($definition->getMethodName())->toBe('tool1');
     expect($definition->getInputSchema())->toBe($expectedSchema);
+    expect($definition->getAnnotations())->toBe([]);
 });
 
 // --- Serialization Tests ---
@@ -161,7 +201,8 @@ test('can be serialized and unserialized correctly via toArray/fromArray', funct
         methodName: 'templateMethod',
         toolName: 'serial-tool',
         description: 'Testing serialization',
-        inputSchema: ['type' => 'object', 'required' => ['id'], 'properties' => ['id' => ['type' => 'string']]]
+        inputSchema: ['type' => 'object', 'required' => ['id'], 'properties' => ['id' => ['type' => 'string']]],
+        annotations: ['title' => 'Serialization Tool', 'category' => 'test']
     );
 
     // Act
@@ -172,12 +213,14 @@ test('can be serialized and unserialized correctly via toArray/fromArray', funct
         'toolName' => $original->getName(),
         'description' => $original->getDescription(),
         'inputSchema' => $original->getInputSchema(),
+        'annotations' => $original->getAnnotations(),
     ];
     $reconstructed = ToolDefinition::fromArray($internalArray);
 
     // Assert
     expect($reconstructed)->toEqual($original);
     expect($reconstructed->getInputSchema())->toBe($original->getInputSchema());
+    expect($reconstructed->getAnnotations())->toBe($original->getAnnotations());
 });
 
 test('toArray produces correct MCP format', function () {
@@ -187,14 +230,16 @@ test('toArray produces correct MCP format', function () {
         methodName: 'templateMethod',
         toolName: 'mcp-tool',
         description: 'MCP Description',
-        inputSchema: ['type' => 'object', 'properties' => ['id' => ['type' => 'string']]]
+        inputSchema: ['type' => 'object', 'properties' => ['id' => ['type' => 'string']]],
+        annotations: ['title' => 'MCP Tool', 'readOnlyHint' => true]
     );
     $definitionNoDesc = new ToolDefinition(
         className: ToolOnlyStub::class,
         methodName: 'tool1',
         toolName: 'mcp-tool-no-desc',
         description: null,
-        inputSchema: ['type' => 'object']
+        inputSchema: ['type' => 'object'],
+        annotations: []
     );
 
     // Act
@@ -206,10 +251,13 @@ test('toArray produces correct MCP format', function () {
         'name' => 'mcp-tool',
         'description' => 'MCP Description',
         'inputSchema' => ['type' => 'object', 'properties' => ['id' => ['type' => 'string']]],
+        'annotations' => ['title' => 'MCP Tool', 'readOnlyHint' => true],
     ]);
     expect($arrayNoDesc)->toBe([
         'name' => 'mcp-tool-no-desc',
         'inputSchema' => ['type' => 'object'],
     ]);
     expect($arrayNoDesc)->not->toHaveKey('description');
+    expect($arrayNoDesc)->not->toHaveKey('annotations');
 });
+

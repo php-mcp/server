@@ -18,11 +18,25 @@ class ToolDefinition
     private const TOOL_NAME_PATTERN = '/^[a-zA-Z0-9_-]+$/';
 
     /**
+     * Available tool annotations as defined by the MCP specification,
+     * and a validator function for each.
+     */
+    private const VALID_ANNOTATION_KEYS = [
+        'title' => 'is_string',
+        'readOnlyHint' => 'is_bool',
+        'destructiveHint' => 'is_bool',
+        'idempotentHint' => 'is_bool',
+        'openWorldHint' => 'is_bool',
+
+    ];
+
+    /**
      * @param  class-string  $className  The fully qualified class name containing the tool method.
      * @param  string  $methodName  The name of the PHP method implementing the tool.
      * @param  string  $toolName  The designated name of the MCP tool (used in 'tools/call' requests).
      * @param  string|null  $description  A human-readable description of the tool.
      * @param  array<string, mixed>  $inputSchema  A JSON Schema object (as a PHP array) defining the expected 'arguments' for the tool. Complies with MCP 'Tool.inputSchema'.
+     * @param  array<string, mixed>  $annotations  Optional annotations (title, readOnlyHint, destructiveHint).
      *
      * @throws \InvalidArgumentException If the tool name doesn't match the required pattern.
      */
@@ -32,6 +46,7 @@ class ToolDefinition
         public readonly string $toolName,
         public readonly ?string $description,
         public readonly array $inputSchema,
+        public readonly array $annotations = [],
     ) {
         $this->validate();
     }
@@ -48,6 +63,22 @@ class ToolDefinition
                 "Tool name '{$this->toolName}' is invalid. Tool names must match the pattern " . self::TOOL_NAME_PATTERN
                     . ' (alphanumeric characters, underscores, and hyphens only).'
             );
+        }
+
+        foreach ($this->annotations as $key => $value) {
+            // Check there are no invalid annotations keys
+            if (! array_key_exists($key, self::VALID_ANNOTATION_KEYS)) {
+                throw new \InvalidArgumentException("Invalid annotation key '{$key}' in tool '{$this->toolName}'.");
+            }
+
+            // Check annotations values match defined types
+            $validator = self::VALID_ANNOTATION_KEYS[$key];
+            if (! $validator($value)) {
+                throw new \InvalidArgumentException(
+                    "Annotation '{$key}' for tool '{$this->toolName}' must be of type "
+                    . gettype($value) . ', expected ' . gettype($validator(null))
+                );
+            }
         }
     }
 
@@ -82,6 +113,14 @@ class ToolDefinition
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function getAnnotations(): array
+    {
+        return $this->annotations;
+    }
+
+    /**
      * Convert the tool definition to MCP format.
      */
     public function toArray(): array
@@ -96,6 +135,10 @@ class ToolDefinition
 
         if ($this->inputSchema) {
             $result['inputSchema'] = $this->inputSchema;
+        }
+
+        if ($this->annotations) {
+            $result['annotations'] = $this->annotations;
         }
 
         return $result;
@@ -115,6 +158,7 @@ class ToolDefinition
             toolName: $data['toolName'],
             description: $data['description'],
             inputSchema: $data['inputSchema'],
+            annotations: $data['annotations'] ?? []
         );
     }
 
@@ -130,12 +174,14 @@ class ToolDefinition
         ReflectionMethod $method,
         ?string $overrideName,
         ?string $overrideDescription,
+        ?array $overrideAnnotations,
         DocBlockParser $docBlockParser,
         SchemaGenerator $schemaGenerator
     ): self {
         $docBlock = $docBlockParser->parseDocBlock($method->getDocComment() ?? null);
         $description = $overrideDescription ?? $docBlockParser->getSummary($docBlock) ?? null;
         $inputSchema = $schemaGenerator->fromMethodParameters($method);
+        $annotations = $overrideAnnotations ?? null;
 
         $toolName = $overrideName ?? ($method->getName() === '__invoke'
             ? $method->getDeclaringClass()->getShortName()
@@ -147,6 +193,7 @@ class ToolDefinition
             toolName: $toolName,
             description: $description,
             inputSchema: $inputSchema,
+            annotations: $annotations ?? []
         );
     }
 }

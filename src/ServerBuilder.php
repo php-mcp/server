@@ -126,9 +126,9 @@ final class ServerBuilder
     /**
      * Manually registers a tool handler.
      */
-    public function withTool(array|string $handler, ?string $name = null, ?string $description = null): self
+    public function withTool(array|string $handler, ?string $name = null, ?string $description = null, array $annotations = []): self
     {
-        $this->manualTools[] = compact('handler', 'name', 'description');
+        $this->manualTools[] = compact('handler', 'name', 'description', 'annotations');
 
         return $this;
     }
@@ -225,6 +225,7 @@ final class ServerBuilder
                     $resolvedHandler['reflectionMethod'],
                     $data['name'],
                     $data['description'],
+                    $data['annotations'],
                     $docBlockParser,
                     $schemaGenerator
                 );

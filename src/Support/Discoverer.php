@@ -202,6 +202,7 @@ class Discoverer
                         $method,
                         $instance->name ?? null,
                         $instance->description ?? null,
+                        $instance->annotations ?? [],
                         $this->docBlockParser,
                         $this->schemaGenerator
                     );

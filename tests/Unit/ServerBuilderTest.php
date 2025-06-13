@@ -99,7 +99,7 @@ it('stores manual tool registration data', function () {
 
     $manualTools = getBuilderProperty($this->builder, 'manualTools');
     expect($manualTools)->toBeArray()->toHaveCount(1);
-    expect($manualTools[0])->toBe(['handler' => $handler, 'name' => $name, 'description' => $desc]);
+    expect($manualTools[0])->toBe(['handler' => $handler, 'name' => $name, 'description' => $desc, 'annotations' => []]);
 });
 
 it('stores manual resource registration data', function () {

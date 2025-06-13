@@ -156,7 +156,7 @@ $server->discover(basePath: __DIR__, scanDirs: ['src/Handlers']);
 
 Attributes:
 
-*   **`#[McpTool(name?, description?)`**: Defines an action. Parameters/return types/DocBlocks define the MCP schema. Use on public, non-static methods or invokable classes.
+*   **`#[McpTool(name?, description?, annotations?)`**: Defines an action. Parameters/return types/DocBlocks define the MCP schema. Use on public, non-static methods or invokable classes.
 *   **`#[McpResource(uri, name?, description?, mimeType?, size?, annotations?)]`**: Defines a static resource instance. Use on public, non-static methods or invokable classes. Method returns resource content.
 *   **`#[McpResourceTemplate(uriTemplate, name?, description?, mimeType?, annotations?)]`**: Defines a handler for templated URIs (e.g., `item://{id}`). Use on public, non-static methods or invokable classes. Method parameters must match template variables. Method returns content for the resolved instance.
 *   **`#[McpPrompt(name?, description?)`**: Defines a prompt generator. Use on public, non-static methods or invokable classes. Method parameters are prompt arguments. Method returns prompt messages.
