@@ -54,14 +54,8 @@ class Registry
 
     private bool $discoveredElementsLoaded = false;
 
-    /** @var callable|null */
-    private $notifyToolsChanged = null;
+    private bool $notificationsEnabled = true;
 
-    /** @var callable|null */
-    private $notifyResourcesChanged = null;
-
-    /** @var callable|null */
-    private $notifyPromptsChanged = null;
 
     public function __construct(
         LoggerInterface $logger,
@@ -73,7 +67,6 @@ class Registry
         $this->clientStateManager = $clientStateManager;
 
         $this->initializeCollections();
-        $this->initializeDefaultNotifiers();
 
         if ($this->cache) {
             $this->loadDiscoveredElementsFromCache();
@@ -115,53 +108,92 @@ class Registry
         $this->manualTemplateUris = [];
     }
 
-    private function initializeDefaultNotifiers(): void
+    public function enableNotifications(): void
     {
-        $this->notifyToolsChanged = function () {
-            if ($this->clientStateManager) {
-                $notification = Notification::make('notifications/tools/list_changed');
-                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-                if ($framedMessage !== false) {
-                    $this->clientStateManager->queueMessageForAll($framedMessage);
-                }
-            }
-        };
-
-        $this->notifyResourcesChanged = function () {
-            if ($this->clientStateManager) {
-                $notification = Notification::make('notifications/resources/list_changed');
-                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-                if ($framedMessage !== false) {
-                    $this->clientStateManager->queueMessageForAll($framedMessage);
-                }
-            }
-        };
-
-        $this->notifyPromptsChanged = function () {
-            if ($this->clientStateManager) {
-                $notification = Notification::make('notifications/prompts/list_changed');
-                $framedMessage = json_encode($notification->toArray(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
-                if ($framedMessage !== false) {
-                    $this->clientStateManager->queueMessageForAll($framedMessage);
-                }
-            }
-        };
+        $this->notificationsEnabled = true;
     }
 
-    public function setToolsChangedNotifier(?callable $notifier): void
+    public function disableNotifications(): void
     {
-        $this->notifyToolsChanged = $notifier;
+        $this->notificationsEnabled = false;
     }
 
-    public function setResourcesChangedNotifier(?callable $notifier): void
+    public function notifyToolsChanged(): void
     {
-        $this->notifyResourcesChanged = $notifier;
+        if (!$this->notificationsEnabled || !$this->clientStateManager) {
+            return;
+        }
+        $notification = Notification::make('notifications/tools/list_changed');
+
+        $framedMessage = json_encode($notification, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+        if ($framedMessage === false || $framedMessage === "\n") {
+            $this->logger->error('Failed to encode notification for queuing.', ['method' => $notification->method]);
+            return;
+        }
+        $this->clientStateManager->queueMessageForAll($framedMessage);
     }
 
-    public function setPromptsChangedNotifier(?callable $notifier): void
+    public function notifyResourcesChanged(): void
     {
-        $this->notifyPromptsChanged = $notifier;
+        if (!$this->notificationsEnabled || !$this->clientStateManager) {
+            return;
+        }
+        $notification = Notification::make('notifications/resources/list_changed');
+
+        $framedMessage = json_encode($notification, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+        if ($framedMessage === false || $framedMessage === "\n") {
+            $this->logger->error('Failed to encode notification for queuing.', ['method' => $notification->method]);
+            return;
+        }
+        $this->clientStateManager->queueMessageForAll($framedMessage);
     }
+
+    public function notifyPromptsChanged(): void
+    {
+        if (!$this->notificationsEnabled || !$this->clientStateManager) {
+            return;
+        }
+        $notification = Notification::make('notifications/prompts/list_changed');
+
+        $framedMessage = json_encode($notification, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+        if ($framedMessage === false || $framedMessage === "\n") {
+            $this->logger->error('Failed to encode notification for queuing.', ['method' => $notification->method]);
+            return;
+        }
+        $this->clientStateManager->queueMessageForAll($framedMessage);
+    }
+
+    public function notifyResourceUpdated(string $uri): void
+    {
+        if (!$this->notificationsEnabled || !$this->clientStateManager) {
+            return;
+        }
+
+        $subscribers = $this->clientStateManager->getResourceSubscribers($uri);
+        if (empty($subscribers)) {
+            return;
+        }
+        $notification = Notification::make('notifications/resources/updated', ['uri' => $uri]);
+
+        $framedMessage = json_encode($notification, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+        if ($framedMessage === false || $framedMessage === "\n") {
+            $this->logger->error('Failed to encode resource/updated notification.', ['uri' => $uri]);
+            return;
+        }
+
+        foreach ($subscribers as $clientId) {
+            $this->clientStateManager->queueMessage($clientId, $framedMessage);
+        }
+    }
+
+    /** @deprecated  */
+    public function setToolsChangedNotifier(?callable $notifier): void {}
+
+    /** @deprecated  */
+    public function setResourcesChangedNotifier(?callable $notifier): void {}
+
+    /** @deprecated  */
+    public function setPromptsChangedNotifier(?callable $notifier): void {}
 
     public function registerTool(ToolDefinition $tool, bool $isManual = false): void
     {
@@ -187,8 +219,8 @@ class Registry
             unset($this->manualToolNames[$toolName]);
         }
 
-        if (! $exists && $this->notifyToolsChanged) {
-            ($this->notifyToolsChanged)($tool);
+        if (! $exists) {
+            $this->notifyToolsChanged();
         }
     }
 
@@ -214,8 +246,8 @@ class Registry
             unset($this->manualResourceUris[$uri]);
         }
 
-        if (! $exists && $this->notifyResourcesChanged) {
-            ($this->notifyResourcesChanged)();
+        if (! $exists) {
+            $this->notifyResourcesChanged();
         }
     }
 
@@ -265,8 +297,8 @@ class Registry
             unset($this->manualPromptNames[$promptName]);
         }
 
-        if (! $exists && $this->notifyPromptsChanged) {
-            ($this->notifyPromptsChanged)();
+        if (! $exists) {
+            $this->notifyPromptsChanged();
         }
     }
 
