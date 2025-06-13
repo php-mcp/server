@@ -378,7 +378,7 @@ it('removes only non-manual elements and optionally clears cache', function ($de
 
 // --- Notifier Tests ---
 
-it('default notifiers send messages via ClientStateManager', function () {
+it('sends notifications when tools, resources, and prompts are registered', function () {
     // Arrange
     $tool = createTestTool('notify-tool');
     $resource = createTestResource('notify://res');
@@ -392,18 +392,12 @@ it('default notifiers send messages via ClientStateManager', function () {
     $this->registry->registerPrompt($prompt);
 });
 
-it('custom notifiers can be set and are called', function () {
+it('does not send notifications when notifications are disabled', function () {
     // Arrange
-    $toolNotifierCalled = false;
-    $this->registry->setToolsChangedNotifier(function () use (&$toolNotifierCalled) {
-        $toolNotifierCalled = true;
-    });
+    $this->registry->disableNotifications();
 
     $this->clientStateManager->shouldNotReceive('queueMessageForAll');
 
     // Act
-    $this->registry->registerTool(createTestTool('custom-notify'));
-
-    // Assert
-    expect($toolNotifierCalled)->toBeTrue();
+    $this->registry->registerTool(createTestTool('notify-tool'));
 });
