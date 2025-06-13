@@ -2,6 +2,14 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v2.3.1 - 2025-06-13
+
+### What's Changed
+
+* Streamline Registry Notifications and Add Discovery Suppression Support by @CodeWithKyrian in https://github.com/php-mcp/server/pull/22
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/2.3.0...2.3.1
+
 ## v2.3.0 - 2025-06-12
 
 ### What's Changed
@@ -154,6 +162,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
    
