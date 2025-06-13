@@ -196,7 +196,11 @@ final class ServerBuilder
         $registry = new Registry($configuration->logger, $configuration->cache, $clientStateManager);
         $protocol = new Protocol($configuration, $registry, $clientStateManager);
 
+        $registry->disableNotifications();
+        
         $this->performManualRegistrations($registry, $configuration->logger);
+        
+        $registry->enableNotifications();
 
         $server = new Server($configuration, $registry, $protocol, $clientStateManager);
 
