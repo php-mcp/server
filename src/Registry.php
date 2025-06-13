@@ -118,7 +118,7 @@ class Registry
         $this->notificationsEnabled = false;
     }
 
-    public function notifyToolsChanged(): void
+    public function notifyToolsListChanged(): void
     {
         if (!$this->notificationsEnabled || !$this->clientStateManager) {
             return;
@@ -133,7 +133,7 @@ class Registry
         $this->clientStateManager->queueMessageForAll($framedMessage);
     }
 
-    public function notifyResourcesChanged(): void
+    public function notifyResourcesListChanged(): void
     {
         if (!$this->notificationsEnabled || !$this->clientStateManager) {
             return;
@@ -148,7 +148,7 @@ class Registry
         $this->clientStateManager->queueMessageForAll($framedMessage);
     }
 
-    public function notifyPromptsChanged(): void
+    public function notifyPromptsListChanged(): void
     {
         if (!$this->notificationsEnabled || !$this->clientStateManager) {
             return;
@@ -220,7 +220,7 @@ class Registry
         }
 
         if (! $exists) {
-            $this->notifyToolsChanged();
+            $this->notifyToolsListChanged();
         }
     }
 
@@ -247,7 +247,7 @@ class Registry
         }
 
         if (! $exists) {
-            $this->notifyResourcesChanged();
+            $this->notifyResourcesListChanged();
         }
     }
 
@@ -298,7 +298,7 @@ class Registry
         }
 
         if (! $exists) {
-            $this->notifyPromptsChanged();
+            $this->notifyPromptsListChanged();
         }
     }
 
