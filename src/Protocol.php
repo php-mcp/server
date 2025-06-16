@@ -121,7 +121,16 @@ class Protocol
 
         if ($session === null) {
             $error = Error::forInvalidRequest('Invalid or expired session. Please re-initialize the session.', $message->id);
-            $this->transport->sendMessage($error, $sessionId, $context);
+            $context['status_code'] = 404;
+
+            $this->transport->sendMessage($error, $sessionId, $context)
+                ->then(function () use ($sessionId, $error, $context) {
+                    $this->logger->debug('Response sent.', ['sessionId' => $sessionId, 'payload' => $error, 'context' => $context]);
+                })
+                ->catch(function (Throwable $e) use ($sessionId, $error, $context) {
+                    $this->logger->error('Failed to send response.', ['sessionId' => $sessionId, 'error' => $e->getMessage()]);
+                });
+
             return;
         }
 
