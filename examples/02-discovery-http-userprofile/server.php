@@ -67,7 +67,7 @@ try {
 
     $server = Server::make()
         ->withServerInfo('HTTP User Profiles', '1.0.0')
-        ->withCapabilities(ServerCapabilities::make(completionsEnabled: true))
+        ->withCapabilities(ServerCapabilities::make(completionsEnabled: true, loggingEnabled: true))
         ->withLogger($logger)
         ->withContainer($container)
         ->build();

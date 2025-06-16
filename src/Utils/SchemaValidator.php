@@ -1,6 +1,6 @@
 <?php
 
-namespace PhpMcp\Server\Support;
+namespace PhpMcp\Server\Utils;
 
 use InvalidArgumentException;
 use JsonException;
@@ -48,7 +48,6 @@ class SchemaValidator
             // --- Data Preparation ---
             // Opis Validator generally prefers objects for object validation
             $dataToValidate = $this->convertDataForValidator($data);
-
         } catch (JsonException $e) {
             $this->logger->error('MCP SDK: Invalid schema structure provided for validation (JSON conversion failed).', ['exception' => $e]);
 
@@ -75,7 +74,7 @@ class SchemaValidator
                 'schema' => json_encode($schemaObject),
             ]);
 
-            return [['pointer' => '', 'keyword' => 'internal', 'message' => 'Schema validation process failed: '.$e->getMessage()]];
+            return [['pointer' => '', 'keyword' => 'internal', 'message' => 'Schema validation process failed: ' . $e->getMessage()]];
         }
 
         if ($result->isValid()) {
@@ -178,7 +177,7 @@ class SchemaValidator
             return str_replace(['~', '/'], ['~0', '~1'], $componentStr);
         }, $pathComponents);
 
-        return '/'.implode('/', $escapedComponents);
+        return '/' . implode('/', $escapedComponents);
     }
 
     /**
@@ -193,7 +192,7 @@ class SchemaValidator
         switch (strtolower($keyword)) {
             case 'required':
                 $missing = $args['missing'] ?? [];
-                $formattedMissing = implode(', ', array_map(fn ($p) => "`{$p}`", $missing));
+                $formattedMissing = implode(', ', array_map(fn($p) => "`{$p}`", $missing));
                 $message = "Missing required properties: {$formattedMissing}.";
                 break;
             case 'type':
@@ -216,7 +215,7 @@ class SchemaValidator
                 } else {
                     $formattedAllowed = array_map(function ($v) { /* ... formatting logic ... */
                         if (is_string($v)) {
-                            return '"'.$v.'"';
+                            return '"' . $v . '"';
                         }
                         if (is_bool($v)) {
                             return $v ? 'true' : 'false';
@@ -227,7 +226,7 @@ class SchemaValidator
 
                         return (string) $v;
                     }, $allowedValues);
-                    $message = 'Value must be one of the allowed values: '.implode(', ', $formattedAllowed).'.';
+                    $message = 'Value must be one of the allowed values: ' . implode(', ', $formattedAllowed) . '.';
                 }
                 break;
             case 'const':
@@ -287,7 +286,7 @@ class SchemaValidator
                 break;
             case 'additionalProperties': // Corrected casing
                 $unexpected = $args['properties'] ?? [];
-                $formattedUnexpected = implode(', ', array_map(fn ($p) => "`{$p}`", $unexpected));
+                $formattedUnexpected = implode(', ', array_map(fn($p) => "`{$p}`", $unexpected));
                 $message = "Object contains unexpected additional properties: {$formattedUnexpected}.";
                 break;
             case 'format':
@@ -300,7 +299,7 @@ class SchemaValidator
                     $placeholders = $args ?? [];
                     $builtInMessage = preg_replace_callback('/\{(\w+)\}/', function ($match) use ($placeholders) {
                         $key = $match[1];
-                        $value = $placeholders[$key] ?? '{'.$key.'}';
+                        $value = $placeholders[$key] ?? '{' . $key . '}';
 
                         return is_array($value) ? json_encode($value) : (string) $value;
                     }, $builtInMessage);

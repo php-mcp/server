@@ -39,16 +39,13 @@ use PhpMcp\Schema\Result\ReadResourceResult;
 use PhpMcp\Server\Protocol;
 use PhpMcp\Server\Registry;
 use PhpMcp\Server\Session\SubscriptionManager;
-use PhpMcp\Server\Support\SchemaValidator;
-use PhpMcp\Server\Traits\ResponseFormatter;
+use PhpMcp\Server\Utils\SchemaValidator;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
 class Dispatcher
 {
-    use ResponseFormatter;
-
     protected ContainerInterface $container;
     protected LoggerInterface $logger;
 
@@ -160,12 +157,12 @@ class Dispatcher
         $toolName = $request->name;
         $arguments = $request->arguments;
 
-        ['tool' => $tool, 'handler' => $handler] = $this->registry->getTool($toolName);
-        if (! $tool) {
+        $registeredTool = $this->registry->getTool($toolName);
+        if (! $registeredTool) {
             throw McpServerException::methodNotFound("Tool '{$toolName}' not found.");
         }
 
-        $inputSchema = $tool->inputSchema;
+        $inputSchema = $registeredTool->schema->inputSchema;
 
         $validationErrors = $this->schemaValidator->validateAgainstJsonSchema($arguments, $inputSchema);
 
@@ -188,20 +185,19 @@ class Dispatcher
         }
 
         try {
-            $result = $handler->handle($this->container, $arguments);
-            $formattedResult = $this->formatToolResult($result);
+            $result = $registeredTool->call($this->container, $arguments);
 
-            return new CallToolResult($formattedResult, false);
+            return new CallToolResult($result, false);
         } catch (JsonException $e) {
-            $this->logger->warning('MCP SDK: Failed to JSON encode tool result.', ['tool' => $toolName, 'exception' => $e]);
+            $this->logger->warning('Failed to JSON encode tool result.', ['tool' => $toolName, 'exception' => $e]);
             $errorMessage = "Failed to serialize tool result: {$e->getMessage()}";
 
             return new CallToolResult([new TextContent($errorMessage)], true);
         } catch (Throwable $toolError) {
-            $this->logger->error('MCP SDK: Tool execution failed.', ['tool' => $toolName, 'exception' => $toolError]);
-            $errorContent = $this->formatToolErrorResult($toolError);
+            $this->logger->error('Tool execution failed.', ['tool' => $toolName, 'exception' => $toolError]);
+            $errorMessage = "Tool execution failed: {$toolError->getMessage()}";
 
-            return new CallToolResult($errorContent, true);
+            return new CallToolResult([new TextContent($errorMessage)], true);
         }
     }
 
@@ -231,25 +227,23 @@ class Dispatcher
     {
         $uri = $request->uri;
 
-        ['resource' => $resource, 'handler' => $handler, 'variables' => $uriVariables] = $this->registry->getResource($uri);
+        $registeredResource = $this->registry->getResource($uri);
 
-        if (! $resource) {
+        if (! $registeredResource) {
             throw McpServerException::invalidParams("Resource URI '{$uri}' not found.");
         }
 
         try {
-            $arguments = array_merge($uriVariables, ['uri' => $uri]);
-            $result = $handler->handle($this->container, $arguments);
-            $contents = $this->formatResourceContents($result, $uri, $resource->mimeType);
+            $result = $registeredResource->read($this->container, $uri);
 
-            return new ReadResourceResult($contents);
+            return new ReadResourceResult($result);
         } catch (JsonException $e) {
-            $this->logger->warning('MCP SDK: Failed to JSON encode resource content.', ['exception' => $e, 'uri' => $uri]);
+            $this->logger->warning('Failed to JSON encode resource content.', ['exception' => $e, 'uri' => $uri]);
             throw McpServerException::internalError("Failed to serialize resource content for '{$uri}'.", $e);
         } catch (McpServerException $e) {
             throw $e;
         } catch (Throwable $e) {
-            $this->logger->error('MCP SDK: Resource read failed.', ['uri' => $uri, 'exception' => $e]);
+            $this->logger->error('Resource read failed.', ['uri' => $uri, 'exception' => $e]);
             throw McpServerException::resourceReadFailed($uri, $e);
         }
     }
@@ -282,32 +276,31 @@ class Dispatcher
         $promptName = $request->name;
         $arguments = $request->arguments;
 
-        ['prompt' => $prompt, 'handler' => $handler] = $this->registry->getPrompt($promptName);
-        if (! $prompt) {
+        $registeredPrompt = $this->registry->getPrompt($promptName);
+        if (! $registeredPrompt) {
             throw McpServerException::invalidParams("Prompt '{$promptName}' not found.");
         }
 
         $arguments = (array) $arguments;
 
-        foreach ($prompt->arguments as $argDef) {
+        foreach ($registeredPrompt->schema->arguments as $argDef) {
             if ($argDef->required && ! array_key_exists($argDef->name, $arguments)) {
                 throw McpServerException::invalidParams("Missing required argument '{$argDef->name}' for prompt '{$promptName}'.");
             }
         }
 
         try {
-            $result = $handler->handle($this->container, $arguments);
-            $messages = $this->formatPromptMessages($result);
+            $result = $registeredPrompt->get($this->container, $arguments);
 
-            return new GetPromptResult($messages, $prompt->description);
+            return new GetPromptResult($result, $registeredPrompt->schema->description);
         } catch (JsonException $e) {
-            $this->logger->warning('MCP SDK: Failed to JSON encode prompt messages.', ['exception' => $e, 'promptName' => $promptName]);
+            $this->logger->warning('Failed to JSON encode prompt messages.', ['exception' => $e, 'promptName' => $promptName]);
             throw McpServerException::internalError("Failed to serialize prompt messages for '{$promptName}'.", $e);
         } catch (McpServerException $e) {
-            throw $e; // Re-throw known MCP errors
+            throw $e;
         } catch (Throwable $e) {
-            $this->logger->error('MCP SDK: Prompt generation failed.', ['promptName' => $promptName, 'exception' => $e]);
-            throw McpServerException::promptGenerationFailed($promptName, $e); // Use specific factory
+            $this->logger->error('Prompt generation failed.', ['promptName' => $promptName, 'exception' => $e]);
+            throw McpServerException::promptGenerationFailed($promptName, $e);
         }
     }
 
@@ -332,13 +325,13 @@ class Dispatcher
 
         if ($ref->type === 'ref/prompt') {
             $identifier = $ref->name;
-            ['prompt' => $prompt] = $this->registry->getPrompt($identifier);
-            if (! $prompt) {
+            $registeredPrompt = $this->registry->getPrompt($identifier);
+            if (! $registeredPrompt) {
                 throw McpServerException::invalidParams("Prompt '{$identifier}' not found.");
             }
 
             $foundArg = false;
-            foreach ($prompt->arguments as $arg) {
+            foreach ($registeredPrompt->schema->arguments as $arg) {
                 if ($arg->name === $argumentName) {
                     $foundArg = true;
                     break;
@@ -347,15 +340,17 @@ class Dispatcher
             if (! $foundArg) {
                 throw McpServerException::invalidParams("Argument '{$argumentName}' not found in prompt '{$identifier}'.");
             }
+
+            $providerClass = $registeredPrompt->getCompletionProvider($argumentName);
         } else if ($ref->type === 'ref/resource') {
             $identifier = $ref->uri;
-            ['resourceTemplate' => $resourceTemplate, 'variables' => $uriVariables] = $this->registry->getResourceTemplate($identifier);
-            if (! $resourceTemplate) {
+            $registeredResourceTemplate = $this->registry->getResourceTemplate($identifier);
+            if (! $registeredResourceTemplate) {
                 throw McpServerException::invalidParams("Resource template '{$identifier}' not found.");
             }
 
             $foundArg = false;
-            foreach ($uriVariables as $uriVariableName) {
+            foreach ($registeredResourceTemplate->getVariableNames() as $uriVariableName) {
                 if ($uriVariableName === $argumentName) {
                     $foundArg = true;
                     break;
@@ -365,11 +360,12 @@ class Dispatcher
             if (! $foundArg) {
                 throw McpServerException::invalidParams("URI variable '{$argumentName}' not found in resource template '{$identifier}'.");
             }
+
+            $providerClass = $registeredResourceTemplate->getCompletionProvider($argumentName);
         } else {
             throw McpServerException::invalidParams("Invalid ref type '{$ref->type}' for completion complete request.");
         }
 
-        $providerClass = $this->registry->getCompletionProvider($ref->type, $identifier, $argumentName);
         if (! $providerClass) {
             $this->logger->warning("No completion provider found for argument '{$argumentName}' in '{$ref->type}' '{$identifier}'.");
             return new CompletionCompleteResult([]);

@@ -19,7 +19,7 @@ use PhpMcp\Schema\JsonRpc\Error;
 use PhpMcp\Schema\JsonRpc\Parser;
 use PhpMcp\Schema\JsonRpc\Request;
 use PhpMcp\Schema\JsonRpc\Response;
-use PhpMcp\Server\Support\RandomIdGenerator;
+use PhpMcp\Server\Utils\RandomIdGenerator;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -232,7 +232,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
         $acceptHeader = $request->getHeaderLine('Accept');
         if (!str_contains($acceptHeader, 'application/json') && !str_contains($acceptHeader, 'text/event-stream')) {
-            $error = Error::forInvalidRequest("Not Acceptable: Client must accept application/json or text/event-stream");
+            $error = Error::forInvalidRequest("Not Acceptable: Client must accept both application/json or text/event-stream");
             $deferred->resolve(new HttpResponse(406, ['Content-Type' => 'application/json'], json_encode($error)));
             return $deferred->promise();
         }

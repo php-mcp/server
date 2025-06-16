@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpMcp\Server\Support;
+namespace PhpMcp\Server\Utils;
 
 use PhpMcp\Schema\Prompt;
 use PhpMcp\Schema\PromptArgument;
@@ -196,8 +196,7 @@ class Discoverer
                     $description = $instance->description ?? $this->docBlockParser->getSummary($docBlock) ?? null;
                     $inputSchema = $this->schemaGenerator->fromMethodParameters($method);
                     $tool = Tool::make($name, $inputSchema, $description, $instance->annotations);
-                    $handler = new Handler($className, $methodName);
-                    $this->registry->registerTool($tool, $handler, true);
+                    $this->registry->registerTool($tool, $className, $methodName, true);
                     $discoveredCount['tools']++;
                     break;
 
@@ -209,8 +208,7 @@ class Discoverer
                     $size = $instance->size;
                     $annotations = $instance->annotations;
                     $resource = Resource::make($instance->uri, $name, $description, $mimeType, $annotations, $size);
-                    $handler = new Handler($className, $methodName);
-                    $this->registry->registerResource($resource, $handler, true);
+                    $this->registry->registerResource($resource, $className, $methodName, true);
                     $discoveredCount['resources']++;
                     break;
 
@@ -229,10 +227,9 @@ class Discoverer
                         $arguments[] = PromptArgument::make($param->getName(), $paramTag ? trim((string) $paramTag->getDescription()) : null, ! $param->isOptional() && ! $param->isDefaultValueAvailable());
                     }
                     $prompt = Prompt::make($name, $description, $arguments);
-                    $handler = new Handler($className, $methodName);
-                    $this->registry->registerPrompt($prompt, $handler, true);
+                    $completionProviders = $this->getCompletionProviders($method);
+                    $this->registry->registerPrompt($prompt, $className, $methodName, true, $completionProviders);
                     $discoveredCount['prompts']++;
-                    $this->discoverAndRegisterCompletionProviders('ref/prompt', $instance->name, $method);
                     break;
 
                 case McpResourceTemplate::class:
@@ -242,10 +239,9 @@ class Discoverer
                     $mimeType = $instance->mimeType;
                     $annotations = $instance->annotations;
                     $resourceTemplate = ResourceTemplate::make($instance->uriTemplate, $name, $description, $mimeType, $annotations);
-                    $handler = new Handler($className, $methodName);
-                    $this->registry->registerResourceTemplate($resourceTemplate, $handler, true);
+                    $completionProviders = $this->getCompletionProviders($method);
+                    $this->registry->registerResourceTemplate($resourceTemplate, $className, $methodName, true, $completionProviders);
                     $discoveredCount['resourceTemplates']++;
-                    $this->discoverAndRegisterCompletionProviders('ref/resource', $instance->uriTemplate, $method);
                     break;
             }
         } catch (McpServerException $e) {
@@ -255,25 +251,23 @@ class Discoverer
         }
     }
 
-    /**
-     * Discover and register completion providers for a given MCP Element.
-     *
-     * @param 'ref/prompt'|'ref/resource'|'ref/tool' $refType
-     */
-    private function discoverAndRegisterCompletionProviders(string $refType, string $identifier, ReflectionMethod $handlerMethod): void
+    private function getCompletionProviders(\ReflectionMethod $reflectionMethod): array
     {
-        foreach ($handlerMethod->getParameters() as $param) {
+        $completionProviders = [];
+        foreach ($reflectionMethod->getParameters() as $param) {
             $reflectionType = $param->getType();
-            if ($reflectionType instanceof \ReflectionNamedType && !$reflectionType->isBuiltin()) {
+            if ($reflectionType instanceof \ReflectionNamedType && ! $reflectionType->isBuiltin()) {
                 continue;
             }
 
-            $completionAttributes = $param->getAttributes(CompletionProvider::class, ReflectionAttribute::IS_INSTANCEOF);
+            $completionAttributes = $param->getAttributes(CompletionProvider::class, \ReflectionAttribute::IS_INSTANCEOF);
             if (!empty($completionAttributes)) {
                 $attributeInstance = $completionAttributes[0]->newInstance();
-                $this->registry->registerCompletionProvider($refType, $identifier, $param->getName(), $attributeInstance->providerClass);
+                $completionProviders[$param->getName()] = $attributeInstance->providerClass;
             }
         }
+
+        return $completionProviders;
     }
 
     /**

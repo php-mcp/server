@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpMcp\Server\Support;
+namespace PhpMcp\Server\Elements;
 
 use InvalidArgumentException;
 use PhpMcp\Server\Exception\McpServerException;
@@ -14,30 +14,30 @@ use ReflectionParameter;
 use Throwable;
 use TypeError;
 
-class Handler
+class RegisteredElement
 {
     public function __construct(
-        public readonly string $className,
-        public readonly string $methodName,
-    ) {
-    }
+        public readonly string $handlerClass,
+        public readonly string $handlerMethod,
+        public readonly bool $isManual = false,
+    ) {}
 
     public function handle(ContainerInterface $container, array $arguments): mixed
     {
-        $instance = $container->get($this->className);
+        $instance = $container->get($this->handlerClass);
         $arguments = $this->prepareArguments($instance, $arguments);
-        $method = $this->methodName;
+        $method = $this->handlerMethod;
 
         return $instance->$method(...$arguments);
     }
 
-    private function prepareArguments(object $instance, array $arguments): array
+    protected function prepareArguments(object $instance, array $arguments): array
     {
-        if (! method_exists($instance, $this->methodName)) {
-            throw new ReflectionException("Method does not exist: {$this->className}::{$this->methodName}");
+        if (! method_exists($instance, $this->handlerMethod)) {
+            throw new ReflectionException("Method does not exist: {$this->handlerClass}::{$this->handlerMethod}");
         }
 
-        $reflectionMethod = new ReflectionMethod($instance, $this->methodName);
+        $reflectionMethod = new ReflectionMethod($instance, $this->handlerMethod);
 
         $finalArgs = [];
 
@@ -65,25 +65,12 @@ class Handler
                 continue;
             } else {
                 throw McpServerException::internalError(
-                    "Missing required argument `{$paramName}` for {$reflectionMethod->class}::{$this->methodName}."
+                    "Missing required argument `{$paramName}` for {$reflectionMethod->class}::{$this->handlerMethod}."
                 );
             }
         }
 
         return array_values($finalArgs);
-    }
-
-    public static function fromArray(array $data): self
-    {
-        return new self($data['className'], $data['methodName']);
-    }
-
-    public function toArray(): array
-    {
-        return [
-            'className' => $this->className,
-            'methodName' => $this->methodName,
-        ];
     }
 
     /**
