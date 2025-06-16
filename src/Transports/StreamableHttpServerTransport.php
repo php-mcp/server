@@ -68,12 +68,16 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
     private ?ThroughStream $getStream = null;
 
+    /**
+     * @param bool $enableJsonResponse If true, the server will return JSON responses instead of starting an SSE stream. 
+     * This can be useful for simple request/response scenarios without streaming.
+     */
     public function __construct(
         private readonly string $host = '127.0.0.1',
         private readonly int $port = 8080,
         private string $mcpPath = '/mcp',
         private ?array $sslContext = null,
-        private readonly bool $preferDirectJsonResponse = true,
+        private readonly bool $enableJsonResponse = true,
         ?IdGeneratorInterface $idGenerator = null,
         ?EventStoreInterface $eventStore = null
     ) {
@@ -295,11 +299,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
             $deferred->resolve(new HttpResponse(202));
             $context['type'] = 'post_202_sent';
         } else {
-            $clientPrefersSse = str_contains($acceptHeader, 'text/event-stream');
-            $clientAcceptsJson = str_contains($acceptHeader, 'application/json');
-            $useSse = $clientPrefersSse && !($this->preferDirectJsonResponse && $clientAcceptsJson);
-
-            if ($useSse) {
+            if (!$this->enableJsonResponse) {
                 $streamId = $this->idGenerator->generateId();
                 $sseStream = new ThroughStream();
                 $this->activeSseStreams[$streamId] = [
@@ -480,7 +480,8 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
                     $headers['Mcp-Session-Id'] = $sessionId;
                 }
 
-                $deferred->resolve(new HttpResponse(200, $headers, $responseBody));
+                $statusCode = $context['status_code'] ?? 200;
+                $deferred->resolve(new HttpResponse($statusCode, $headers, $responseBody . "\n"));
                 return resolve(null);
 
             default:
