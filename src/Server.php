@@ -11,7 +11,7 @@ use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DiscoveryException;
 use PhpMcp\Server\Session\SessionManager;
-use PhpMcp\Server\Support\Discoverer;
+use PhpMcp\Server\Utils\Discoverer;
 use Throwable;
 
 /**
@@ -41,8 +41,7 @@ class Server
         protected readonly Registry $registry,
         protected readonly Protocol $protocol,
         protected readonly SessionManager $sessionManager,
-    ) {
-    }
+    ) {}
 
     public static function make(): ServerBuilder
     {

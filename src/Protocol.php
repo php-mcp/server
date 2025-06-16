@@ -21,7 +21,6 @@ use PhpMcp\Schema\Notification\RootsListChangedNotification;
 use PhpMcp\Schema\Notification\ToolListChangedNotification;
 use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Session\SubscriptionManager;
-use PhpMcp\Server\Support\RequestHandler;
 use Psr\Log\LoggerInterface;
 use React\Promise\PromiseInterface;
 use Throwable;

@@ -21,8 +21,7 @@ use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\Session\ArraySessionHandler;
 use PhpMcp\Server\Session\CacheSessionHandler;
 use PhpMcp\Server\Session\SessionManager;
-use PhpMcp\Server\Support\HandlerResolver;
-use PhpMcp\Server\Support\Handler;
+use PhpMcp\Server\Utils\HandlerResolver;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -283,8 +282,8 @@ final class ServerBuilder
         }
 
         $errorCount = 0;
-        $docBlockParser = new Support\DocBlockParser($logger);
-        $schemaGenerator = new Support\SchemaGenerator($docBlockParser);
+        $docBlockParser = new Utils\DocBlockParser($logger);
+        $schemaGenerator = new Utils\SchemaGenerator($docBlockParser);
 
         // Register Tools
         foreach ($this->manualTools as $data) {
@@ -301,8 +300,7 @@ final class ServerBuilder
                 $inputSchema = $schemaGenerator->fromMethodParameters($reflectionMethod);
 
                 $tool = Tool::make($name, $inputSchema, $description, $data['annotations']);
-                $handler = new Handler($className, $methodName);
-                $registry->registerTool($tool, $handler, true);
+                $registry->registerTool($tool, $className, $methodName, true);
 
                 $logger->debug("Registered manual tool {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
@@ -327,8 +325,7 @@ final class ServerBuilder
                 $annotations = $data['annotations'];
 
                 $resource = Resource::make($uri, $name, $description, $mimeType, $annotations, $size);
-                $handler = new Handler($className, $methodName);
-                $registry->registerResource($resource, $handler, true);
+                $registry->registerResource($resource, $className, $methodName, true);
 
                 $logger->debug("Registered manual resource {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
@@ -352,10 +349,8 @@ final class ServerBuilder
                 $annotations = $data['annotations'];
 
                 $template = ResourceTemplate::make($uriTemplate, $name, $description, $mimeType, $annotations);
-                $handler = new Handler($className, $methodName);
-                $registry->registerResourceTemplate($template, $handler, true);
-
-                $this->registerManualCompletionProviders('ref/resource', $uriTemplate, $reflectionMethod, $registry);
+                $completionProviders = $this->getCompletionProviders($reflectionMethod);
+                $registry->registerResourceTemplate($template, $className, $methodName, true, $completionProviders);
 
                 $logger->debug("Registered manual template {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
@@ -394,10 +389,8 @@ final class ServerBuilder
                 }
 
                 $prompt = Prompt::make($name, $description, $arguments);
-                $handler = new Handler($className, $methodName);
-                $registry->registerPrompt($prompt, $handler, true);
-
-                $this->registerManualCompletionProviders('ref/prompt', $name, $reflectionMethod, $registry);
+                $completionProviders = $this->getCompletionProviders($reflectionMethod);
+                $registry->registerPrompt($prompt, $className, $methodName, true, $completionProviders);
 
                 $logger->debug("Registered manual prompt {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
@@ -413,17 +406,10 @@ final class ServerBuilder
         $logger->debug('Manual element registration complete.');
     }
 
-    /**
-     * Register completion providers for a given MCP Element.
-     *
-     * @param 'ref/prompt'|'ref/resource' $refType
-     * @param string $identifier The identifier of the MCP Element (prompt name, resource template URI)
-     * @param \ReflectionMethod $handlerMethod The method to register completion providers for
-     * @param Registry $registry The registry to register the completion providers to
-     */
-    private function registerManualCompletionProviders(string $refType, string $identifier, \ReflectionMethod $handlerMethod, Registry $registry): void
+    private function getCompletionProviders(\ReflectionMethod $reflectionMethod): array
     {
-        foreach ($handlerMethod->getParameters() as $param) {
+        $completionProviders = [];
+        foreach ($reflectionMethod->getParameters() as $param) {
             $reflectionType = $param->getType();
             if ($reflectionType instanceof \ReflectionNamedType && !$reflectionType->isBuiltin()) {
                 continue;
@@ -432,8 +418,10 @@ final class ServerBuilder
             $completionAttributes = $param->getAttributes(CompletionProvider::class, \ReflectionAttribute::IS_INSTANCEOF);
             if (!empty($completionAttributes)) {
                 $attributeInstance = $completionAttributes[0]->newInstance();
-                $registry->registerCompletionProvider($refType, $identifier, $param->getName(), $attributeInstance->providerClass);
+                $completionProviders[$param->getName()] = $attributeInstance->providerClass;
             }
         }
+
+        return $completionProviders;
     }
 }

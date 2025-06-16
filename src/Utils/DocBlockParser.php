@@ -1,6 +1,6 @@
 <?php
 
-namespace PhpMcp\Server\Support;
+namespace PhpMcp\Server\Utils;
 
 use phpDocumentor\Reflection\DocBlock;
 use phpDocumentor\Reflection\DocBlock\Tags\Param;
@@ -67,7 +67,7 @@ class DocBlockParser
         $descriptionBody = trim((string) $docBlock->getDescription());
 
         if ($summary && $descriptionBody) {
-            return $summary."\n\n".$descriptionBody;
+            return $summary . "\n\n" . $descriptionBody;
         }
         if ($summary) {
             return $summary;
@@ -94,7 +94,7 @@ class DocBlockParser
         $paramTags = [];
         foreach ($docBlock->getTagsByName('param') as $tag) {
             if ($tag instanceof Param && $tag->getVariableName()) {
-                $paramTags['$'.$tag->getVariableName()] = $tag;
+                $paramTags['$' . $tag->getVariableName()] = $tag;
             }
         }
 

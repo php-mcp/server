@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PhpMcp\Server\Support;
+namespace PhpMcp\Server\Utils;
 
 use PhpMcp\Server\Contracts\IdGeneratorInterface;
 

@@ -13,7 +13,7 @@ use PhpMcp\Server\Exception\TransportException;
 use PhpMcp\Schema\JsonRpc\Message;
 use PhpMcp\Schema\JsonRpc\Error;
 use PhpMcp\Schema\JsonRpc\Parser;
-use PhpMcp\Server\Support\RandomIdGenerator;
+use PhpMcp\Server\Utils\RandomIdGenerator;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;

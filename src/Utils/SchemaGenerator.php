@@ -1,6 +1,6 @@
 <?php
 
-namespace PhpMcp\Server\Support;
+namespace PhpMcp\Server\Utils;
 
 use phpDocumentor\Reflection\DocBlock;
 use phpDocumentor\Reflection\DocBlock\Tags\Param;
@@ -63,7 +63,7 @@ class SchemaGenerator
                     $paramSchema['description'] = $description;
                 }
                 $itemJsonTypes = $this->mapPhpTypeToJsonSchemaType($typeString);
-                $nonNullItemTypes = array_filter($itemJsonTypes, fn ($t) => $t !== 'null');
+                $nonNullItemTypes = array_filter($itemJsonTypes, fn($t) => $t !== 'null');
                 if (count($nonNullItemTypes) === 1) {
                     $paramSchema['items'] = ['type' => $nonNullItemTypes[0]];
                 }
@@ -78,7 +78,7 @@ class SchemaGenerator
                     sort($jsonTypes);
                 }
 
-                $nonNullTypes = array_filter($jsonTypes, fn ($t) => $t !== 'null');
+                $nonNullTypes = array_filter($jsonTypes, fn($t) => $t !== 'null');
                 if (count($jsonTypes) === 1) {
                     $paramSchema['type'] = $jsonTypes[0];
                 } elseif (count($jsonTypes) > 1) {
@@ -248,7 +248,7 @@ class SchemaGenerator
 
         foreach ($method->getParameters() as $rp) {
             $paramName = $rp->getName();
-            $paramTag = $paramTags['$'.$paramName] ?? null;
+            $paramTag = $paramTags['$' . $paramName] ?? null;
 
             $reflectionType = $rp->getType();
             $typeString = $this->getParameterTypeString($rp, $paramTag);
@@ -351,7 +351,7 @@ class SchemaGenerator
             if (stripos($docBlockType, 'null') !== false && $reflectionTypeString && stripos($reflectionTypeString, 'null') === false && ! str_ends_with($reflectionTypeString, '|null')) {
                 // If reflection didn't capture null, but docblock did, append |null (if not already mixed)
                 if ($reflectionTypeString !== 'mixed') {
-                    return $reflectionTypeString.'|null';
+                    return $reflectionTypeString . '|null';
                 }
             }
 
@@ -382,10 +382,9 @@ class SchemaGenerator
                 $types[] = $this->getTypeStringFromReflection($innerType, $innerType->allowsNull());
             }
             if ($nativeAllowsNull) {
-                $types = array_filter($types, fn ($t) => strtolower($t) !== 'null');
+                $types = array_filter($types, fn($t) => strtolower($t) !== 'null');
             }
             $typeString = implode('|', array_unique(array_filter($types)));
-
         } elseif ($type instanceof ReflectionIntersectionType) {
             foreach ($type->getTypes() as $innerType) {
                 $types[] = $this->getTypeStringFromReflection($innerType, false);
@@ -428,7 +427,7 @@ class SchemaGenerator
         // Remove leading backslash from class names, but handle built-ins like 'int' or unions like 'int|string'
         if (str_contains($typeString, '\\')) {
             $parts = preg_split('/([|&])/', $typeString, -1, PREG_SPLIT_DELIM_CAPTURE);
-            $processedParts = array_map(fn ($part) => str_starts_with($part, '\\') ? ltrim($part, '\\') : $part, $parts);
+            $processedParts = array_map(fn($part) => str_starts_with($part, '\\') ? ltrim($part, '\\') : $part, $parts);
             $typeString = implode('', $processedParts);
         }
 
@@ -450,8 +449,10 @@ class SchemaGenerator
         }
 
         // PRIORITY 2: Check for array syntax first (T[] or generics)
-        if (str_contains($normalizedType, '[]') ||
-            preg_match('/^(array|list|iterable|collection)</i', $normalizedType)) {
+        if (
+            str_contains($normalizedType, '[]') ||
+            preg_match('/^(array|list|iterable|collection)</i', $normalizedType)
+        ) {
             return ['array'];
         }
 
@@ -510,8 +511,10 @@ class SchemaGenerator
         }
 
         // Case 3: Nested array<array<T>> syntax or T[][] syntax
-        if (preg_match('/^(\\??)array\s*<\s*array\s*<\s*([\w\\\\|]+)\s*>\s*>$/i', $normalizedType, $matches) ||
-            preg_match('/^(\\??)([\w\\\\]+)\s*\[\]\[\]$/i', $normalizedType, $matches)) {
+        if (
+            preg_match('/^(\\??)array\s*<\s*array\s*<\s*([\w\\\\|]+)\s*>\s*>$/i', $normalizedType, $matches) ||
+            preg_match('/^(\\??)([\w\\\\]+)\s*\[\]\[\]$/i', $normalizedType, $matches)
+        ) {
             $innerType = $this->mapSimpleTypeToJsonSchema(isset($matches[2]) ? strtolower($matches[2]) : 'any');
             // Return a schema for array with items being arrays
             return [
@@ -600,8 +603,10 @@ class SchemaGenerator
                 $properties[$propName] = $nestedSchema;
             }
             // Check for array<T> or T[] syntax
-            elseif (preg_match('/^array\s*<\s*([\w\\\\|]+)\s*>$/i', $propType, $arrayMatches) ||
-                   preg_match('/^([\w\\\\]+)\s*\[\]$/i', $propType, $arrayMatches)) {
+            elseif (
+                preg_match('/^array\s*<\s*([\w\\\\|]+)\s*>$/i', $propType, $arrayMatches) ||
+                preg_match('/^([\w\\\\]+)\s*\[\]$/i', $propType, $arrayMatches)
+            ) {
                 $itemType = $arrayMatches[1] ?? 'any';
                 $properties[$propName] = [
                     'type' => 'array',
