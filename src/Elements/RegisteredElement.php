@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Elements;
 
 use InvalidArgumentException;
+use JsonSerializable;
 use PhpMcp\Server\Exception\McpServerException;
 use Psr\Container\ContainerInterface;
 use ReflectionException;
@@ -14,7 +15,7 @@ use ReflectionParameter;
 use Throwable;
 use TypeError;
 
-class RegisteredElement
+class RegisteredElement implements JsonSerializable
 {
     public function __construct(
         public readonly string $handlerClass,
@@ -95,16 +96,35 @@ class RegisteredElement
 
         $typeName = $type->getName();
 
-        if (enum_exists($typeName) && is_subclass_of($typeName, \BackedEnum::class)) {
-            try {
-                return $typeName::from($argument);
-            } catch (\ValueError $e) {
-                $valueStr = is_scalar($argument) ? strval($argument) : gettype($argument);
-                throw new InvalidArgumentException(
-                    "Invalid value '{$valueStr}' for enum {$typeName}.",
-                    0,
-                    $e
-                );
+        if (enum_exists($typeName)) {
+            if (is_object($argument) && $argument instanceof $typeName) {
+                return $argument;
+            }
+
+            if (is_subclass_of($typeName, \BackedEnum::class)) {
+                $value = $typeName::tryFrom($argument);
+                if ($value === null) {
+                    throw new InvalidArgumentException(
+                        "Invalid value '{$argument}' for backed enum {$typeName}. Expected one of its backing values.",
+                    );
+                }
+                return $value;
+            } else {
+                if (is_string($argument)) {
+                    foreach ($typeName::cases() as $case) {
+                        if ($case->name === $argument) {
+                            return $case;
+                        }
+                    }
+                    $validNames = array_map(fn($c) => $c->name, $typeName::cases());
+                    throw new InvalidArgumentException(
+                        "Invalid value '{$argument}' for unit enum {$typeName}. Expected one of: " . implode(', ', $validNames) . "."
+                    );
+                } else {
+                    throw new InvalidArgumentException(
+                        "Invalid value type '{$argument}' for unit enum {$typeName}. Expected a string matching a case name."
+                    );
+                }
             }
         }
 
@@ -178,5 +198,19 @@ class RegisteredElement
             return $argument;
         }
         throw new InvalidArgumentException('Cannot cast value to array. Expected array.');
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'handlerClass' => $this->handlerClass,
+            'handlerMethod' => $this->handlerMethod,
+            'isManual' => $this->isManual,
+        ];
+    }
+
+    public function jsonSerialize(): array
+    {
+        return $this->toArray();
     }
 }
