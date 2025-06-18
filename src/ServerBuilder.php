@@ -290,12 +290,11 @@ final class ServerBuilder
             try {
                 $reflectionMethod = HandlerResolver::resolve($data['handler']);
                 $className = $reflectionMethod->getDeclaringClass()->getName();
+                $classShortName = $reflectionMethod->getDeclaringClass()->getShortName();
                 $methodName = $reflectionMethod->getName();
                 $docBlock = $docBlockParser->parseDocBlock($reflectionMethod->getDocComment() ?? null);
 
-                $name = $data['name'] ?? ($reflectionMethod->getName() === '__invoke'
-                    ? $reflectionMethod->getDeclaringClass()->getShortName()
-                    : $reflectionMethod->getName());
+                $name = $data['name'] ?? ($methodName === '__invoke' ? $classShortName : $methodName);
                 $description = $data['description'] ?? $docBlockParser->getSummary($docBlock) ?? null;
                 $inputSchema = $schemaGenerator->fromMethodParameters($reflectionMethod);
 
@@ -314,11 +313,12 @@ final class ServerBuilder
             try {
                 $reflectionMethod = HandlerResolver::resolve($data['handler']);
                 $className = $reflectionMethod->getDeclaringClass()->getName();
+                $classShortName = $reflectionMethod->getDeclaringClass()->getShortName();
                 $methodName = $reflectionMethod->getName();
                 $docBlock = $docBlockParser->parseDocBlock($reflectionMethod->getDocComment() ?? null);
 
                 $uri = $data['uri'];
-                $name = $data['name'] ?? ($methodName === '__invoke' ? $reflectionMethod->getDeclaringClass()->getShortName() : $methodName);
+                $name = $data['name'] ?? ($methodName === '__invoke' ? $classShortName : $methodName);
                 $description = $data['description'] ?? $docBlockParser->getSummary($docBlock) ?? null;
                 $mimeType = $data['mimeType'];
                 $size = $data['size'];
@@ -339,18 +339,19 @@ final class ServerBuilder
             try {
                 $reflectionMethod = HandlerResolver::resolve($data['handler']);
                 $className = $reflectionMethod->getDeclaringClass()->getName();
+                $classShortName = $reflectionMethod->getDeclaringClass()->getShortName();
                 $methodName = $reflectionMethod->getName();
                 $docBlock = $docBlockParser->parseDocBlock($reflectionMethod->getDocComment() ?? null);
 
                 $uriTemplate = $data['uriTemplate'];
-                $name = $data['name'] ?? ($methodName === '__invoke' ? $reflectionMethod->getDeclaringClass()->getShortName() : $methodName);
+                $name = $data['name'] ?? ($methodName === '__invoke' ? $classShortName : $methodName);
                 $description = $data['description'] ?? $docBlockParser->getSummary($docBlock) ?? null;
                 $mimeType = $data['mimeType'];
                 $annotations = $data['annotations'];
 
                 $template = ResourceTemplate::make($uriTemplate, $name, $description, $mimeType, $annotations);
                 $completionProviders = $this->getCompletionProviders($reflectionMethod);
-                $registry->registerResourceTemplate($template, $className, $methodName, true, $completionProviders);
+                $registry->registerResourceTemplate($template, $className, $methodName, $completionProviders, true);
 
                 $logger->debug("Registered manual template {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
@@ -364,10 +365,11 @@ final class ServerBuilder
             try {
                 $reflectionMethod = HandlerResolver::resolve($data['handler']);
                 $className = $reflectionMethod->getDeclaringClass()->getName();
+                $classShortName = $reflectionMethod->getDeclaringClass()->getShortName();
                 $methodName = $reflectionMethod->getName();
                 $docBlock = $docBlockParser->parseDocBlock($reflectionMethod->getDocComment() ?? null);
 
-                $name = $data['name'] ?? ($methodName === '__invoke' ? $reflectionMethod->getDeclaringClass()->getShortName() : $methodName);
+                $name = $data['name'] ?? ($methodName === '__invoke' ? $classShortName : $methodName);
                 $description = $data['description'] ?? $docBlockParser->getSummary($docBlock) ?? null;
 
                 $arguments = [];
@@ -390,7 +392,7 @@ final class ServerBuilder
 
                 $prompt = Prompt::make($name, $description, $arguments);
                 $completionProviders = $this->getCompletionProviders($reflectionMethod);
-                $registry->registerPrompt($prompt, $className, $methodName, true, $completionProviders);
+                $registry->registerPrompt($prompt, $className, $methodName, $completionProviders, true);
 
                 $logger->debug("Registered manual prompt {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {

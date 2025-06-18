@@ -1,58 +1,81 @@
 <?php
 
-const TEST_DISCOVERY_DIR = __DIR__.'/../_temp_discovery';
-const TEST_STUBS_DIR = __DIR__.'/Mocks/DiscoveryStubs';
+use React\EventLoop\Loop;
+use React\EventLoop\LoopInterface;
+use React\EventLoop\TimerInterface;
+use React\Promise\Promise;
+use React\Promise\PromiseInterface;
 
-function deleteDirectory(string $dir): bool
+function getPrivateProperty(object $object, string $propertyName)
 {
-    if (! is_dir($dir)) {
-        return false;
-    }
-    $files = array_diff(scandir($dir), ['.', '..']);
-    foreach ($files as $file) {
-        (is_dir("$dir/$file")) ? deleteDirectory("$dir/$file") : unlink("$dir/$file");
-    }
-
-    return rmdir($dir);
+    $reflector = new ReflectionClass($object);
+    $property = $reflector->getProperty($propertyName);
+    $property->setAccessible(true);
+    return $property->getValue($object);
 }
 
-function setupTempDir(): void
+function delay($time, ?LoopInterface $loop = null)
 {
-    if (is_dir(TEST_DISCOVERY_DIR)) {
-        deleteDirectory(TEST_DISCOVERY_DIR);
+    if ($loop === null) {
+        $loop = Loop::get();
     }
-    mkdir(TEST_DISCOVERY_DIR, 0777, true);
+
+    /** @var TimerInterface $timer */
+    $timer = null;
+    return new Promise(function ($resolve) use ($loop, $time, &$timer) {
+        $timer = $loop->addTimer($time, function () use ($resolve) {
+            $resolve(null);
+        });
+    }, function () use (&$timer, $loop) {
+        $loop->cancelTimer($timer);
+        $timer = null;
+
+        throw new \RuntimeException('Timer cancelled');
+    });
 }
 
-function cleanupTempDir(): void
+function timeout(PromiseInterface $promise, $time, ?LoopInterface $loop = null)
 {
-    if (is_dir(TEST_DISCOVERY_DIR)) {
-        deleteDirectory(TEST_DISCOVERY_DIR);
-    }
-}
-
-/**
- * Creates a test file in the temporary discovery directory by copying a stub.
- *
- * @param  string  $stubName  The name of the stub file (without .php) in TEST_STUBS_DIR.
- * @param  string|null  $targetFileName  The desired name for the file in TEST_DISCOVERY_DIR (defaults to stubName.php).
- * @return string The full path to the created file.
- *
- * @throws \Exception If the stub file does not exist.
- */
-function createDiscoveryTestFile(string $stubName, ?string $targetFileName = null): string
-{
-    $stubPath = TEST_STUBS_DIR.'/'.$stubName.'.php';
-    $targetName = $targetFileName ?? ($stubName.'.php');
-    $targetPath = TEST_DISCOVERY_DIR.'/'.$targetName;
-
-    if (! file_exists($stubPath)) {
-        throw new \Exception("Discovery test stub file not found: {$stubPath}");
+    $canceller = null;
+    if (\method_exists($promise, 'cancel')) {
+        $canceller = function () use (&$promise) {
+            $promise->cancel();
+            $promise = null;
+        };
     }
 
-    if (! copy($stubPath, $targetPath)) {
-        throw new \Exception("Failed to copy discovery test stub '{$stubName}' to '{$targetName}'");
+    if ($loop === null) {
+        $loop = Loop::get();
     }
 
-    return $targetPath;
+    return new Promise(function ($resolve, $reject) use ($loop, $time, $promise) {
+        $timer = null;
+        $promise = $promise->then(function ($v) use (&$timer, $loop, $resolve) {
+            if ($timer) {
+                $loop->cancelTimer($timer);
+            }
+            $timer = false;
+            $resolve($v);
+        }, function ($v) use (&$timer, $loop, $reject) {
+            if ($timer) {
+                $loop->cancelTimer($timer);
+            }
+            $timer = false;
+            $reject($v);
+        });
+
+        if ($timer === false) {
+            return;
+        }
+
+        // start timeout timer which will cancel the input promise
+        $timer = $loop->addTimer($time, function () use ($time, &$promise, $reject) {
+            $reject(new \RuntimeException('Timed out after ' . $time . ' seconds'));
+
+            if (\method_exists($promise, 'cancel')) {
+                $promise->cancel();
+            }
+            $promise = null;
+        });
+    }, $canceller);
 }

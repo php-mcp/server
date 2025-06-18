@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Transports;
 
 use Evenement\EventEmitterTrait;
-use PhpMcp\Server\Contracts\IdGeneratorInterface;
 use PhpMcp\Server\Contracts\LoggerAwareInterface;
 use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
@@ -13,7 +12,6 @@ use PhpMcp\Server\Exception\TransportException;
 use PhpMcp\Schema\JsonRpc\Message;
 use PhpMcp\Schema\JsonRpc\Error;
 use PhpMcp\Schema\JsonRpc\Parser;
-use PhpMcp\Server\Utils\RandomIdGenerator;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -48,8 +46,6 @@ class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterf
 
     protected ?HttpServer $http = null;
 
-    private IdGeneratorInterface $idGenerator;
-
     /** @var array<string, ThroughStream> sessionId => SSE Stream */
     private array $activeSseStreams = [];
 
@@ -72,13 +68,11 @@ class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterf
         private readonly int $port = 8080,
         private readonly string $mcpPathPrefix = 'mcp',
         private readonly ?array $sslContext = null,
-        ?IdGeneratorInterface $idGenerator = null
     ) {
         $this->logger = new NullLogger();
         $this->loop = Loop::get();
         $this->ssePath = '/' . trim($mcpPathPrefix, '/') . '/sse';
         $this->messagePath = '/' . trim($mcpPathPrefix, '/') . '/message';
-        $this->idGenerator = $idGenerator ?? new RandomIdGenerator();
     }
 
     public function setLogger(LoggerInterface $logger): void
@@ -89,6 +83,11 @@ class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterf
     public function setLoop(LoopInterface $loop): void
     {
         $this->loop = $loop;
+    }
+
+    protected function generateId(): string
+    {
+        return bin2hex(random_bytes(16)); // 32 hex characters
     }
 
     /**
@@ -162,7 +161,7 @@ class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterf
     /** Handles a new SSE connection request */
     protected function handleSseRequest(ServerRequestInterface $request): Response
     {
-        $sessionId = $this->idGenerator->generateId();
+        $sessionId = $this->generateId();
         $this->logger->info('New SSE connection', ['sessionId' => $sessionId]);
 
         $sseStream = new ThroughStream();

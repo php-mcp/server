@@ -7,6 +7,7 @@ use phpDocumentor\Reflection\DocBlock\Tags\Param;
 use phpDocumentor\Reflection\DocBlock\Tags\Return_;
 use phpDocumentor\Reflection\DocBlockFactory;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Throwable;
 
 /**
@@ -15,18 +16,20 @@ use Throwable;
 class DocBlockParser
 {
     private DocBlockFactory $docBlockFactory;
+    private LoggerInterface $logger;
 
-    public function __construct(private LoggerInterface $logger)
+    public function __construct(?LoggerInterface $logger = null)
     {
         $this->docBlockFactory = DocBlockFactory::createInstance();
+        $this->logger = $logger ?? new NullLogger();
     }
 
     /**
      * Safely parses a DocComment string into a DocBlock object.
      */
-    public function parseDocBlock(?string $docComment): ?DocBlock
+    public function parseDocBlock(string|null|false $docComment): ?DocBlock
     {
-        if (empty($docComment)) {
+        if ($docComment === false || $docComment === null || empty($docComment)) {
             return null;
         }
         try {

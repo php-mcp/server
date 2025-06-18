@@ -6,7 +6,6 @@ namespace PhpMcp\Server\Transports;
 
 use Evenement\EventEmitterTrait;
 use PhpMcp\Server\Contracts\EventStoreInterface;
-use PhpMcp\Server\Contracts\IdGeneratorInterface;
 use PhpMcp\Server\Contracts\LoggerAwareInterface;
 use PhpMcp\Server\Contracts\LoopAwareInterface;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
@@ -19,7 +18,6 @@ use PhpMcp\Schema\JsonRpc\Error;
 use PhpMcp\Schema\JsonRpc\Parser;
 use PhpMcp\Schema\JsonRpc\Request;
 use PhpMcp\Schema\JsonRpc\Response;
-use PhpMcp\Server\Utils\RandomIdGenerator;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -48,7 +46,6 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
     private bool $listening = false;
     private bool $closing = false;
 
-    private IdGeneratorInterface $idGenerator;
     private ?EventStoreInterface $eventStore;
 
     /**
@@ -78,14 +75,17 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         private string $mcpPath = '/mcp',
         private ?array $sslContext = null,
         private readonly bool $enableJsonResponse = true,
-        ?IdGeneratorInterface $idGenerator = null,
         ?EventStoreInterface $eventStore = null
     ) {
         $this->logger = new NullLogger();
         $this->loop = Loop::get();
         $this->mcpPath = '/' . trim($mcpPath, '/');
-        $this->idGenerator = $idGenerator ?? new RandomIdGenerator();
         $this->eventStore = $eventStore;
+    }
+
+    protected function generateId(): string
+    {
+        return bin2hex(random_bytes(16)); // 32 hex characters
     }
 
     public function setLogger(LoggerInterface $logger): void
@@ -272,7 +272,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
                 return $deferred->promise();
             }
 
-            $sessionId = $this->idGenerator->generateId();
+            $sessionId = $this->generateId();
             $this->emit('client_connected', [$sessionId]);
         } else {
             $sessionId = $request->getHeaderLine('Mcp-Session-Id');
@@ -299,8 +299,28 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
             $deferred->resolve(new HttpResponse(202));
             $context['type'] = 'post_202_sent';
         } else {
-            if (!$this->enableJsonResponse) {
-                $streamId = $this->idGenerator->generateId();
+            if ($this->enableJsonResponse) {
+                $pendingRequestId = $this->generateId();
+                $this->pendingRequests[$pendingRequestId] = $deferred;
+
+                $timeoutTimer = $this->loop->addTimer(30, function () use ($pendingRequestId, $sessionId) {
+                    if (isset($this->pendingRequests[$pendingRequestId])) {
+                        $deferred = $this->pendingRequests[$pendingRequestId];
+                        unset($this->pendingRequests[$pendingRequestId]);
+                        $this->logger->warning("Timeout waiting for direct JSON response processing.", ['pending_request_id' => $pendingRequestId, 'session_id' => $sessionId]);
+                        $errorResponse = McpServerException::internalError("Request processing timed out.")->toJsonRpcError($pendingRequestId);
+                        $deferred->resolve(new HttpResponse(500, ['Content-Type' => 'application/json'], json_encode($errorResponse->toArray())));
+                    }
+                });
+
+                $this->pendingRequests[$pendingRequestId]->promise()->finally(function () use ($timeoutTimer) {
+                    $this->loop->cancelTimer($timeoutTimer);
+                });
+
+                $context['type'] = 'post_json';
+                $context['pending_request_id'] = $pendingRequestId;
+            } else {
+                $streamId = $this->generateId();
                 $sseStream = new ThroughStream();
                 $this->activeSseStreams[$streamId] = [
                     'stream' => $sseStream,
@@ -332,30 +352,12 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
                 $context['type'] = 'post_sse';
                 $context['streamId'] = $streamId;
                 $context['nRequests'] = $nRequests;
-            } else {
-                $pendingRequestId = $this->idGenerator->generateId();
-                $this->pendingRequests[$pendingRequestId] = $deferred;
-
-                $timeoutTimer = $this->loop->addTimer(30, function () use ($pendingRequestId, $sessionId) {
-                    if (isset($this->pendingRequests[$pendingRequestId])) {
-                        $deferred = $this->pendingRequests[$pendingRequestId];
-                        unset($this->pendingRequests[$pendingRequestId]);
-                        $this->logger->warning("Timeout waiting for direct JSON response processing.", ['pending_request_id' => $pendingRequestId, 'session_id' => $sessionId]);
-                        $errorResponse = McpServerException::internalError("Request processing timed out.")->toJsonRpcError($pendingRequestId);
-                        $deferred->resolve(new HttpResponse(500, ['Content-Type' => 'application/json'], json_encode($errorResponse->toArray())));
-                    }
-                });
-
-                $this->pendingRequests[$pendingRequestId]->promise()->finally(function () use ($timeoutTimer) {
-                    $this->loop->cancelTimer($timeoutTimer);
-                });
-
-                $context['type'] = 'post_json';
-                $context['pending_request_id'] = $pendingRequestId;
             }
         }
 
-        $this->emit('message', [$message, $sessionId, $context]);
+        $this->loop->futureTick(function () use ($message, $sessionId, $context) {
+            $this->emit('message', [$message, $sessionId, $context]);
+        });
 
         return $deferred->promise();
     }
@@ -379,6 +381,11 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         foreach ($streamsToClose as $streamId) {
             $this->activeSseStreams[$streamId]['stream']->end();
             unset($this->activeSseStreams[$streamId]);
+        }
+
+        if ($this->getStream !== null) {
+            $this->getStream->end();
+            $this->getStream = null;
         }
 
         $this->emit('client_disconnected', [$sessionId, 'Session terminated by DELETE request']);

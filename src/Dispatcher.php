@@ -25,7 +25,7 @@ use PhpMcp\Schema\Request\SetLogLevelRequest;
 use PhpMcp\Server\Configuration;
 use PhpMcp\Server\Contracts\SessionInterface;
 use PhpMcp\Server\Exception\McpServerException;
-use PhpMcp\Server\JsonRpc\Contents\TextContent;
+use PhpMcp\Schema\Content\TextContent;
 use PhpMcp\Schema\Result\CallToolResult;
 use PhpMcp\Schema\Result\CompletionCompleteResult;
 use PhpMcp\Schema\Result\EmptyResult;
