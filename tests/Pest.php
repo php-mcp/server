@@ -5,6 +5,7 @@ use React\EventLoop\LoopInterface;
 use React\EventLoop\TimerInterface;
 use React\Promise\Promise;
 use React\Promise\PromiseInterface;
+use React\Socket\SocketServer;
 
 function getPrivateProperty(object $object, string $propertyName)
 {
@@ -78,4 +79,16 @@ function timeout(PromiseInterface $promise, $time, ?LoopInterface $loop = null)
             $promise = null;
         });
     }, $canceller);
+}
+
+function findFreePort()
+{
+    $server = new SocketServer('127.0.0.1:0');
+    $address = $server->getAddress();
+    $port = $address ? parse_url($address, PHP_URL_PORT) : null;
+    $server->close();
+    if (!$port) {
+        throw new \RuntimeException("Could not find a free port for testing.");
+    }
+    return (int)$port;
 }

@@ -17,11 +17,11 @@ use function React\Async\await;
 const HTTP_SERVER_SCRIPT_PATH = __DIR__ . '/../Fixtures/ServerScripts/HttpTestServer.php';
 const HTTP_PROCESS_TIMEOUT_SECONDS = 8;
 const HTTP_SERVER_HOST = '127.0.0.1';
-const HTTP_SERVER_PORT = 8991;
 const HTTP_MCP_PATH_PREFIX = 'mcp_http_integration';
 
 beforeEach(function () {
     $this->loop = Loop::get();
+    $this->port = findFreePort();
 
     if (!is_file(HTTP_SERVER_SCRIPT_PATH)) {
         $this->markTestSkipped("Server script not found: " . HTTP_SERVER_SCRIPT_PATH);
@@ -34,7 +34,7 @@ beforeEach(function () {
     $commandPhpPath = str_contains($phpPath, ' ') ? '"' . $phpPath . '"' : $phpPath;
     $commandArgs = [
         escapeshellarg(HTTP_SERVER_HOST),
-        escapeshellarg((string)HTTP_SERVER_PORT),
+        escapeshellarg((string)$this->port),
         escapeshellarg(HTTP_MCP_PATH_PREFIX)
     ];
     $commandScriptPath = escapeshellarg(HTTP_SERVER_SCRIPT_PATH);
@@ -82,7 +82,7 @@ afterAll(function () {
 
 it('starts the http server, initializes, calls a tool, and closes', function () {
     $this->sseClient = new MockSseClient();
-    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . HTTP_SERVER_PORT . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
 
     // 1. Connect
     await($this->sseClient->connect($sseBaseUrl));
@@ -125,7 +125,7 @@ it('starts the http server, initializes, calls a tool, and closes', function () 
 
 it('can handle invalid JSON from client', function () {
     $this->sseClient = new MockSseClient();
-    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . HTTP_SERVER_PORT . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
 
     // 1. Connect
     await($this->sseClient->connect($sseBaseUrl));
@@ -159,7 +159,7 @@ it('can handle invalid JSON from client', function () {
 
 it('can handle request for non-existent method after initialization', function () {
     $this->sseClient = new MockSseClient();
-    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . HTTP_SERVER_PORT . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
 
     // 1. Connect
     await($this->sseClient->connect($sseBaseUrl));
@@ -188,7 +188,7 @@ it('can handle request for non-existent method after initialization', function (
 
 it('can handle batch requests correctly over HTTP/SSE', function () {
     $this->sseClient = new MockSseClient();
-    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . HTTP_SERVER_PORT . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
 
     // 1. Connect
     await($this->sseClient->connect($sseBaseUrl));
@@ -246,7 +246,7 @@ it('can handle batch requests correctly over HTTP/SSE', function () {
 
 it('can handle tool list request over HTTP/SSE', function () {
     $this->sseClient = new MockSseClient();
-    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . HTTP_SERVER_PORT . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
     await($this->sseClient->connect($sseBaseUrl));
     await(delay(0.05, $this->loop));
 
@@ -268,7 +268,7 @@ it('can handle tool list request over HTTP/SSE', function () {
 
 it('can read a registered resource over HTTP/SSE', function () {
     $this->sseClient = new MockSseClient();
-    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . HTTP_SERVER_PORT . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
     await($this->sseClient->connect($sseBaseUrl));
     await(delay(0.05, $this->loop));
 
@@ -292,7 +292,7 @@ it('can read a registered resource over HTTP/SSE', function () {
 
 it('can get a registered prompt over HTTP/SSE', function () {
     $this->sseClient = new MockSseClient();
-    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . HTTP_SERVER_PORT . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
     await($this->sseClient->connect($sseBaseUrl));
     await(delay(0.05, $this->loop));
 
@@ -318,7 +318,7 @@ it('can get a registered prompt over HTTP/SSE', function () {
 
 it('rejects subsequent requests if client does not send initialized notification', function () {
     $this->sseClient = new MockSseClient();
-    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . HTTP_SERVER_PORT . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
     await($this->sseClient->connect($sseBaseUrl));
     await(delay(0.05, $this->loop));
 
@@ -349,7 +349,7 @@ it('rejects subsequent requests if client does not send initialized notification
 
 it('returns 404 for POST to /message without valid clientId in query', function () {
     $this->sseClient = new MockSseClient();
-    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . HTTP_SERVER_PORT . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
     await($this->sseClient->connect($sseBaseUrl));
     await(delay(0.05, $this->loop));
     $validEndpointUrl = $this->sseClient->endpointUrl;
@@ -377,7 +377,7 @@ it('returns 404 for POST to /message without valid clientId in query', function 
 
 it('returns 404 for POST to /message with clientId for a disconnected SSE stream', function () {
     $this->sseClient = new MockSseClient();
-    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . HTTP_SERVER_PORT . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
 
     await($this->sseClient->connect($sseBaseUrl));
     await(delay(0.05, $this->loop));
@@ -404,7 +404,7 @@ it('returns 404 for POST to /message with clientId for a disconnected SSE stream
 
 it('returns 404 for unknown paths', function () {
     $browser = new Browser($this->loop);
-    $unknownUrl = "http://" . HTTP_SERVER_HOST . ":" . HTTP_SERVER_PORT . "/unknown/path";
+    $unknownUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/unknown/path";
 
     $promise = $browser->get($unknownUrl);
 
