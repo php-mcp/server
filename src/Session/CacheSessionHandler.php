@@ -5,30 +5,45 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Session;
 
 use PhpMcp\Server\Contracts\SessionHandlerInterface;
+use PhpMcp\Server\Defaults\SystemClock;
 use Psr\SimpleCache\CacheInterface;
+use Psr\Clock\ClockInterface;
 
 class CacheSessionHandler implements SessionHandlerInterface
 {
     private const SESSION_INDEX_KEY = 'mcp_session_index';
     private array $sessionIndex = [];
+    private ClockInterface $clock;
 
     public function __construct(
         public readonly CacheInterface $cache,
-        public readonly int $ttl = 3600
+        public readonly int $ttl = 3600,
+        ?ClockInterface $clock = null
     ) {
         $this->sessionIndex = $this->cache->get(self::SESSION_INDEX_KEY, []);
+        $this->clock = $clock ?? new SystemClock();
     }
 
     public function read(string $sessionId): string|false
     {
-        return $this->cache->get($sessionId, false);
+        $session = $this->cache->get($sessionId, false);
+        if ($session === false) {
+            return false;
+        }
+
+        if ($this->clock->now()->getTimestamp() - $this->sessionIndex[$sessionId] > $this->ttl) {
+            $this->cache->delete($sessionId);
+            return false;
+        }
+
+        return $session;
     }
 
     public function write(string $sessionId, string $data): bool
     {
-        $this->sessionIndex[$sessionId] = time();
+        $this->sessionIndex[$sessionId] = $this->clock->now()->getTimestamp();
         $this->cache->set(self::SESSION_INDEX_KEY, $this->sessionIndex);
-        return $this->cache->set($sessionId, $data, $this->ttl);
+        return $this->cache->set($sessionId, $data);
     }
 
     public function destroy(string $sessionId): bool
@@ -40,7 +55,7 @@ class CacheSessionHandler implements SessionHandlerInterface
 
     public function gc(int $maxLifetime): array
     {
-        $currentTime = time();
+        $currentTime = $this->clock->now()->getTimestamp();
         $deletedSessions = [];
 
         foreach ($this->sessionIndex as $sessionId => $timestamp) {
