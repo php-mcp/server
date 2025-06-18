@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace PhpMcp\Server\Session;
 
 use PhpMcp\Server\Contracts\SessionHandlerInterface;
+use PhpMcp\Server\Defaults\SystemClock;
+use Psr\Clock\ClockInterface;
 
 class ArraySessionHandler implements SessionHandlerInterface
 {
@@ -13,8 +15,13 @@ class ArraySessionHandler implements SessionHandlerInterface
      */
     protected array $store = [];
 
-    public function __construct(public readonly int $ttl = 3600)
-    {
+    private ClockInterface $clock;
+
+    public function __construct(
+        public readonly int $ttl = 3600,
+        ?ClockInterface $clock = null
+    ) {
+        $this->clock = $clock ?? new SystemClock();
     }
 
     public function read(string $sessionId): string|false
@@ -24,7 +31,7 @@ class ArraySessionHandler implements SessionHandlerInterface
             return false;
         }
 
-        $currentTimestamp = time();
+        $currentTimestamp = $this->clock->now()->getTimestamp();
 
         if ($currentTimestamp - $session['timestamp'] > $this->ttl) {
             unset($this->store[$sessionId]);
@@ -38,7 +45,7 @@ class ArraySessionHandler implements SessionHandlerInterface
     {
         $this->store[$sessionId] = [
             'data' => $data,
-            'timestamp' => time(),
+            'timestamp' => $this->clock->now()->getTimestamp(),
         ];
 
         return true;
@@ -55,7 +62,7 @@ class ArraySessionHandler implements SessionHandlerInterface
 
     public function gc(int $maxLifetime): array
     {
-        $currentTimestamp = time();
+        $currentTimestamp = $this->clock->now()->getTimestamp();
         $deletedSessions = [];
 
         foreach ($this->store as $sessionId => $session) {
