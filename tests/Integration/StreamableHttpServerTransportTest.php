@@ -16,7 +16,6 @@ use function React\Promise\resolve;
 const STREAMABLE_HTTP_SCRIPT_PATH = __DIR__ . '/../Fixtures/ServerScripts/StreamableHttpTestServer.php';
 const STREAMABLE_HTTP_PROCESS_TIMEOUT = 9;
 const STREAMABLE_HTTP_HOST = '127.0.0.1';
-const STREAMABLE_HTTP_PORT = 8992;
 const STREAMABLE_MCP_PATH = 'mcp_streamable_json_mode';
 
 beforeEach(function () {
@@ -30,10 +29,11 @@ beforeEach(function () {
     $phpPath = PHP_BINARY ?: 'php';
     $commandPhpPath = str_contains($phpPath, ' ') ? '"' . $phpPath . '"' : $phpPath;
     $commandScriptPath = escapeshellarg(STREAMABLE_HTTP_SCRIPT_PATH);
+    $this->port = findFreePort();
 
     $jsonModeCommandArgs = [
         escapeshellarg(STREAMABLE_HTTP_HOST),
-        escapeshellarg((string)STREAMABLE_HTTP_PORT),
+        escapeshellarg((string)$this->port),
         escapeshellarg(STREAMABLE_MCP_PATH),
         escapeshellarg('true'), // enableJsonResponse = true
     ];
@@ -41,7 +41,7 @@ beforeEach(function () {
 
     $streamModeCommandArgs = [
         escapeshellarg(STREAMABLE_HTTP_HOST),
-        escapeshellarg((string)STREAMABLE_HTTP_PORT),
+        escapeshellarg((string)$this->port),
         escapeshellarg(STREAMABLE_MCP_PATH),
         escapeshellarg('false'), // enableJsonResponse = false
     ];
@@ -73,7 +73,7 @@ describe('JSON MODE', function () {
         $this->process = new Process($this->jsonModeCommand, getcwd() ?: null, null, []);
         $this->process->start();
 
-        $this->jsonClient = new MockJsonHttpClient(STREAMABLE_HTTP_HOST, STREAMABLE_HTTP_PORT, STREAMABLE_MCP_PATH);
+        $this->jsonClient = new MockJsonHttpClient(STREAMABLE_HTTP_HOST, $this->port, STREAMABLE_MCP_PATH);
 
         await(delay(0.2));
     });
@@ -283,7 +283,7 @@ describe('STREAM MODE', function () {
     beforeEach(function () {
         $this->process = new Process($this->streamModeCommand, getcwd() ?: null, null, []);
         $this->process->start();
-        $this->streamClient = new MockStreamHttpClient(STREAMABLE_HTTP_HOST, STREAMABLE_HTTP_PORT, STREAMABLE_MCP_PATH);
+        $this->streamClient = new MockStreamHttpClient(STREAMABLE_HTTP_HOST, $this->port, STREAMABLE_MCP_PATH);
         await(delay(0.2));
     });
     afterEach(function () {
@@ -482,7 +482,7 @@ describe('STREAM MODE', function () {
 it('responds to OPTIONS request with CORS headers', function () {
     $this->process = new Process($this->jsonModeCommand, getcwd() ?: null, null, []);
     $this->process->start();
-    $this->jsonClient = new MockJsonHttpClient(STREAMABLE_HTTP_HOST, STREAMABLE_HTTP_PORT, STREAMABLE_MCP_PATH);
+    $this->jsonClient = new MockJsonHttpClient(STREAMABLE_HTTP_HOST, $this->port, STREAMABLE_MCP_PATH);
     await(delay(0.1));
 
     $browser = new Browser();
@@ -501,11 +501,11 @@ it('responds to OPTIONS request with CORS headers', function () {
 it('returns 404 for unknown paths', function () {
     $this->process = new Process($this->jsonModeCommand, getcwd() ?: null, null, []);
     $this->process->start();
-    $this->jsonClient = new MockJsonHttpClient(STREAMABLE_HTTP_HOST, STREAMABLE_HTTP_PORT, STREAMABLE_MCP_PATH);
+    $this->jsonClient = new MockJsonHttpClient(STREAMABLE_HTTP_HOST, $this->port, STREAMABLE_MCP_PATH);
     await(delay(0.1));
 
     $browser = new Browser();
-    $unknownUrl = "http://" . STREAMABLE_HTTP_HOST . ":" . STREAMABLE_HTTP_PORT . "/completely/unknown/path";
+    $unknownUrl = "http://" . STREAMABLE_HTTP_HOST . ":" . $this->port . "/completely/unknown/path";
 
     $promise = $browser->get($unknownUrl);
 
@@ -522,7 +522,7 @@ it('returns 404 for unknown paths', function () {
 it('can delete client session with DELETE request', function () {
     $this->process = new Process($this->jsonModeCommand, getcwd() ?: null, null, []);
     $this->process->start();
-    $this->jsonClient = new MockJsonHttpClient(STREAMABLE_HTTP_HOST, STREAMABLE_HTTP_PORT, STREAMABLE_MCP_PATH);
+    $this->jsonClient = new MockJsonHttpClient(STREAMABLE_HTTP_HOST, $this->port, STREAMABLE_MCP_PATH);
     await(delay(0.1));
 
     // 1. Initialize
