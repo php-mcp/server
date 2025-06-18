@@ -62,8 +62,8 @@
     "prefer-stable": true,
     "repositories": [
         {
-            "type": "path",
-            "url": "../schema"
+            "type": "vcs",
+            "url": "https://github.com/php-mcp/schema"
         }
     ]
 }
