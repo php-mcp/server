@@ -271,7 +271,7 @@ it('sends error response if capability for request method is disabled', function
     $request = createRequest('tools/list');
     $configuration = new Configuration(
         serverInfo: $this->configuration->serverInfo,
-        capabilities: ServerCapabilities::make(toolsEnabled: false),
+        capabilities: ServerCapabilities::make(tools: false),
         logger: $this->logger,
         loop: $this->configuration->loop,
         cache: $this->configuration->cache,
@@ -509,10 +509,10 @@ it('allows initialize request when session not initialized', function () {
 it('allows initialize and ping regardless of capabilities', function (string $method) {
     $request = createRequest($method);
     $capabilities = ServerCapabilities::make(
-        toolsEnabled: false,
-        resourcesEnabled: false,
-        promptsEnabled: false,
-        loggingEnabled: false,
+        tools: false,
+        resources: false,
+        prompts: false,
+        logging: false,
     );
     $configuration = new Configuration(
         serverInfo: $this->configuration->serverInfo,

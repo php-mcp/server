@@ -90,7 +90,7 @@ it('constructs configuration object with null cache', function () {
 it('constructs configuration object with specific capabilities', function () {
     $customCaps = ServerCapabilities::make(
         resourcesSubscribe: true,
-        loggingEnabled: true,
+        logging: true,
     );
 
     $config = new Configuration(
@@ -104,5 +104,5 @@ it('constructs configuration object with specific capabilities', function () {
 
     expect($config->capabilities)->toBe($customCaps);
     expect($config->capabilities->resourcesSubscribe)->toBeTrue();
-    expect($config->capabilities->loggingEnabled)->toBeTrue();
+    expect($config->capabilities->logging)->toBeTrue();
 });

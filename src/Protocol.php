@@ -299,7 +299,7 @@ class Protocol
 
             case 'tools/list':
             case 'tools/call':
-                if ($capabilities->tools === null) {
+                if (!$capabilities->tools) {
                     throw McpServerException::methodNotFound($method, 'Tools are not enabled on this server.');
                 }
                 break;
@@ -307,36 +307,36 @@ class Protocol
             case 'resources/list':
             case 'resources/templates/list':
             case 'resources/read':
-                if ($capabilities->resources === null) {
+                if (!$capabilities->resources) {
                     throw McpServerException::methodNotFound($method, 'Resources are not enabled on this server.');
                 }
                 break;
 
             case 'resources/subscribe':
             case 'resources/unsubscribe':
-                if ($capabilities->resources === null) {
+                if (!$capabilities->resources) {
                     throw McpServerException::methodNotFound($method, 'Resources are not enabled on this server.');
                 }
-                if (!$capabilities->resources['subscribe']) {
+                if (!$capabilities->resourcesSubscribe) {
                     throw McpServerException::methodNotFound($method, 'Resources subscription is not enabled on this server.');
                 }
                 break;
 
             case 'prompts/list':
             case 'prompts/get':
-                if ($capabilities->prompts === null) {
+                if (!$capabilities->prompts) {
                     throw McpServerException::methodNotFound($method, 'Prompts are not enabled on this server.');
                 }
                 break;
 
             case 'logging/setLevel':
-                if ($capabilities->logging === null) {
+                if (!$capabilities->logging) {
                     throw McpServerException::methodNotFound($method, 'Logging is not enabled on this server.');
                 }
                 break;
 
             case 'completion/complete':
-                if ($capabilities->completions === null) {
+                if (!$capabilities->completions) {
                     throw McpServerException::methodNotFound($method, 'Completions are not enabled on this server.');
                 }
                 break;
@@ -354,7 +354,7 @@ class Protocol
 
         switch ($method) {
             case 'notifications/message':
-                if ($capabilities->logging === null) {
+                if (!$capabilities->logging) {
                     $this->logger->warning('Logging is not enabled on this server. Notifications/message will not be sent.');
                     $valid = false;
                 }
@@ -362,21 +362,21 @@ class Protocol
 
             case "notifications/resources/updated":
             case "notifications/resources/list_changed":
-                if ($capabilities->resources === null || !$capabilities->resources['listChanged']) {
+                if (!$capabilities->resources || !$capabilities->resourcesListChanged) {
                     $this->logger->warning('Resources list changed notifications are not enabled on this server. Notifications/resources/list_changed will not be sent.');
                     $valid = false;
                 }
                 break;
 
             case "notifications/tools/list_changed":
-                if ($capabilities->tools === null || !$capabilities->tools['listChanged']) {
+                if (!$capabilities->tools || !$capabilities->toolsListChanged) {
                     $this->logger->warning('Tools list changed notifications are not enabled on this server. Notifications/tools/list_changed will not be sent.');
                     $valid = false;
                 }
                 break;
 
             case "notifications/prompts/list_changed":
-                if ($capabilities->prompts === null || !$capabilities->prompts['listChanged']) {
+                if (!$capabilities->prompts || !$capabilities->promptsListChanged) {
                     $this->logger->warning('Prompts list changed notifications are not enabled on this server. Notifications/prompts/list_changed will not be sent.');
                     $valid = false;
                 }
