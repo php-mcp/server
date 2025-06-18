@@ -10,7 +10,6 @@ use PhpMcp\Schema\Prompt;
 use PhpMcp\Schema\Resource;
 use PhpMcp\Schema\ResourceTemplate;
 use PhpMcp\Schema\Tool;
-use PhpMcp\Server\Contracts\CompletionProviderInterface;
 use PhpMcp\Server\Elements\RegisteredPrompt;
 use PhpMcp\Server\Elements\RegisteredResource;
 use PhpMcp\Server\Elements\RegisteredResourceTemplate;
@@ -99,8 +98,12 @@ class Registry implements EventEmitterInterface
             $loadCount = 0;
 
             foreach ($cached['tools'] ?? [] as $toolData) {
-                /** @var RegisteredTool $cachedTool */
-                $cachedTool = unserialize($toolData);
+                $cachedTool = RegisteredTool::fromArray(json_decode($toolData, true));
+                if ($cachedTool === false) {
+                    $this->logger->warning('Invalid or missing data found in registry cache, ignoring.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'type' => gettype($cached)]);
+                    continue;
+                }
+
                 $toolName = $cachedTool->schema->name;
                 $existingTool = $this->tools[$toolName] ?? null;
 
@@ -114,8 +117,12 @@ class Registry implements EventEmitterInterface
             }
 
             foreach ($cached['resources'] ?? [] as $resourceData) {
-                /** @var RegisteredResource $cachedResource */
-                $cachedResource = unserialize($resourceData);
+                $cachedResource = RegisteredResource::fromArray(json_decode($resourceData, true));
+                if ($cachedResource === false) {
+                    $this->logger->warning('Invalid or missing data found in registry cache, ignoring.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'type' => gettype($cached)]);
+                    continue;
+                }
+
                 $uri = $cachedResource->schema->uri;
                 $existingResource = $this->resources[$uri] ?? null;
 
@@ -129,8 +136,12 @@ class Registry implements EventEmitterInterface
             }
 
             foreach ($cached['prompts'] ?? [] as $promptData) {
-                /** @var RegisteredPrompt $cachedPrompt */
-                $cachedPrompt = unserialize($promptData);
+                $cachedPrompt = RegisteredPrompt::fromArray(json_decode($promptData, true));
+                if ($cachedPrompt === false) {
+                    $this->logger->warning('Invalid or missing data found in registry cache, ignoring.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'type' => gettype($cached)]);
+                    continue;
+                }
+
                 $promptName = $cachedPrompt->schema->name;
                 $existingPrompt = $this->prompts[$promptName] ?? null;
 
@@ -144,8 +155,12 @@ class Registry implements EventEmitterInterface
             }
 
             foreach ($cached['resourceTemplates'] ?? [] as $templateData) {
-                /** @var RegisteredResourceTemplate $cachedTemplate */
-                $cachedTemplate = unserialize($templateData);
+                $cachedTemplate = RegisteredResourceTemplate::fromArray(json_decode($templateData, true));
+                if ($cachedTemplate === false) {
+                    $this->logger->warning('Invalid or missing data found in registry cache, ignoring.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'type' => gettype($cached)]);
+                    continue;
+                }
+
                 $uriTemplate = $cachedTemplate->schema->uriTemplate;
                 $existingTemplate = $this->resourceTemplates[$uriTemplate] ?? null;
 
@@ -174,7 +189,7 @@ class Registry implements EventEmitterInterface
         $existing = $this->tools[$toolName] ?? null;
 
         if ($existing && ! $isManual && $existing->isManual) {
-            $this->logger->debug("MCP Registry: Ignoring discovered tool '{$toolName}' as it conflicts with a manually registered one.");
+            $this->logger->debug("Ignoring discovered tool '{$toolName}' as it conflicts with a manually registered one.");
 
             return;
         }
@@ -204,14 +219,14 @@ class Registry implements EventEmitterInterface
         ResourceTemplate $template,
         string $handlerClass,
         string $handlerMethod,
+        array $completionProviders = [],
         bool $isManual = false,
-        array $completionProviders = []
     ): void {
         $uriTemplate = $template->uriTemplate;
         $existing = $this->resourceTemplates[$uriTemplate] ?? null;
 
         if ($existing && ! $isManual && $existing->isManual) {
-            $this->logger->debug("MCP Registry: Ignoring discovered template '{$uriTemplate}' as it conflicts with a manually registered one.");
+            $this->logger->debug("Ignoring discovered template '{$uriTemplate}' as it conflicts with a manually registered one.");
 
             return;
         }
@@ -225,14 +240,14 @@ class Registry implements EventEmitterInterface
         Prompt $prompt,
         string $handlerClass,
         string $handlerMethod,
+        array $completionProviders = [],
         bool $isManual = false,
-        array $completionProviders = []
     ): void {
         $promptName = $prompt->name;
         $existing = $this->prompts[$promptName] ?? null;
 
         if ($existing && ! $isManual && $existing->isManual) {
-            $this->logger->debug("MCP Registry: Ignoring discovered prompt '{$promptName}' as it conflicts with a manually registered one.");
+            $this->logger->debug("Ignoring discovered prompt '{$promptName}' as it conflicts with a manually registered one.");
 
             return;
         }
@@ -284,25 +299,25 @@ class Registry implements EventEmitterInterface
 
         foreach ($this->tools as $name => $tool) {
             if (! $tool->isManual) {
-                $discoveredData['tools'][$name] = serialize($tool);
+                $discoveredData['tools'][$name] = json_encode($tool);
             }
         }
 
         foreach ($this->resources as $uri => $resource) {
             if (! $resource->isManual) {
-                $discoveredData['resources'][$uri] = serialize($resource);
+                $discoveredData['resources'][$uri] = json_encode($resource);
             }
         }
 
         foreach ($this->prompts as $name => $prompt) {
             if (! $prompt->isManual) {
-                $discoveredData['prompts'][$name] = serialize($prompt);
+                $discoveredData['prompts'][$name] = json_encode($prompt);
             }
         }
 
         foreach ($this->resourceTemplates as $uriTemplate => $template) {
             if (! $template->isManual) {
-                $discoveredData['resourceTemplates'][$uriTemplate] = serialize($template);
+                $discoveredData['resourceTemplates'][$uriTemplate] = json_encode($template);
             }
         }
 
@@ -350,25 +365,25 @@ class Registry implements EventEmitterInterface
         $clearCount = 0;
 
         foreach ($this->tools as $name => $tool) {
-            if (! isset($this->manualToolNames[$name])) {
+            if (! $tool->isManual) {
                 unset($this->tools[$name]);
                 $clearCount++;
             }
         }
         foreach ($this->resources as $uri => $resource) {
-            if (! isset($this->manualResourceUris[$uri])) {
+            if (! $resource->isManual) {
                 unset($this->resources[$uri]);
                 $clearCount++;
             }
         }
         foreach ($this->prompts as $name => $prompt) {
-            if (! isset($this->manualPromptNames[$name])) {
+            if (! $prompt->isManual) {
                 unset($this->prompts[$name]);
                 $clearCount++;
             }
         }
         foreach ($this->resourceTemplates as $uriTemplate => $template) {
-            if (! isset($this->manualTemplateUris[$uriTemplate])) {
+            if (! $template->isManual) {
                 unset($this->resourceTemplates[$uriTemplate]);
                 $clearCount++;
             }

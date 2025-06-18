@@ -43,6 +43,7 @@ class RegisteredElement implements JsonSerializable
         $finalArgs = [];
 
         foreach ($reflectionMethod->getParameters() as $parameter) {
+            // TODO: Handle variadic parameters.
             $paramName = $parameter->getName();
             $paramPosition = $parameter->getPosition();
 

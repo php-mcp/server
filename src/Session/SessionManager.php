@@ -18,16 +18,15 @@ class SessionManager implements EventEmitterInterface
     use EventEmitterTrait;
 
     protected ?TimerInterface $gcTimer = null;
-    protected int $gcInterval = 300; // 5 minutes
 
     public function __construct(
         protected SessionHandlerInterface $handler,
         protected LoggerInterface $logger,
         protected ?LoopInterface $loop = null,
-        protected int $ttl = 3600
+        protected int $ttl = 3600,
+        protected int|float $gcInterval = 300
     ) {
         $this->loop ??= Loop::get();
-        $this->startGcTimer();
     }
 
     /**
@@ -59,7 +58,7 @@ class SessionManager implements EventEmitterInterface
      */
     public function stopGcTimer(): void
     {
-        if ($this->gcTimer !== null && $this->loop !== null) {
+        if ($this->gcTimer !== null) {
             $this->loop->cancelTimer($this->gcTimer);
             $this->gcTimer = null;
         }
@@ -152,10 +151,5 @@ class SessionManager implements EventEmitterInterface
         }
 
         return $session->hasQueuedMessages();
-    }
-
-    public function __destruct()
-    {
-        $this->stopGcTimer();
     }
 }

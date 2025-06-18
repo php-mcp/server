@@ -65,14 +65,15 @@ class Server
         array $scanDirs = ['.', 'src'],
         array $excludeDirs = [],
         bool $force = false,
-        bool $saveToCache = true
+        bool $saveToCache = true,
+        ?Discoverer $discoverer = null
     ): void {
         $realBasePath = realpath($basePath);
         if ($realBasePath === false || ! is_dir($realBasePath)) {
             throw new \InvalidArgumentException("Invalid discovery base path provided to discover(): {$basePath}");
         }
 
-        $excludeDirs = array_merge($excludeDirs, ['vendor', 'tests', 'test', 'storage', 'cache', 'samples', 'docs', 'node_modules']);
+        $excludeDirs = array_merge($excludeDirs, ['vendor', 'tests', 'test', 'storage', 'cache', 'samples', 'docs', 'node_modules', '.git', '.svn']);
 
         if ($this->discoveryRan && ! $force) {
             $this->configuration->logger->debug('Discovery skipped: Already run or loaded from cache.');
@@ -92,7 +93,7 @@ class Server
         $this->registry->clear();
 
         try {
-            $discoverer = new Discoverer($this->registry, $this->configuration->logger);
+            $discoverer ??= new Discoverer($this->registry, $this->configuration->logger);
 
             $discoverer->discover($realBasePath, $scanDirs, $excludeDirs);
 
@@ -154,9 +155,11 @@ class Server
             $this->isListening = true;
 
             if ($runLoop) {
+                $this->sessionManager->startGcTimer();
+
                 $this->configuration->loop->run();
 
-                $this->endListen($transport); // If the loop ends, we need to clean up
+                $this->endListen($transport);
             }
         } catch (Throwable $e) {
             $this->configuration->logger->critical('Failed to start listening or event loop crashed.', ['exception' => $e->getMessage()]);
@@ -169,14 +172,15 @@ class Server
     {
         $protocol = $this->getProtocol();
 
-        if ($this->isListening) {
-            $protocol->unbindTransport();
-            $transport->removeAllListeners('close');
-            $transport->close();
-        }
+        $protocol->unbindTransport();
+
+        $this->sessionManager->stopGcTimer();
+
+        $transport->removeAllListeners('close');
+        $transport->close();
 
         $this->isListening = false;
-        $this->configuration->logger->info("Server '{$this->configuration->serverName}' listener shut down.");
+        $this->configuration->logger->info("Server '{$this->configuration->serverInfo->name}' listener shut down.");
     }
 
     /**

@@ -1,23 +1,23 @@
 <?php
 
-namespace PhpMcp\Server\Tests\Unit; // Ensure namespace matches if you moved Configuration
+namespace PhpMcp\Server\Tests\Unit;
 
 use Mockery;
+use PhpMcp\Schema\Implementation;
+use PhpMcp\Schema\ServerCapabilities;
 use PhpMcp\Server\Configuration;
-use PhpMcp\Server\Model\Capabilities;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use React\EventLoop\LoopInterface;
 
 beforeEach(function () {
-    $this->name = 'TestServer';
-    $this->version = '1.1.0';
+    $this->serverInfo = Implementation::make('TestServer', '1.1.0');
     $this->logger = Mockery::mock(LoggerInterface::class);
     $this->loop = Mockery::mock(LoopInterface::class);
     $this->cache = Mockery::mock(CacheInterface::class);
     $this->container = Mockery::mock(ContainerInterface::class);
-    $this->capabilities = Capabilities::forServer();
+    $this->capabilities = ServerCapabilities::make();
 });
 
 afterEach(function () {
@@ -28,8 +28,7 @@ it('constructs configuration object with all properties', function () {
     $ttl = 1800;
     $paginationLimit = 100;
     $config = new Configuration(
-        serverName: $this->name,
-        serverVersion: $this->version,
+        serverInfo: $this->serverInfo,
         capabilities: $this->capabilities,
         logger: $this->logger,
         loop: $this->loop,
@@ -39,8 +38,7 @@ it('constructs configuration object with all properties', function () {
         paginationLimit: $paginationLimit
     );
 
-    expect($config->serverName)->toBe($this->name);
-    expect($config->serverVersion)->toBe($this->version);
+    expect($config->serverInfo)->toBe($this->serverInfo);
     expect($config->capabilities)->toBe($this->capabilities);
     expect($config->logger)->toBe($this->logger);
     expect($config->loop)->toBe($this->loop);
@@ -52,8 +50,7 @@ it('constructs configuration object with all properties', function () {
 
 it('constructs configuration object with default TTL', function () {
     $config = new Configuration(
-        serverName: $this->name,
-        serverVersion: $this->version,
+        serverInfo: $this->serverInfo,
         capabilities: $this->capabilities,
         logger: $this->logger,
         loop: $this->loop,
@@ -66,8 +63,7 @@ it('constructs configuration object with default TTL', function () {
 
 it('constructs configuration object with default pagination limit', function () {
     $config = new Configuration(
-        serverName: $this->name,
-        serverVersion: $this->version,
+        serverInfo: $this->serverInfo,
         capabilities: $this->capabilities,
         logger: $this->logger,
         loop: $this->loop,
@@ -80,8 +76,7 @@ it('constructs configuration object with default pagination limit', function () 
 
 it('constructs configuration object with null cache', function () {
     $config = new Configuration(
-        serverName: $this->name,
-        serverVersion: $this->version,
+        serverInfo: $this->serverInfo,
         capabilities: $this->capabilities,
         logger: $this->logger,
         loop: $this->loop,
@@ -93,15 +88,13 @@ it('constructs configuration object with null cache', function () {
 });
 
 it('constructs configuration object with specific capabilities', function () {
-    $customCaps = Capabilities::forServer(
+    $customCaps = ServerCapabilities::make(
         resourcesSubscribe: true,
         loggingEnabled: true,
-        instructions: 'Use wisely.'
     );
 
     $config = new Configuration(
-        serverName: $this->name,
-        serverVersion: $this->version,
+        serverInfo: $this->serverInfo,
         capabilities: $customCaps,
         logger: $this->logger,
         loop: $this->loop,
@@ -112,5 +105,4 @@ it('constructs configuration object with specific capabilities', function () {
     expect($config->capabilities)->toBe($customCaps);
     expect($config->capabilities->resourcesSubscribe)->toBeTrue();
     expect($config->capabilities->loggingEnabled)->toBeTrue();
-    expect($config->capabilities->instructions)->toBe('Use wisely.');
 });

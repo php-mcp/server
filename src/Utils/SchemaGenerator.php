@@ -96,47 +96,39 @@ class SchemaGenerator
                     $paramSchema['default'] = $defaultValue;
                 }
 
-                // Handle enums (PHP 8.1+)
-                if ($reflectionType instanceof ReflectionNamedType && ! $reflectionType->isBuiltin() && function_exists('enum_exists') && enum_exists($reflectionType->getName())) {
+                // Handle enums
+                if ($reflectionType instanceof ReflectionNamedType && ! $reflectionType->isBuiltin() && enum_exists($reflectionType->getName())) {
                     $enumClass = $reflectionType->getName();
-                    if (method_exists($enumClass, 'cases')) { // Ensure it's actually an enum
-                        $isBacked = ! empty($enumClass::cases()) && isset($enumClass::cases()[0]->value);
-                        $enumReflection = new ReflectionEnum($enumClass);
-                        $backingTypeReflection = $enumReflection->getBackingType();
+                    $enumReflection = new ReflectionEnum($enumClass);
+                    $backingTypeReflection = $enumReflection->getBackingType();
 
-                        if ($isBacked && $backingTypeReflection instanceof ReflectionNamedType) {
-                            $paramSchema['enum'] = array_column($enumClass::cases(), 'value');
-                            $jsonBackingType = match ($backingTypeReflection->getName()) {
-                                'int' => 'integer',
-                                'string' => 'string',
-                                default => null, // Should not happen for valid backed enums
-                            };
+                    if ($enumReflection->isBacked() && $backingTypeReflection instanceof ReflectionNamedType) {
+                        $paramSchema['enum'] = array_column($enumClass::cases(), 'value');
+                        $jsonBackingType = match ($backingTypeReflection->getName()) {
+                            'int' => 'integer',
+                            'string' => 'string',
+                            default => null, // Should not happen for valid backed enums
+                        };
 
-                            if ($jsonBackingType) {
-                                // Ensure schema type matches backing type, considering nullability
-                                if (isset($paramSchema['type']) && is_array($paramSchema['type']) && in_array('null', $paramSchema['type'])) {
-                                    $paramSchema['type'] = [$jsonBackingType, 'null'];
-                                } else {
-                                    $paramSchema['type'] = $jsonBackingType;
-                                }
-                            }
-                        } else {
-                            // Non-backed enum - use names as enum values
-                            $paramSchema['enum'] = array_column($enumClass::cases(), 'name');
-                            // Ensure schema type is string, considering nullability
+                        if ($jsonBackingType) {
+                            // Ensure schema type matches backing type, considering nullability
                             if (isset($paramSchema['type']) && is_array($paramSchema['type']) && in_array('null', $paramSchema['type'])) {
-                                $paramSchema['type'] = ['string', 'null'];
+                                $paramSchema['type'] = [$jsonBackingType, 'null'];
                             } else {
-                                $paramSchema['type'] = 'string';
+                                $paramSchema['type'] = $jsonBackingType;
                             }
+                        }
+                    } else {
+                        // Non-backed enum - use names as enum values
+                        $paramSchema['enum'] = array_column($enumClass::cases(), 'name');
+                        // Ensure schema type is string, considering nullability
+                        if (isset($paramSchema['type']) && is_array($paramSchema['type']) && in_array('null', $paramSchema['type'])) {
+                            $paramSchema['type'] = ['string', 'null'];
+                        } else {
+                            $paramSchema['type'] = 'string';
                         }
                     }
                 }
-
-                // TODO: Revisit format inference or add explicit @schema docblock tag for formats in a future version.
-                // For now, parameters typed as 'string' will not have a 'format' keyword automatically added.
-                // Users needing specific string format validation (date-time, email, uri, regex pattern)
-                // would need to perform that validation within their tool/resource handler method.
 
                 // Handle array items type if possible
                 if (isset($paramSchema['type'])) {

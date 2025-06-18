@@ -26,6 +26,7 @@ use React\Promise\PromiseInterface;
 use Throwable;
 
 use function React\Promise\reject;
+use function React\Promise\resolve;
 
 /**
  * Bridges the core MCP Processor logic with a ServerTransportInterface
@@ -231,7 +232,7 @@ class Protocol
     /**
      * Send a notification to a session
      */
-    public function sendNotification(string $sessionId, Notification $notification): PromiseInterface
+    public function sendNotification(Notification $notification, string $sessionId): PromiseInterface
     {
         if ($this->transport === null) {
             $this->logger->error('Cannot send notification, transport not bound', [
@@ -241,16 +242,13 @@ class Protocol
             return reject(new McpServerException('Transport not bound'));
         }
 
-        try {
-            return $this->transport->sendMessage($notification, $sessionId, []);
-        } catch (Throwable $e) {
-            $this->logger->error('Failed to send notification', [
-                'sessionId' => $sessionId,
-                'method' => $notification->method,
-                'error' => $e->getMessage()
-            ]);
-            return reject(new McpServerException('Failed to send notification: ' . $e->getMessage()));
-        }
+        return $this->transport->sendMessage($notification, $sessionId, [])
+            ->then(function () {
+                return resolve(null);
+            })
+            ->catch(function (Throwable $e) {
+                return reject(new McpServerException('Failed to send notification: ' . $e->getMessage(), previous: $e));
+            });
     }
 
     /**
@@ -267,7 +265,7 @@ class Protocol
         $notification = ResourceUpdatedNotification::make($uri);
 
         foreach ($subscribers as $sessionId) {
-            $this->sendNotification($sessionId, $notification);
+            $this->sendNotification($notification, $sessionId);
         }
 
         $this->logger->debug("Sent resource change notification", [
@@ -422,7 +420,7 @@ class Protocol
     /**
      * Handle list changed event from registry
      */
-    private function handleListChanged(string $listType): void
+    public function handleListChanged(string $listType): void
     {
         $listChangeUri = "mcp://changes/{$listType}";
 
@@ -444,7 +442,7 @@ class Protocol
         }
 
         foreach ($subscribers as $sessionId) {
-            $this->sendNotification($sessionId, $notification);
+            $this->sendNotification($notification, $sessionId);
         }
 
         $this->logger->debug("Sent list change notification", [

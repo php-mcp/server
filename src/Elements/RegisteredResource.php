@@ -10,6 +10,7 @@ use PhpMcp\Schema\Content\ResourceContents;
 use PhpMcp\Schema\Content\TextResourceContents;
 use PhpMcp\Schema\Resource;
 use Psr\Container\ContainerInterface;
+use Throwable;
 
 class RegisteredResource extends RegisteredElement
 {
@@ -44,14 +45,14 @@ class RegisteredResource extends RegisteredElement
      *
      * @param  mixed  $readResult  The raw result from the resource handler method.
      * @param  string  $uri  The URI of the resource that was read.
-     * @param  ?string  $defaultMimeType  The default MIME type from the ResourceDefinition.
+     * @param  ?string  $mimeType  The MIME type from the ResourceDefinition.
      * @return array<TextResourceContents|BlobResourceContents> Array of ResourceContents objects.
      *
      * @throws \RuntimeException If the result cannot be formatted.
      *
      * Supported result types:
-     * - EmbeddedResource: Used as-is
-     * - ResourceContent: Embedded resource is extracted
+     * - ResourceContent: Used as-is
+     * - EmbeddedResource: Resource is extracted from the EmbeddedResource
      * - string: Converted to text content with guessed or provided MIME type
      * - stream resource: Read and converted to blob with provided MIME type
      * - array with 'blob' key: Used as blob content
@@ -60,7 +61,7 @@ class RegisteredResource extends RegisteredElement
      * - array: Converted to JSON if MIME type is application/json or contains 'json'
      *          For other MIME types, will try to convert to JSON with a warning
      */
-    protected function formatResult(mixed $readResult, string $uri, ?string $defaultMimeType): array
+    protected function formatResult(mixed $readResult, string $uri, ?string $mimeType): array
     {
         if ($readResult instanceof ResourceContents) {
             return [$readResult];
@@ -70,16 +71,54 @@ class RegisteredResource extends RegisteredElement
             return [$readResult->resource];
         }
 
-        if (is_array($readResult) && ! empty($readResult) && $readResult[array_key_first($readResult)] instanceof ResourceContents) {
-            return $readResult;
-        }
+        if (is_array($readResult)) {
+            if (empty($readResult)) {
+                return [TextResourceContents::make($uri, 'application/json', '[]')];
+            }
 
-        if (is_array($readResult) && ! empty($readResult) && $readResult[array_key_first($readResult)] instanceof EmbeddedResource) {
-            return array_map(fn($item) => $item->resource, $readResult);
+            $allAreResourceContents = true;
+            $hasResourceContents = false;
+            $allAreEmbeddedResource = true;
+            $hasEmbeddedResource = false;
+
+            foreach ($readResult as $item) {
+                if ($item instanceof ResourceContents) {
+                    $hasResourceContents = true;
+                    $allAreEmbeddedResource = false;
+                } elseif ($item instanceof EmbeddedResource) {
+                    $hasEmbeddedResource = true;
+                    $allAreResourceContents = false;
+                } else {
+                    $allAreResourceContents = false;
+                    $allAreEmbeddedResource = false;
+                }
+            }
+
+            if ($allAreResourceContents && $hasResourceContents) {
+                return $readResult;
+            }
+
+            if ($allAreEmbeddedResource && $hasEmbeddedResource) {
+                return array_map(fn($item) => $item->resource, $readResult);
+            }
+
+            if ($hasResourceContents || $hasEmbeddedResource) {
+                $result = [];
+                foreach ($readResult as $item) {
+                    if ($item instanceof ResourceContents) {
+                        $result[] = $item;
+                    } elseif ($item instanceof EmbeddedResource) {
+                        $result[] = $item->resource;
+                    } else {
+                        $result = array_merge($result, $this->formatResult($item, $uri, $mimeType));
+                    }
+                }
+                return $result;
+            }
         }
 
         if (is_string($readResult)) {
-            $mimeType = $defaultMimeType ?? $this->guessMimeTypeFromString($readResult);
+            $mimeType = $mimeType ?? $this->guessMimeTypeFromString($readResult);
 
             return [TextResourceContents::make($uri, $mimeType, $readResult)];
         }
@@ -88,7 +127,7 @@ class RegisteredResource extends RegisteredElement
             $result = BlobResourceContents::fromStream(
                 $uri,
                 $readResult,
-                $defaultMimeType ?? 'application/octet-stream'
+                $mimeType ?? 'application/octet-stream'
             );
 
             @fclose($readResult);
@@ -97,28 +136,32 @@ class RegisteredResource extends RegisteredElement
         }
 
         if (is_array($readResult) && isset($readResult['blob']) && is_string($readResult['blob'])) {
-            $mimeType = $readResult['mimeType'] ?? $defaultMimeType ?? 'application/octet-stream';
+            $mimeType = $readResult['mimeType'] ?? $mimeType ?? 'application/octet-stream';
 
             return [BlobResourceContents::make($uri, $mimeType, $readResult['blob'])];
         }
 
         if (is_array($readResult) && isset($readResult['text']) && is_string($readResult['text'])) {
-            $mimeType = $readResult['mimeType'] ?? $defaultMimeType ?? 'text/plain';
+            $mimeType = $readResult['mimeType'] ?? $mimeType ?? 'text/plain';
 
             return [TextResourceContents::make($uri, $mimeType, $readResult['text'])];
         }
 
         if ($readResult instanceof \SplFileInfo && $readResult->isFile() && $readResult->isReadable()) {
-            return [BlobResourceContents::fromSplFileInfo($uri, $readResult, $defaultMimeType)];
+            if ($mimeType && str_contains(strtolower($mimeType), 'text')) {
+                return [TextResourceContents::make($uri, $mimeType, file_get_contents($readResult->getPathname()))];
+            }
+
+            return [BlobResourceContents::fromSplFileInfo($uri, $readResult, $mimeType)];
         }
 
         if (is_array($readResult)) {
-            if ($defaultMimeType && (str_contains(strtolower($defaultMimeType), 'json') ||
-                $defaultMimeType === 'application/json')) {
+            if ($mimeType && (str_contains(strtolower($mimeType), 'json') ||
+                $mimeType === 'application/json')) {
                 try {
                     $jsonString = json_encode($readResult, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT);
 
-                    return [TextResourceContents::make($uri, $defaultMimeType, $jsonString)];
+                    return [TextResourceContents::make($uri, $mimeType, $jsonString)];
                 } catch (\JsonException $e) {
                     throw new \RuntimeException("Failed to encode array as JSON for URI '{$uri}': {$e->getMessage()}");
                 }
@@ -126,7 +169,7 @@ class RegisteredResource extends RegisteredElement
 
             try {
                 $jsonString = json_encode($readResult, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT);
-                $mimeType = 'application/json';
+                $mimeType = $mimeType ?? 'application/json';
 
                 return [TextResourceContents::make($uri, $mimeType, $jsonString)];
             } catch (\JsonException $e) {
@@ -141,24 +184,48 @@ class RegisteredResource extends RegisteredElement
     private function guessMimeTypeFromString(string $content): string
     {
         $trimmed = ltrim($content);
+
         if (str_starts_with($trimmed, '<') && str_ends_with(rtrim($content), '>')) {
-            // Looks like HTML or XML? Prefer text/plain unless sure.
-            if (stripos($trimmed, '<html') !== false) {
+            if (str_contains($trimmed, '<html')) {
                 return 'text/html';
             }
-            if (stripos($trimmed, '<?xml') !== false) {
+            if (str_contains($trimmed, '<?xml')) {
                 return 'application/xml';
-            } // or text/xml
+            }
 
-            return 'text/plain'; // Default for tag-like structures
+            return 'text/plain';
         }
+
         if (str_starts_with($trimmed, '{') && str_ends_with(rtrim($content), '}')) {
             return 'application/json';
         }
+
         if (str_starts_with($trimmed, '[') && str_ends_with(rtrim($content), ']')) {
             return 'application/json';
         }
 
-        return 'text/plain'; // Default
+        return 'text/plain';
+    }
+
+    public function toArray(): array
+    {
+        return [
+            'schema' => $this->schema->toArray(),
+            ...parent::toArray(),
+        ];
+    }
+
+    public static function fromArray(array $data): self|false
+    {
+        try {
+            return new self(
+                Resource::fromArray($data['schema']),
+                $data['handlerClass'],
+                $data['handlerMethod'],
+                $data['isManual'] ?? false,
+            );
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 }

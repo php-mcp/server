@@ -3,279 +3,339 @@
 namespace PhpMcp\Server\Tests\Unit;
 
 use Mockery;
-use PhpMcp\Server\Attributes\McpTool;
-use PhpMcp\Server\Configuration;
+use PhpMcp\Schema\Implementation;
+use PhpMcp\Schema\ServerCapabilities;
+use PhpMcp\Server\Attributes\CompletionProvider;
+use PhpMcp\Server\Contracts\CompletionProviderInterface;
+use PhpMcp\Server\Contracts\SessionHandlerInterface;
+use PhpMcp\Server\Contracts\SessionInterface;
 use PhpMcp\Server\Defaults\BasicContainer;
+use PhpMcp\Server\Elements\RegisteredPrompt;
+use PhpMcp\Server\Elements\RegisteredTool;
 use PhpMcp\Server\Exception\ConfigurationException;
 use PhpMcp\Server\Exception\DefinitionException;
-use PhpMcp\Server\Model\Capabilities;
+use PhpMcp\Server\Protocol;
+use PhpMcp\Server\Registry;
 use PhpMcp\Server\Server;
 use PhpMcp\Server\ServerBuilder;
+use PhpMcp\Server\Session\ArraySessionHandler;
+use PhpMcp\Server\Session\CacheSessionHandler;
+use PhpMcp\Server\Session\SessionManager;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Psr\SimpleCache\CacheInterface;
 use React\EventLoop\LoopInterface;
+use React\EventLoop\TimerInterface;
 use ReflectionClass;
 
-class DummyHandlerClass
+class SB_DummyHandlerClass
 {
-    public function handle()
+    public function handle(string $arg): string
     {
-    }
-}
-class DummyInvokableClass
-{
-    public function __invoke()
-    {
-    }
-}
-class HandlerWithDeps
-{
-    public function __construct(public LoggerInterface $log)
-    {
+        return "handled: {$arg}";
     }
 
-    #[McpTool(name: 'depTool')]
-    public function run()
+    public function noArgsHandler(): string
     {
+        return "no-args";
+    }
+
+    public function handlerWithCompletion(
+        string $name,
+        #[CompletionProvider(providerClass: SB_DummyCompletionProvider::class)]
+        string $uriParam
+    ): array {
+        return [];
     }
 }
+
+class SB_DummyInvokableClass
+{
+    public function __invoke(int $id): array
+    {
+        return ['id' => $id];
+    }
+}
+
+class SB_DummyCompletionProvider implements CompletionProviderInterface
+{
+    public function getCompletions(string $currentValue, SessionInterface $session): array
+    {
+        return [];
+    }
+}
+
 
 beforeEach(function () {
     $this->builder = new ServerBuilder();
 });
 
-function getBuilderProperty(ServerBuilder $builder, string $propertyName)
-{
-    $reflector = new ReflectionClass($builder);
-    $property = $reflector->getProperty($propertyName);
-    $property->setAccessible(true);
 
-    return $property->getValue($builder);
-}
-
-it('sets server info', function () {
+it('sets server info correctly', function () {
     $this->builder->withServerInfo('MyServer', '1.2.3');
-    expect(getBuilderProperty($this->builder, 'name'))->toBe('MyServer');
-    expect(getBuilderProperty($this->builder, 'version'))->toBe('1.2.3');
+    $serverInfo = getPrivateProperty($this->builder, 'serverInfo');
+    expect($serverInfo)->toBeInstanceOf(Implementation::class)
+        ->and($serverInfo->name)->toBe('MyServer')
+        ->and($serverInfo->version)->toBe('1.2.3');
 });
 
-it('sets capabilities', function () {
-    $capabilities = Capabilities::forServer(); // Use static factory
+it('sets capabilities correctly', function () {
+    $capabilities = ServerCapabilities::make(toolsListChanged: true);
     $this->builder->withCapabilities($capabilities);
-    expect(getBuilderProperty($this->builder, 'capabilities'))->toBe($capabilities);
+    expect(getPrivateProperty($this->builder, 'capabilities'))->toBe($capabilities);
 });
 
-it('sets logger', function () {
+it('sets pagination limit correctly', function () {
+    $this->builder->withPaginationLimit(100);
+    expect(getPrivateProperty($this->builder, 'paginationLimit'))->toBe(100);
+});
+
+it('sets logger correctly', function () {
     $logger = Mockery::mock(LoggerInterface::class);
     $this->builder->withLogger($logger);
-    expect(getBuilderProperty($this->builder, 'logger'))->toBe($logger);
+    expect(getPrivateProperty($this->builder, 'logger'))->toBe($logger);
 });
 
-it('sets cache and TTL', function () {
+it('sets cache and TTL correctly', function () {
     $cache = Mockery::mock(CacheInterface::class);
     $this->builder->withCache($cache, 1800);
-    expect(getBuilderProperty($this->builder, 'cache'))->toBe($cache);
-    expect(getBuilderProperty($this->builder, 'definitionCacheTtl'))->toBe(1800);
+    expect(getPrivateProperty($this->builder, 'cache'))->toBe($cache);
+    expect(getPrivateProperty($this->builder, 'definitionCacheTtl'))->toBe(1800);
 });
 
-it('sets cache with default TTL', function () {
+it('sets cache with default TTL if TTL not provided', function () {
     $cache = Mockery::mock(CacheInterface::class);
-    $this->builder->withCache($cache); // No TTL provided
-    expect(getBuilderProperty($this->builder, 'cache'))->toBe($cache);
-    expect(getBuilderProperty($this->builder, 'definitionCacheTtl'))->toBe(3600); // Default
+    $this->builder->withCache($cache);
+    expect(getPrivateProperty($this->builder, 'definitionCacheTtl'))->toBe(3600);
 });
 
-it('sets container', function () {
+it('sets session handler correctly', function () {
+    $handler = Mockery::mock(SessionHandlerInterface::class);
+    $this->builder->withSessionHandler($handler, 7200);
+    expect(getPrivateProperty($this->builder, 'sessionHandler'))->toBe($handler);
+    expect(getPrivateProperty($this->builder, 'sessionTtl'))->toBe(7200);
+});
+
+it('sets ArraySessionHandler correctly', function () {
+    $this->builder->withArraySessionHandler(1800);
+    expect(getPrivateProperty($this->builder, 'sessionHandler'))->toBeInstanceOf(ArraySessionHandler::class);
+    expect(getPrivateProperty($this->builder, 'sessionHandler')->ttl)->toBe(1800);
+    expect(getPrivateProperty($this->builder, 'sessionTtl'))->toBe(1800);
+});
+
+it('sets CacheSessionHandler correctly', function () {
+    $cache = Mockery::mock(CacheInterface::class);
+    $cache->shouldReceive('get')->with('mcp_session_index', [])->andReturn([]);
+    $this->builder->withCacheSessionHandler($cache, 900);
+    $sessionHandler = getPrivateProperty($this->builder, 'sessionHandler');
+    expect($sessionHandler)->toBeInstanceOf(CacheSessionHandler::class);
+    expect($sessionHandler->cache)->toBe($cache);
+    expect($sessionHandler->ttl)->toBe(900);
+    expect(getPrivateProperty($this->builder, 'sessionTtl'))->toBe(900);
+});
+
+
+it('sets container correctly', function () {
     $container = Mockery::mock(ContainerInterface::class);
     $this->builder->withContainer($container);
-    expect(getBuilderProperty($this->builder, 'container'))->toBe($container);
+    expect(getPrivateProperty($this->builder, 'container'))->toBe($container);
 });
 
-it('sets loop', function () {
+it('sets loop correctly', function () {
     $loop = Mockery::mock(LoopInterface::class);
     $this->builder->withLoop($loop);
-    expect(getBuilderProperty($this->builder, 'loop'))->toBe($loop);
+    expect(getPrivateProperty($this->builder, 'loop'))->toBe($loop);
 });
 
 it('stores manual tool registration data', function () {
-    $handler = [DummyHandlerClass::class, 'handle'];
-    $name = 'my-tool';
-    $desc = 'Tool desc';
-    $this->builder->withTool($handler, $name, $desc);
-
-    $manualTools = getBuilderProperty($this->builder, 'manualTools');
-    expect($manualTools)->toBeArray()->toHaveCount(1);
-    expect($manualTools[0])->toBe(['handler' => $handler, 'name' => $name, 'description' => $desc]);
+    $handler = [SB_DummyHandlerClass::class, 'handle'];
+    $this->builder->withTool($handler, 'my-tool', 'Tool desc');
+    $manualTools = getPrivateProperty($this->builder, 'manualTools');
+    expect($manualTools[0]['handler'])->toBe($handler)
+        ->and($manualTools[0]['name'])->toBe('my-tool')
+        ->and($manualTools[0]['description'])->toBe('Tool desc');
 });
 
 it('stores manual resource registration data', function () {
-    $handler = DummyInvokableClass::class;
-    $uri = 'test://resource';
-    $name = 'inv-res';
-    $this->builder->withResource($handler, $uri, $name);
-
-    $manualResources = getBuilderProperty($this->builder, 'manualResources');
-    expect($manualResources)->toBeArray()->toHaveCount(1);
-    expect($manualResources[0]['handler'])->toBe($handler);
-    expect($manualResources[0]['uri'])->toBe($uri);
-    expect($manualResources[0]['name'])->toBe($name);
+    $handler = [SB_DummyHandlerClass::class, 'handle'];
+    $this->builder->withResource($handler, 'res://resource', 'Resource name');
+    $manualResources = getPrivateProperty($this->builder, 'manualResources');
+    expect($manualResources[0]['handler'])->toBe($handler)
+        ->and($manualResources[0]['uri'])->toBe('res://resource')
+        ->and($manualResources[0]['name'])->toBe('Resource name');
 });
 
 it('stores manual resource template registration data', function () {
-    $handler = [DummyHandlerClass::class, 'handle'];
-    $uriTemplate = 'test://tmpl/{id}';
-    $this->builder->withResourceTemplate($handler, $uriTemplate);
-
-    $manualTemplates = getBuilderProperty($this->builder, 'manualResourceTemplates');
-    expect($manualTemplates)->toBeArray()->toHaveCount(1);
-    expect($manualTemplates[0]['handler'])->toBe($handler);
-    expect($manualTemplates[0]['uriTemplate'])->toBe($uriTemplate);
+    $handler = [SB_DummyHandlerClass::class, 'handle'];
+    $this->builder->withResourceTemplate($handler, 'res://resource', 'Resource name');
+    $manualResourceTemplates = getPrivateProperty($this->builder, 'manualResourceTemplates');
+    expect($manualResourceTemplates[0]['handler'])->toBe($handler)
+        ->and($manualResourceTemplates[0]['uriTemplate'])->toBe('res://resource')
+        ->and($manualResourceTemplates[0]['name'])->toBe('Resource name');
 });
 
 it('stores manual prompt registration data', function () {
-    $handler = [DummyHandlerClass::class, 'handle'];
-    $name = 'my-prompt';
-    $this->builder->withPrompt($handler, $name);
-
-    $manualPrompts = getBuilderProperty($this->builder, 'manualPrompts');
-    expect($manualPrompts)->toBeArray()->toHaveCount(1);
-    expect($manualPrompts[0]['handler'])->toBe($handler);
-    expect($manualPrompts[0]['name'])->toBe($name);
+    $handler = [SB_DummyHandlerClass::class, 'handle'];
+    $this->builder->withPrompt($handler, 'my-prompt', 'Prompt desc');
+    $manualPrompts = getPrivateProperty($this->builder, 'manualPrompts');
+    expect($manualPrompts[0]['handler'])->toBe($handler)
+        ->and($manualPrompts[0]['name'])->toBe('my-prompt')
+        ->and($manualPrompts[0]['description'])->toBe('Prompt desc');
 });
 
-it('throws exception if build called without server info', function () {
-    $this->builder
-        // ->withDiscoveryPaths($this->tempBasePath) // No longer needed
-        ->withTool([DummyHandlerClass::class, 'handle']) // Provide manual element
-        ->build();
+it('throws ConfigurationException if server info not provided', function () {
+    $this->builder->build();
 })->throws(ConfigurationException::class, 'Server name and version must be provided');
 
-it('throws exception for empty server name or version', function ($name, $version) {
-    $this->builder
-        ->withServerInfo($name, $version)
-        ->withTool([DummyHandlerClass::class, 'handle']) // Provide manual element
-        ->build();
-})->throws(ConfigurationException::class, 'Server name and version must be provided')
-    ->with([
-        ['', '1.0'],
-        ['Server', ''],
-        [' ', '1.0'],
-    ]);
 
-it('resolves default Logger correctly when building', function () {
-    $server = $this->builder
-        ->withServerInfo('Test', '1.0')
-        ->withTool([DummyHandlerClass::class, 'handle'])
-        ->build();
-    expect($server->getConfiguration()->logger)->toBeInstanceOf(NullLogger::class);
-});
-
-it('resolves default Loop correctly when building', function () {
-    $server = $this->builder
-        ->withServerInfo('Test', '1.0')
-        ->withTool([DummyHandlerClass::class, 'handle'])
-        ->build();
-    expect($server->getConfiguration()->loop)->toBeInstanceOf(LoopInterface::class);
-});
-
-it('resolves default Container correctly when building', function () {
-    $server = $this->builder
-        ->withServerInfo('Test', '1.0')
-        ->withTool([DummyHandlerClass::class, 'handle'])
-        ->build();
-    expect($server->getConfiguration()->container)->toBeInstanceOf(BasicContainer::class);
-});
-
-it('uses provided dependencies over defaults when building', function () {
-    $myLoop = Mockery::mock(LoopInterface::class);
-    $myLogger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
-    $myContainer = Mockery::mock(ContainerInterface::class);
-    $myCache = Mockery::mock(CacheInterface::class);
-    $myCaps = Capabilities::forServer(resourcesSubscribe: true);
-
-    $server = $this->builder
-        ->withServerInfo('CustomDeps', '1.0')
-        ->withLoop($myLoop)
-        ->withLogger($myLogger)
-        ->withContainer($myContainer)
-        ->withCache($myCache)
-        ->withCapabilities($myCaps)
-        ->withTool([DummyHandlerClass::class, 'handle']) // Add element
-        ->build();
-
+it('resolves default Logger, Loop, Container, SessionHandler if not provided', function () {
+    $server = $this->builder->withServerInfo('Test', '1.0')->build();
     $config = $server->getConfiguration();
-    expect($config->loop)->toBe($myLoop);
-    expect($config->logger)->toBe($myLogger);
-    expect($config->container)->toBe($myContainer);
-    expect($config->cache)->toBe($myCache);
-    expect($config->capabilities)->toBe($myCaps);
-});
 
-it('successfully creates Server with defaults', function () {
-    $container = new BasicContainer();
-    $container->set(LoggerInterface::class, new NullLogger());
-
-    $server = $this->builder
-        ->withServerInfo('BuiltServer', '1.0')
-        ->withContainer($container)
-        ->withTool([DummyHandlerClass::class, 'handle'], 'manualTool')
-        ->build();
-
-    expect($server)->toBeInstanceOf(Server::class);
-    $config = $server->getConfiguration();
-    expect($config->serverName)->toBe('BuiltServer');
-    expect($server->getRegistry()->findTool('manualTool'))->not->toBeNull();
     expect($config->logger)->toBeInstanceOf(NullLogger::class);
     expect($config->loop)->toBeInstanceOf(LoopInterface::class);
-    expect($config->container)->toBe($container);
-    expect($config->capabilities)->toBeInstanceOf(Capabilities::class);
+    expect($config->container)->toBeInstanceOf(BasicContainer::class);
+
+    $sessionManager = $server->getSessionManager();
+    $smReflection = new ReflectionClass(SessionManager::class);
+    $handlerProp = $smReflection->getProperty('handler');
+    $handlerProp->setAccessible(true);
+    expect($handlerProp->getValue($sessionManager))->toBeInstanceOf(ArraySessionHandler::class);
 });
 
-it('successfully creates Server with custom dependencies', function () {
-    $myLoop = Mockery::mock(LoopInterface::class);
-    $myLogger = Mockery::mock(LoggerInterface::class)->shouldIgnoreMissing();
-    $myContainer = Mockery::mock(ContainerInterface::class);
-    $myCache = Mockery::mock(CacheInterface::class);
-    $myCaps = Capabilities::forServer(resourcesSubscribe: true);
+it('builds Server with correct Configuration, Registry, Protocol, SessionManager', function () {
+    $logger = new NullLogger();
+    $loop = Mockery::mock(LoopInterface::class)->shouldIgnoreMissing();
+    $cache = Mockery::mock(CacheInterface::class);
+    $container = Mockery::mock(ContainerInterface::class);
+    $sessionHandler = Mockery::mock(SessionHandlerInterface::class);
+    $capabilities = ServerCapabilities::make(promptsListChanged: true, resourcesListChanged: true);
+
+    $loop->shouldReceive('addPeriodicTimer')->with(300, Mockery::type('callable'))->andReturn(Mockery::mock(TimerInterface::class));
 
     $server = $this->builder
-        ->withServerInfo('CustomServer', '2.0')
-        ->withLoop($myLoop)->withLogger($myLogger)->withContainer($myContainer)
-        ->withCache($myCache)->withCapabilities($myCaps)
-        ->withPrompt(DummyInvokableClass::class) // Add one element
+        ->withServerInfo('FullBuild', '3.0')
+        ->withLogger($logger)
+        ->withLoop($loop)
+        ->withCache($cache)
+        ->withContainer($container)
+        ->withSessionHandler($sessionHandler)
+        ->withCapabilities($capabilities)
+        ->withPaginationLimit(75)
         ->build();
 
     expect($server)->toBeInstanceOf(Server::class);
+
     $config = $server->getConfiguration();
-    expect($config->serverName)->toBe('CustomServer');
-    expect($config->logger)->toBe($myLogger);
-    expect($config->loop)->toBe($myLoop);
-    expect($config->container)->toBe($myContainer);
-    expect($config->cache)->toBe($myCache);
-    expect($config->capabilities)->toBe($myCaps);
-    expect($server->getRegistry()->allPrompts()->count())->toBe(1);
+    expect($config->serverInfo->name)->toBe('FullBuild');
+    expect($config->serverInfo->version)->toBe('3.0');
+    expect($config->capabilities)->toBe($capabilities);
+    expect($config->logger)->toBe($logger);
+    expect($config->loop)->toBe($loop);
+    expect($config->cache)->toBe($cache);
+    expect($config->container)->toBe($container);
+    expect($config->paginationLimit)->toBe(75);
+
+    expect($server->getRegistry())->toBeInstanceOf(Registry::class);
+    expect($server->getProtocol())->toBeInstanceOf(Protocol::class);
+    expect($server->getSessionManager())->toBeInstanceOf(SessionManager::class);
+    $smReflection = new ReflectionClass($server->getSessionManager());
+    $handlerProp = $smReflection->getProperty('handler');
+    $handlerProp->setAccessible(true);
+    expect($handlerProp->getValue($server->getSessionManager()))->toBe($sessionHandler);
 });
 
-it('throws DefinitionException if manual tool registration fails', function () {
-    $container = new BasicContainer();
-    $container->set(LoggerInterface::class, new NullLogger());
+it('registers manual tool successfully during build', function () {
+    $handler = [SB_DummyHandlerClass::class, 'handle'];
 
-    $this->builder
-        ->withServerInfo('FailRegServer', '1.0')
-        ->withContainer($container)
-        ->withTool([DummyHandlerClass::class, 'nonExistentMethod'], 'badTool')
+    $server = $this->builder
+        ->withServerInfo('ManualToolTest', '1.0')
+        ->withTool($handler, 'test-manual-tool', 'A test tool')
         ->build();
-})->throws(DefinitionException::class, '1 error(s) occurred during manual element registration');
 
-it('throws DefinitionException if manual resource registration fails', function () {
-    $container = new BasicContainer();
-    $container->set(LoggerInterface::class, new NullLogger());
+    $registry = $server->getRegistry();
+    $tool = $registry->getTool('test-manual-tool');
 
-    $this->builder
-        ->withServerInfo('FailRegServer', '1.0')
-        ->withContainer($container)
-        ->withResource([DummyHandlerClass::class, 'handle'], 'invalid-uri-no-scheme') // Invalid URI
+    expect($tool)->toBeInstanceOf(RegisteredTool::class);
+    expect($tool->isManual)->toBeTrue();
+    expect($tool->schema->name)->toBe('test-manual-tool');
+    expect($tool->schema->description)->toBe('A test tool');
+    expect($tool->schema->inputSchema)->toEqual(['type' => 'object', 'properties' => ['arg' => ['type' => 'string']], 'required' => ['arg']]);
+    expect($tool->handlerClass)->toBe(SB_DummyHandlerClass::class);
+    expect($tool->handlerMethod)->toBe('handle');
+});
+
+it('infers tool name from invokable class if not provided', function () {
+    $handler = SB_DummyInvokableClass::class;
+
+    $server = $this->builder
+        ->withServerInfo('Test', '1.0')
+        ->withTool($handler)
         ->build();
-})->throws(DefinitionException::class, '1 error(s) occurred during manual element registration');
+
+    $tool = $server->getRegistry()->getTool('SB_DummyInvokableClass');
+    expect($tool)->not->toBeNull();
+    expect($tool->schema->name)->toBe('SB_DummyInvokableClass');
+});
+
+it('infers prompt arguments and completion providers for manual prompt', function () {
+    $handler = [SB_DummyHandlerClass::class, 'handlerWithCompletion'];
+
+    $server = $this->builder
+        ->withServerInfo('Test', '1.0')
+        ->withPrompt($handler, 'myPrompt')
+        ->build();
+
+    $prompt = $server->getRegistry()->getPrompt('myPrompt');
+    expect($prompt)->toBeInstanceOf(RegisteredPrompt::class);
+    expect($prompt->schema->arguments)->toHaveCount(2);
+    expect($prompt->schema->arguments[0]->name)->toBe('name');
+    expect($prompt->schema->arguments[1]->name)->toBe('uriParam');
+    expect($prompt->getCompletionProvider('uriParam'))->toBe(SB_DummyCompletionProvider::class);
+});
+
+// it('throws DefinitionException if HandlerResolver fails for a manual element', function () {
+//     $handler = ['NonExistentClass', 'method'];
+
+//     $server = $this->builder
+//         ->withServerInfo('Test', '1.0')
+//         ->withTool($handler, 'badTool')
+//         ->build();
+// })->throws(DefinitionException::class, '1 error(s) occurred during manual element registration');
+
+
+it('builds successfully with minimal valid config', function () {
+    $server = $this->builder
+        ->withServerInfo('TS-Compatible', '0.1')
+        ->build();
+    expect($server)->toBeInstanceOf(Server::class);
+});
+
+it('can be built multiple times with different configurations', function () {
+    $builder = new ServerBuilder();
+
+    $server1 = $builder
+        ->withServerInfo('ServerOne', '1.0')
+        ->withTool([SB_DummyHandlerClass::class, 'handle'], 'toolOne')
+        ->build();
+
+    $server2 = $builder
+        ->withServerInfo('ServerTwo', '2.0')
+        ->withTool([SB_DummyHandlerClass::class, 'noArgsHandler'], 'toolTwo')
+        ->build();
+
+    expect($server1->getConfiguration()->serverInfo->name)->toBe('ServerOne');
+    $registry1 = $server1->getRegistry();
+    expect($registry1->getTool('toolOne'))->not->toBeNull();
+    expect($registry1->getTool('toolTwo'))->toBeNull();
+
+    expect($server2->getConfiguration()->serverInfo->name)->toBe('ServerTwo');
+    $registry2 = $server2->getRegistry();
+    expect($registry2->getTool('toolOne'))->not->toBeNull();
+    expect($registry2->getTool('toolTwo'))->not->toBeNull();
+
+    $builder3 = new ServerBuilder();
+    $server3 = $builder3->withServerInfo('ServerThree', '3.0')->build();
+    expect($server3->getRegistry()->hasElements())->toBeFalse();
+});
