@@ -66,7 +66,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
     private ?ThroughStream $getStream = null;
 
     /**
-     * @param bool $enableJsonResponse If true, the server will return JSON responses instead of starting an SSE stream. 
+     * @param bool $enableJsonResponse If true, the server will return JSON responses instead of starting an SSE stream.
      * This can be useful for simple request/response scenarios without streaming.
      */
     public function __construct(
@@ -171,9 +171,9 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
             try {
                 return match ($method) {
-                    'GET' => $this->handleGetRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
-                    'POST' => $this->handlePostRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
-                    'DELETE' => $this->handleDeleteRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
+                    'GET' => $this->handleGetRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
+                    'POST' => $this->handlePostRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
+                    'DELETE' => $this->handleDeleteRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
                     default => $addCors($this->handleUnsupportedRequest($request)),
                 };
             } catch (Throwable $e) {

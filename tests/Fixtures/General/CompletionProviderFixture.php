@@ -16,6 +16,6 @@ class CompletionProviderFixture implements CompletionProviderInterface
         self::$lastCurrentValue = $currentValue;
         self::$lastSession = $session;
 
-        return array_filter(self::$completions, fn($item) => str_starts_with($item, $currentValue));
+        return array_filter(self::$completions, fn ($item) => str_starts_with($item, $currentValue));
     }
 }

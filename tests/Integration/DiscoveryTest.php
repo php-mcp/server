@@ -11,7 +11,6 @@ use PhpMcp\Server\Utils\SchemaGenerator;
 use PhpMcp\Server\Tests\Fixtures\General\CompletionProviderFixture;
 use Psr\Log\NullLogger;
 
-
 beforeEach(function () {
     $logger = new NullLogger();
     $this->registry = new Registry($logger);

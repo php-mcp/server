@@ -41,11 +41,17 @@ class DiscoverableToolHandler
     }
 
     #[McpTool(name: "private_tool_should_be_ignored")] // On private method
-    private function aPrivateTool(): void {}
+    private function aPrivateTool(): void
+    {
+    }
 
     #[McpTool(name: "protected_tool_should_be_ignored")] // On protected method
-    protected function aProtectedTool(): void {}
+    protected function aProtectedTool(): void
+    {
+    }
 
     #[McpTool(name: "static_tool_should_be_ignored")] // On static method
-    public static function aStaticTool(): void {}
+    public static function aStaticTool(): void
+    {
+    }
 }

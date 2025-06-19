@@ -438,24 +438,24 @@ class Registry implements EventEmitterInterface
     /** @return array<string, Tool> */
     public function getTools(): array
     {
-        return array_map(fn($tool) => $tool->schema, $this->tools);
+        return array_map(fn ($tool) => $tool->schema, $this->tools);
     }
 
     /** @return array<string, Resource> */
     public function getResources(): array
     {
-        return array_map(fn($resource) => $resource->schema, $this->resources);
+        return array_map(fn ($resource) => $resource->schema, $this->resources);
     }
 
     /** @return array<string, Prompt> */
     public function getPrompts(): array
     {
-        return array_map(fn($prompt) => $prompt->schema, $this->prompts);
+        return array_map(fn ($prompt) => $prompt->schema, $this->prompts);
     }
 
     /** @return array<string, ResourceTemplate> */
     public function getResourceTemplates(): array
     {
-        return array_map(fn($template) => $template->schema, $this->resourceTemplates);
+        return array_map(fn ($template) => $template->schema, $this->resourceTemplates);
     }
 }

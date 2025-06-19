@@ -10,7 +10,6 @@ use React\Promise\PromiseInterface;
 
 use function React\Async\await;
 
-
 const STDIO_SERVER_SCRIPT_PATH = __DIR__ . '/../Fixtures/ServerScripts/StdioTestServer.php';
 const PROCESS_TIMEOUT_SECONDS = 5;
 
@@ -48,14 +47,16 @@ function readResponseFromServer(Process $process, string $expectedRequestId, Loo
             $buffer = array_pop($lines);
 
             foreach ($lines as $line) {
-                if (empty(trim($line))) continue;
+                if (empty(trim($line))) {
+                    continue;
+                }
                 try {
                     $response = json_decode(trim($line), true);
                     if (array_key_exists('id', $response) && $response['id'] == $expectedRequestId) {
                         $process->stdout->removeListener('data', $dataListener);
                         $deferred->resolve($response);
                         return;
-                    } else if (isset($response['method']) && str_starts_with($response['method'], 'notifications/')) {
+                    } elseif (isset($response['method']) && str_starts_with($response['method'], 'notifications/')) {
                         // It's a notification, log it or handle if necessary for a specific test, but don't resolve
                     }
                 } catch (\JsonException $e) {
@@ -227,9 +228,9 @@ it('can handle batch requests correctly', function () {
 
     expect($batchResponseArray)->toBeArray()->toHaveCount(3); // greet1, greet2, error
 
-    $response1 = array_values(array_filter($batchResponseArray, fn($response) => $response['id'] === 'batch-req-1'))[0] ?? null;
-    $response2 = array_values(array_filter($batchResponseArray, fn($response) => $response['id'] === 'batch-req-2'))[0] ?? null;
-    $response3 = array_values(array_filter($batchResponseArray, fn($response) => $response['id'] === 'batch-req-3'))[0] ?? null;
+    $response1 = array_values(array_filter($batchResponseArray, fn ($response) => $response['id'] === 'batch-req-1'))[0] ?? null;
+    $response2 = array_values(array_filter($batchResponseArray, fn ($response) => $response['id'] === 'batch-req-2'))[0] ?? null;
+    $response3 = array_values(array_filter($batchResponseArray, fn ($response) => $response['id'] === 'batch-req-3'))[0] ?? null;
 
     expect($response1['result']['content'][0]['text'])->toBe('Hello, Batch Item 1!');
     expect($response2['result']['content'][0]['text'])->toBe('Hello, Batch Item 2!');

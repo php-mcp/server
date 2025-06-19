@@ -17,7 +17,6 @@ use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use Psr\SimpleCache\InvalidArgumentException as CacheInvalidArgumentException;
 
-
 const DISCOVERED_CACHE_KEY_REG = 'mcp_server_discovered_elements';
 
 function createTestToolSchema(string $name = 'test-tool'): Tool
@@ -364,7 +363,7 @@ it('handles cache general exceptions during load gracefully', function () {
 });
 
 it('handles cache InvalidArgumentException during load gracefully', function () {
-    $this->cache->shouldReceive('get')->with(DISCOVERED_CACHE_KEY_REG)->once()->andThrow(new class extends \Exception implements CacheInvalidArgumentException {});
+    $this->cache->shouldReceive('get')->with(DISCOVERED_CACHE_KEY_REG)->once()->andThrow(new class () extends \Exception implements CacheInvalidArgumentException {});
 
     $registry = new Registry($this->logger, $this->cache);
     expect($registry->hasElements())->toBeFalse();

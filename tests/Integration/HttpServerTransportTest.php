@@ -12,7 +12,6 @@ use React\Stream\ReadableStreamInterface;
 
 use function React\Async\await;
 
-
 const HTTP_SERVER_SCRIPT_PATH = __DIR__ . '/../Fixtures/ServerScripts/HttpTestServer.php';
 const HTTP_PROCESS_TIMEOUT_SECONDS = 8;
 const HTTP_SERVER_HOST = '127.0.0.1';
@@ -58,8 +57,12 @@ afterEach(function () {
     }
 
     if ($this->process instanceof Process && $this->process->isRunning()) {
-        if ($this->process->stdout instanceof ReadableStreamInterface) $this->process->stdout->close();
-        if ($this->process->stderr instanceof ReadableStreamInterface) $this->process->stderr->close();
+        if ($this->process->stdout instanceof ReadableStreamInterface) {
+            $this->process->stdout->close();
+        }
+        if ($this->process->stderr instanceof ReadableStreamInterface) {
+            $this->process->stderr->close();
+        }
 
         $this->process->terminate(SIGTERM);
         try {

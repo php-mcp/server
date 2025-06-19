@@ -85,17 +85,17 @@ it('does not require handler method to accept URI', function () {
 
 
 dataset('resource_handler_return_types', [
-    'string_text'        => ['returnStringText', 'text/plain', fn($text, $uri) => expect($text)->toBe("Plain string content for {$uri}"), null],
-    'string_json_guess'  => ['returnStringJson', 'application/json', fn($text, $uri) => expect(json_decode($text, true)['uri_in_json'])->toBe($uri), null],
-    'string_html_guess'  => ['returnStringHtml', 'text/html', fn($text, $uri) => expect($text)->toContain("<title>{$uri}</title>"), null],
-    'array_json_schema_mime' => ['returnArrayJson', 'application/json', fn($text, $uri) => expect(json_decode($text, true)['uri_in_array'])->toBe($uri), null], // schema has text/plain, overridden by array + JSON content
-    'empty_array'        => ['returnEmptyArray', 'application/json', fn($text) => expect($text)->toBe('[]'), null],
-    'stream_octet'       => ['returnStream', 'application/octet-stream', null, fn($blob, $uri) => expect(base64_decode($blob ?? ''))->toBe("Streamed content for {$uri}")],
-    'array_for_blob'     => ['returnArrayForBlobSchema', 'application/x-custom-blob-array', null, fn($blob, $uri) => expect(base64_decode($blob ?? ''))->toBe("Blob for {$uri} via array")],
-    'array_for_text'     => ['returnArrayForTextSchema', 'text/vnd.custom-array-text', fn($text, $uri) => expect($text)->toBe("Text from array for {$uri} via array"), null],
-    'direct_TextResourceContents' => ['returnTextResourceContents', 'text/special-contents', fn($text) => expect($text)->toBe('Direct TextResourceContents'), null],
-    'direct_BlobResourceContents' => ['returnBlobResourceContents', 'application/custom-blob-contents', null, fn($blob) => expect(base64_decode($blob ?? ''))->toBe('blobbycontents')],
-    'direct_EmbeddedResource' => ['returnEmbeddedResource', 'application/vnd.custom-embedded', fn($text) => expect($text)->toBe('Direct EmbeddedResource content'), null],
+    'string_text'        => ['returnStringText', 'text/plain', fn ($text, $uri) => expect($text)->toBe("Plain string content for {$uri}"), null],
+    'string_json_guess'  => ['returnStringJson', 'application/json', fn ($text, $uri) => expect(json_decode($text, true)['uri_in_json'])->toBe($uri), null],
+    'string_html_guess'  => ['returnStringHtml', 'text/html', fn ($text, $uri) => expect($text)->toContain("<title>{$uri}</title>"), null],
+    'array_json_schema_mime' => ['returnArrayJson', 'application/json', fn ($text, $uri) => expect(json_decode($text, true)['uri_in_array'])->toBe($uri), null], // schema has text/plain, overridden by array + JSON content
+    'empty_array'        => ['returnEmptyArray', 'application/json', fn ($text) => expect($text)->toBe('[]'), null],
+    'stream_octet'       => ['returnStream', 'application/octet-stream', null, fn ($blob, $uri) => expect(base64_decode($blob ?? ''))->toBe("Streamed content for {$uri}")],
+    'array_for_blob'     => ['returnArrayForBlobSchema', 'application/x-custom-blob-array', null, fn ($blob, $uri) => expect(base64_decode($blob ?? ''))->toBe("Blob for {$uri} via array")],
+    'array_for_text'     => ['returnArrayForTextSchema', 'text/vnd.custom-array-text', fn ($text, $uri) => expect($text)->toBe("Text from array for {$uri} via array"), null],
+    'direct_TextResourceContents' => ['returnTextResourceContents', 'text/special-contents', fn ($text) => expect($text)->toBe('Direct TextResourceContents'), null],
+    'direct_BlobResourceContents' => ['returnBlobResourceContents', 'application/custom-blob-contents', null, fn ($blob) => expect(base64_decode($blob ?? ''))->toBe('blobbycontents')],
+    'direct_EmbeddedResource' => ['returnEmbeddedResource', 'application/vnd.custom-embedded', fn ($text) => expect($text)->toBe('Direct EmbeddedResource content'), null],
 ]);
 
 it('formats various handler return types correctly', function (string $handlerMethod, string $expectedMime, ?callable $textAssertion, ?callable $blobAssertion) {

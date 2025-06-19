@@ -21,7 +21,8 @@ class RegisteredElement implements JsonSerializable
         public readonly string $handlerClass,
         public readonly string $handlerMethod,
         public readonly bool $isManual = false,
-    ) {}
+    ) {
+    }
 
     public function handle(ContainerInterface $container, array $arguments): mixed
     {
@@ -117,7 +118,7 @@ class RegisteredElement implements JsonSerializable
                             return $case;
                         }
                     }
-                    $validNames = array_map(fn($c) => $c->name, $typeName::cases());
+                    $validNames = array_map(fn ($c) => $c->name, $typeName::cases());
                     throw new InvalidArgumentException(
                         "Invalid value '{$argument}' for unit enum {$typeName}. Expected one of: " . implode(', ', $validNames) . "."
                     );

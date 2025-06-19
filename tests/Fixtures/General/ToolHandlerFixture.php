@@ -10,8 +10,9 @@ use Psr\Log\LoggerInterface;
 
 class ToolHandlerFixture
 {
-
-    public function __construct() {}
+    public function __construct()
+    {
+    }
 
     public function greet(string $name): string
     {

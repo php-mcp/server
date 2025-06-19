@@ -139,5 +139,7 @@ class VariousTypesHandler
         );
     }
 
-    public function methodCausesTypeError(int $mustBeInt): void {}
+    public function methodCausesTypeError(int $mustBeInt): void
+    {
+    }
 }
