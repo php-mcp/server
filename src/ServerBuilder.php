@@ -46,9 +46,9 @@ final class ServerBuilder
 
     private ?SessionHandlerInterface $sessionHandler = null;
 
-    private ?int $sessionTtl = 3600;
+    private ?string $sessionDriver = null;
 
-    private ?int $definitionCacheTtl = 3600;
+    private ?int $sessionTtl = 3600;
 
     private ?int $paginationLimit = 50;
 
@@ -88,9 +88,7 @@ final class ServerBuilder
      * > */
     private array $manualPrompts = [];
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     /**
      * Sets the server's identity. Required.
@@ -133,36 +131,42 @@ final class ServerBuilder
     }
 
     /**
-     * Provides a PSR-16 cache instance and optionally sets the TTL for definition caching.
-     * If no cache is provided, definition caching is disabled (uses default FileCache if possible).
+     * Provides a PSR-16 cache instance used for all internal caching.
      */
-    public function withCache(CacheInterface $cache, int $definitionCacheTtl = 3600): self
+    public function withCache(CacheInterface $cache): self
     {
         $this->cache = $cache;
-        $this->definitionCacheTtl = $definitionCacheTtl > 0 ? $definitionCacheTtl : 3600;
 
         return $this;
     }
 
+    /**
+     * Configures session handling with a specific driver.
+     * 
+     * @param 'array' | 'cache' $driver The session driver: 'array' for in-memory sessions, 'cache' for cache-backed sessions
+     * @param int $ttl Session time-to-live in seconds. Defaults to 3600.
+     */
+    public function withSession(string $driver, int $ttl = 3600): self
+    {
+        if (!in_array($driver, ['array', 'cache'], true)) {
+            throw new \InvalidArgumentException(
+                "Unsupported session driver '{$driver}'. Only 'array' and 'cache' drivers are supported. " .
+                    "For custom session handling, use withSessionHandler() instead."
+            );
+        }
+
+        $this->sessionDriver = $driver;
+        $this->sessionTtl = $ttl;
+
+        return $this;
+    }
+
+    /**
+     * Provides a custom session handler.
+     */
     public function withSessionHandler(SessionHandlerInterface $sessionHandler, int $sessionTtl = 3600): self
     {
         $this->sessionHandler = $sessionHandler;
-        $this->sessionTtl = $sessionTtl;
-
-        return $this;
-    }
-
-    public function withArraySessionHandler(int $sessionTtl = 3600): self
-    {
-        $this->sessionHandler = new ArraySessionHandler($sessionTtl);
-        $this->sessionTtl = $sessionTtl;
-
-        return $this;
-    }
-
-    public function withCacheSessionHandler(CacheInterface $cache, int $sessionTtl = 3600): self
-    {
-        $this->sessionHandler = new CacheSessionHandler($cache, $sessionTtl);
         $this->sessionTtl = $sessionTtl;
 
         return $this;
@@ -253,11 +257,10 @@ final class ServerBuilder
             loop: $loop,
             cache: $cache,
             container: $container,
-            definitionCacheTtl: $this->definitionCacheTtl ?? 3600,
             paginationLimit: $this->paginationLimit ?? 50
         );
 
-        $sessionHandler = $this->sessionHandler ?? new ArraySessionHandler(3600);
+        $sessionHandler = $this->createSessionHandler();
         $sessionManager = new SessionManager($sessionHandler, $logger, $loop, $this->sessionTtl);
         $registry = new Registry($logger, $cache, $sessionManager);
         $protocol = new Protocol($configuration, $registry, $sessionManager);
@@ -408,6 +411,47 @@ final class ServerBuilder
         }
 
         $logger->debug('Manual element registration complete.');
+    }
+
+    /**
+     * Creates the appropriate session handler based on configuration.
+     * 
+     * @throws ConfigurationException If cache driver is selected but no cache is provided
+     */
+    private function createSessionHandler(): SessionHandlerInterface
+    {
+        // If a custom session handler was provided, use it
+        if ($this->sessionHandler !== null) {
+            return $this->sessionHandler;
+        }
+
+        // If no session driver was specified, default to array
+        if ($this->sessionDriver === null) {
+            return new ArraySessionHandler($this->sessionTtl ?? 3600);
+        }
+
+        // Create handler based on driver
+        return match ($this->sessionDriver) {
+            'array' => new ArraySessionHandler($this->sessionTtl ?? 3600),
+            'cache' => $this->createCacheSessionHandler(),
+            default => throw new ConfigurationException("Unsupported session driver: {$this->sessionDriver}")
+        };
+    }
+
+    /**
+     * Creates a cache-based session handler.
+     * 
+     * @throws ConfigurationException If no cache is configured
+     */
+    private function createCacheSessionHandler(): CacheSessionHandler
+    {
+        if ($this->cache === null) {
+            throw new ConfigurationException(
+                "Cache session driver requires a cache instance. Please configure a cache using withCache() before using withSession('cache')."
+            );
+        }
+
+        return new CacheSessionHandler($this->cache, $this->sessionTtl ?? 3600);
     }
 
     private function getCompletionProviders(\ReflectionMethod $reflectionMethod): array

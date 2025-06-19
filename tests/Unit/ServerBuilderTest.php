@@ -96,17 +96,10 @@ it('sets logger correctly', function () {
     expect(getPrivateProperty($this->builder, 'logger'))->toBe($logger);
 });
 
-it('sets cache and TTL correctly', function () {
-    $cache = Mockery::mock(CacheInterface::class);
-    $this->builder->withCache($cache, 1800);
-    expect(getPrivateProperty($this->builder, 'cache'))->toBe($cache);
-    expect(getPrivateProperty($this->builder, 'definitionCacheTtl'))->toBe(1800);
-});
-
-it('sets cache with default TTL if TTL not provided', function () {
+it('sets cache correctly', function () {
     $cache = Mockery::mock(CacheInterface::class);
     $this->builder->withCache($cache);
-    expect(getPrivateProperty($this->builder, 'definitionCacheTtl'))->toBe(3600);
+    expect(getPrivateProperty($this->builder, 'cache'))->toBe($cache);
 });
 
 it('sets session handler correctly', function () {
@@ -116,22 +109,86 @@ it('sets session handler correctly', function () {
     expect(getPrivateProperty($this->builder, 'sessionTtl'))->toBe(7200);
 });
 
-it('sets ArraySessionHandler correctly', function () {
-    $this->builder->withArraySessionHandler(1800);
-    expect(getPrivateProperty($this->builder, 'sessionHandler'))->toBeInstanceOf(ArraySessionHandler::class);
-    expect(getPrivateProperty($this->builder, 'sessionHandler')->ttl)->toBe(1800);
+it('sets session driver to array correctly', function () {
+    $this->builder->withSession('array', 1800);
+    expect(getPrivateProperty($this->builder, 'sessionDriver'))->toBe('array');
     expect(getPrivateProperty($this->builder, 'sessionTtl'))->toBe(1800);
 });
 
-it('sets CacheSessionHandler correctly', function () {
+it('sets session driver to cache correctly', function () {
+    $this->builder->withSession('cache', 900);
+    expect(getPrivateProperty($this->builder, 'sessionDriver'))->toBe('cache');
+    expect(getPrivateProperty($this->builder, 'sessionTtl'))->toBe(900);
+});
+
+it('uses default TTL when not specified for session', function () {
+    $this->builder->withSession('array');
+    expect(getPrivateProperty($this->builder, 'sessionTtl'))->toBe(3600);
+});
+
+it('throws exception for invalid session driver', function () {
+    $this->builder->withSession('redis');
+})->throws(\InvalidArgumentException::class, "Unsupported session driver 'redis'. Only 'array' and 'cache' drivers are supported.");
+
+it('throws exception for cache session driver without cache during build', function () {
+    $this->builder
+        ->withServerInfo('Test', '1.0')
+        ->withSession('cache')
+        ->build();
+})->throws(ConfigurationException::class, 'Cache session driver requires a cache instance');
+
+it('creates ArraySessionHandler when array driver is specified', function () {
+    $server = $this->builder
+        ->withServerInfo('Test', '1.0')
+        ->withSession('array', 1800)
+        ->build();
+
+    $sessionManager = $server->getSessionManager();
+    $smReflection = new ReflectionClass(SessionManager::class);
+    $handlerProp = $smReflection->getProperty('handler');
+    $handlerProp->setAccessible(true);
+    $handler = $handlerProp->getValue($sessionManager);
+
+    expect($handler)->toBeInstanceOf(ArraySessionHandler::class);
+    expect($handler->ttl)->toBe(1800);
+});
+
+it('creates CacheSessionHandler when cache driver is specified', function () {
     $cache = Mockery::mock(CacheInterface::class);
     $cache->shouldReceive('get')->with('mcp_session_index', [])->andReturn([]);
-    $this->builder->withCacheSessionHandler($cache, 900);
-    $sessionHandler = getPrivateProperty($this->builder, 'sessionHandler');
-    expect($sessionHandler)->toBeInstanceOf(CacheSessionHandler::class);
-    expect($sessionHandler->cache)->toBe($cache);
-    expect($sessionHandler->ttl)->toBe(900);
-    expect(getPrivateProperty($this->builder, 'sessionTtl'))->toBe(900);
+
+    $server = $this->builder
+        ->withServerInfo('Test', '1.0')
+        ->withCache($cache)
+        ->withSession('cache', 900)
+        ->build();
+
+    $sessionManager = $server->getSessionManager();
+    $smReflection = new ReflectionClass(SessionManager::class);
+    $handlerProp = $smReflection->getProperty('handler');
+    $handlerProp->setAccessible(true);
+    $handler = $handlerProp->getValue($sessionManager);
+
+    expect($handler)->toBeInstanceOf(CacheSessionHandler::class);
+    expect($handler->cache)->toBe($cache);
+    expect($handler->ttl)->toBe(900);
+});
+
+it('prefers custom session handler over session driver', function () {
+    $customHandler = Mockery::mock(SessionHandlerInterface::class);
+
+    $server = $this->builder
+        ->withServerInfo('Test', '1.0')
+        ->withSession('array')
+        ->withSessionHandler($customHandler, 1200)
+        ->build();
+
+    $sessionManager = $server->getSessionManager();
+    $smReflection = new ReflectionClass(SessionManager::class);
+    $handlerProp = $smReflection->getProperty('handler');
+    $handlerProp->setAccessible(true);
+
+    expect($handlerProp->getValue($sessionManager))->toBe($customHandler);
 });
 
 
