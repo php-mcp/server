@@ -29,6 +29,7 @@ use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use React\EventLoop\LoopInterface;
+
 use function React\Async\await;
 use function React\Promise\resolve;
 use function React\Promise\reject;
@@ -170,11 +171,11 @@ it('processes a valid Request message', function () {
     $expectedResponse = Response::make($request->id, $result);
 
     $this->dispatcher->shouldReceive('handleRequest')->once()
-        ->with(Mockery::on(fn($arg) => $arg instanceof Request && $arg->method === 'test/method'), $this->session)
+        ->with(Mockery::on(fn ($arg) => $arg instanceof Request && $arg->method === 'test/method'), $this->session)
         ->andReturn($result);
 
     $this->transport->shouldReceive('sendMessage')->once()
-        ->with(Mockery::on(fn($arg) => $arg instanceof Response && $arg->id === $request->id && $arg->result === $result), SESSION_ID, Mockery::any())
+        ->with(Mockery::on(fn ($arg) => $arg instanceof Response && $arg->id === $request->id && $arg->result === $result), SESSION_ID, Mockery::any())
         ->andReturn(resolve(null));
 
     $this->protocol->processMessage($request, SESSION_ID);
@@ -185,7 +186,7 @@ it('processes a valid Notification message', function () {
     $notification = createNotification('test/notify', ['data' => 'info']);
 
     $this->dispatcher->shouldReceive('handleNotification')->once()
-        ->with(Mockery::on(fn($arg) => $arg instanceof Notification && $arg->method === 'test/notify'), $this->session)
+        ->with(Mockery::on(fn ($arg) => $arg instanceof Notification && $arg->method === 'test/notify'), $this->session)
         ->andReturnNull();
 
     $this->transport->shouldNotReceive('sendMessage');
@@ -203,9 +204,9 @@ it('processes a BatchRequest with mixed requests and notifications', function ()
     $result1 = new EmptyResult();
     $result2 = new EmptyResult();
 
-    $this->dispatcher->shouldReceive('handleRequest')->once()->with(Mockery::on(fn(Request $r) => $r->id === 'batch-id-1'), $this->session)->andReturn($result1);
-    $this->dispatcher->shouldReceive('handleNotification')->once()->with(Mockery::on(fn(Notification $n) => $n->method === 'notif/1'), $this->session);
-    $this->dispatcher->shouldReceive('handleRequest')->once()->with(Mockery::on(fn(Request $r) => $r->id === 'batch-id-2'), $this->session)->andReturn($result2);
+    $this->dispatcher->shouldReceive('handleRequest')->once()->with(Mockery::on(fn (Request $r) => $r->id === 'batch-id-1'), $this->session)->andReturn($result1);
+    $this->dispatcher->shouldReceive('handleNotification')->once()->with(Mockery::on(fn (Notification $n) => $n->method === 'notif/1'), $this->session);
+    $this->dispatcher->shouldReceive('handleRequest')->once()->with(Mockery::on(fn (Request $r) => $r->id === 'batch-id-2'), $this->session)->andReturn($result2);
 
 
     $this->transport->shouldReceive('sendMessage')->once()

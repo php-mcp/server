@@ -15,7 +15,7 @@ use stdClass;
 
 /**
  * Generates JSON Schema for method parameters with intelligent Schema attribute handling.
- * 
+ *
  * Priority system:
  * 1. Schema attributes (method-level and parameter-level)
  * 2. Reflection type information
@@ -76,7 +76,7 @@ class SchemaGenerator
 
     /**
      * Builds the final schema from parameter information and method-level schema.
-     * 
+     *
      * @param array<int, array{
      *     name: string,
      *     doc_block_tag: Param|null,
@@ -91,9 +91,9 @@ class SchemaGenerator
      *     is_variadic: bool,
      *     parameter_schema: array<string, mixed>
      * }> $parametersInfo
-     * 
+     *
      * @param array<string, mixed>|null $methodSchema
-     * 
+     *
      * @return array<string, mixed>
      */
     private function buildSchemaFromParameters(array $parametersInfo, ?array $methodSchema): array
@@ -148,7 +148,7 @@ class SchemaGenerator
 
     /**
      * Builds the final schema for a single parameter by merging all three levels.
-     * 
+     *
      * @param array{
      *     name: string,
      *     doc_block_tag: Param|null,
@@ -190,7 +190,7 @@ class SchemaGenerator
 
     /**
      * Merge two schemas where the dominant schema takes precedence over the recessive one.
-     * 
+     *
      * @param array $recessiveSchema The schema with lower precedence
      * @param array $dominantSchema The schema with higher precedence
      */
@@ -263,7 +263,7 @@ class SchemaGenerator
         // If no items specified by Schema attribute, infer from type
         if (!isset($paramSchema['items'])) {
             $itemJsonTypes = $this->mapPhpTypeToJsonSchemaType($paramInfo['type_string']);
-            $nonNullItemTypes = array_filter($itemJsonTypes, fn($t) => $t !== 'null');
+            $nonNullItemTypes = array_filter($itemJsonTypes, fn ($t) => $t !== 'null');
 
             if (count($nonNullItemTypes) === 1) {
                 $paramSchema['items'] = ['type' => $nonNullItemTypes[0]];
@@ -389,7 +389,7 @@ class SchemaGenerator
 
     /**
      * Parses detailed information about a method's parameters.
-     * 
+     *
      * @return array<int, array{
      *     name: string,
      *     doc_block_tag: Param|null,
@@ -525,7 +525,7 @@ class SchemaGenerator
                 $types[] = $this->getTypeStringFromReflection($innerType, $innerType->allowsNull());
             }
             if ($nativeAllowsNull) {
-                $types = array_filter($types, fn($t) => strtolower($t) !== 'null');
+                $types = array_filter($types, fn ($t) => strtolower($t) !== 'null');
             }
             $typeString = implode('|', array_unique(array_filter($types)));
         } elseif ($type instanceof ReflectionIntersectionType) {
@@ -570,7 +570,7 @@ class SchemaGenerator
         // Remove leading backslash from class names, but handle built-ins like 'int' or unions like 'int|string'
         if (str_contains($typeString, '\\')) {
             $parts = preg_split('/([|&])/', $typeString, -1, PREG_SPLIT_DELIM_CAPTURE);
-            $processedParts = array_map(fn($part) => str_starts_with($part, '\\') ? ltrim($part, '\\') : $part, $parts);
+            $processedParts = array_map(fn ($part) => str_starts_with($part, '\\') ? ltrim($part, '\\') : $part, $parts);
             $typeString = implode('', $processedParts);
         }
 

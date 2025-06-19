@@ -100,7 +100,7 @@ it('routes to handleInitialize for initialize request', function () {
             'capabilities' => [],
         ]
     );
-    $this->session->shouldReceive('set')->with('client_info', Mockery::on(fn($value) => $value->name === 'client' && $value->version === '1.0'))->once();
+    $this->session->shouldReceive('set')->with('client_info', Mockery::on(fn ($value) => $value->name === 'client' && $value->version === '1.0'))->once();
 
     $result = $this->dispatcher->handleRequest($request, $this->session);
     expect($result)->toBeInstanceOf(InitializeResult::class);
@@ -256,14 +256,14 @@ it('can handle resources list request and return paginated resources', function 
     $requestP1 = ListResourcesRequest::make(1);
     $resultP1 = $this->dispatcher->handleResourcesList($requestP1);
     expect($resultP1->resources)->toHaveCount(DISPATCHER_PAGINATION_LIMIT);
-    expect(array_map(fn($r) => $r->name, $resultP1->resources))->toEqual(['Resource1', 'Resource2', 'Resource3']);
+    expect(array_map(fn ($r) => $r->name, $resultP1->resources))->toEqual(['Resource1', 'Resource2', 'Resource3']);
     expect($resultP1->nextCursor)->toBe(base64_encode('offset=3'));
 
     // Page 2
     $requestP2 = ListResourcesRequest::make(2, $resultP1->nextCursor);
     $resultP2 = $this->dispatcher->handleResourcesList($requestP2);
     expect($resultP2->resources)->toHaveCount(2);
-    expect(array_map(fn($r) => $r->name, $resultP2->resources))->toEqual(['Resource4', 'Resource5']);
+    expect(array_map(fn ($r) => $r->name, $resultP2->resources))->toEqual(['Resource4', 'Resource5']);
     expect($resultP2->nextCursor)->toBeNull();
 });
 
@@ -288,14 +288,14 @@ it('can handle resource template list request and return paginated templates', f
     $requestP1 = ListResourceTemplatesRequest::make(1);
     $resultP1 = $this->dispatcher->handleResourceTemplateList($requestP1);
     expect($resultP1->resourceTemplates)->toHaveCount(DISPATCHER_PAGINATION_LIMIT);
-    expect(array_map(fn($rt) => $rt->name, $resultP1->resourceTemplates))->toEqual(['Template1', 'Template2', 'Template3']);
+    expect(array_map(fn ($rt) => $rt->name, $resultP1->resourceTemplates))->toEqual(['Template1', 'Template2', 'Template3']);
     expect($resultP1->nextCursor)->toBe(base64_encode('offset=3'));
 
     // Page 2
     $requestP2 = ListResourceTemplatesRequest::make(2, $resultP1->nextCursor);
     $resultP2 = $this->dispatcher->handleResourceTemplateList($requestP2);
     expect($resultP2->resourceTemplates)->toHaveCount(1);
-    expect(array_map(fn($rt) => $rt->name, $resultP2->resourceTemplates))->toEqual(['Template4']);
+    expect(array_map(fn ($rt) => $rt->name, $resultP2->resourceTemplates))->toEqual(['Template4']);
     expect($resultP2->nextCursor)->toBeNull();
 });
 
@@ -345,14 +345,14 @@ it('can handle prompts list request and return paginated prompts', function () {
     $requestP1 = ListPromptsRequest::make(1);
     $resultP1 = $this->dispatcher->handlePromptsList($requestP1);
     expect($resultP1->prompts)->toHaveCount(DISPATCHER_PAGINATION_LIMIT);
-    expect(array_map(fn($p) => $p->name, $resultP1->prompts))->toEqual(['promptA', 'promptB', 'promptC']);
+    expect(array_map(fn ($p) => $p->name, $resultP1->prompts))->toEqual(['promptA', 'promptB', 'promptC']);
     expect($resultP1->nextCursor)->toBe(base64_encode('offset=3'));
 
     // Page 2
     $requestP2 = ListPromptsRequest::make(2, $resultP1->nextCursor);
     $resultP2 = $this->dispatcher->handlePromptsList($requestP2);
     expect($resultP2->prompts)->toHaveCount(DISPATCHER_PAGINATION_LIMIT); // 3 more
-    expect(array_map(fn($p) => $p->name, $resultP2->prompts))->toEqual(['promptD', 'promptE', 'promptF']);
+    expect(array_map(fn ($p) => $p->name, $resultP2->prompts))->toEqual(['promptD', 'promptE', 'promptF']);
     expect($resultP2->nextCursor)->toBeNull(); // End of list
 });
 

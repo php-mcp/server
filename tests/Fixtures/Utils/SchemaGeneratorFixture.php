@@ -15,12 +15,16 @@ class SchemaGeneratorFixture
 {
     // ===== BASIC SCENARIOS =====
 
-    public function noParams(): void {}
+    public function noParams(): void
+    {
+    }
 
     /**
      * Type hints only - no Schema attributes.
      */
-    public function typeHintsOnly(string $name, int $age, bool $active, array $tags, ?stdClass $config = null): void {}
+    public function typeHintsOnly(string $name, int $age, bool $active, array $tags, ?stdClass $config = null): void
+    {
+    }
 
     /**
      * DocBlock types only - no PHP type hints, no Schema attributes.
@@ -29,7 +33,9 @@ class SchemaGeneratorFixture
      * @param bool $enabled Whether enabled
      * @param array $data Some data
      */
-    public function docBlockOnly($username, $count, $enabled, $data): void {}
+    public function docBlockOnly($username, $count, $enabled, $data): void
+    {
+    }
 
     /**
      * Type hints with DocBlock descriptions.
@@ -37,7 +43,9 @@ class SchemaGeneratorFixture
      * @param int $score User score
      * @param bool $verified Whether user is verified
      */
-    public function typeHintsWithDocBlock(string $email, int $score, bool $verified): void {}
+    public function typeHintsWithDocBlock(string $email, int $score, bool $verified): void
+    {
+    }
 
     // ===== METHOD-LEVEL SCHEMA SCENARIOS =====
 
@@ -117,13 +125,10 @@ class SchemaGeneratorFixture
     public function parameterLevelOnly(
         #[Schema(description: "Recipient ID", pattern: "^user_")]
         string $recipientId,
-
         #[Schema(maxLength: 1024)]
         string $messageBody,
-
         #[Schema(type: 'integer', enum: [1, 2, 5])]
         int $priority = 1,
-
         #[Schema(
             type: 'object',
             properties: [
@@ -143,12 +148,11 @@ class SchemaGeneratorFixture
     public function parameterStringConstraints(
         #[Schema(format: 'email')]
         string $email,
-
         #[Schema(minLength: 8, pattern: '^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$')]
         string $password,
-
         string $regularString
-    ): void {}
+    ): void {
+    }
 
     /**
      * Parameter-level Schema with numeric constraints.
@@ -156,13 +160,12 @@ class SchemaGeneratorFixture
     public function parameterNumericConstraints(
         #[Schema(minimum: 18, maximum: 120)]
         int $age,
-
         #[Schema(minimum: 0, maximum: 5, exclusiveMaximum: true)]
         float $rating,
-
         #[Schema(multipleOf: 10)]
         int $count
-    ): void {}
+    ): void {
+    }
 
     /**
      * Parameter-level Schema with array constraints.
@@ -170,10 +173,10 @@ class SchemaGeneratorFixture
     public function parameterArrayConstraints(
         #[Schema(type: 'array', items: ['type' => 'string'], minItems: 1, uniqueItems: true)]
         array $tags,
-
         #[Schema(type: 'array', items: ['type' => 'integer', 'minimum' => 0, 'maximum' => 100], minItems: 1, maxItems: 5)]
         array $scores
-    ): void {}
+    ): void {
+    }
 
     // ===== COMBINED SCENARIOS =====
 
@@ -191,7 +194,6 @@ class SchemaGeneratorFixture
     )]
     public function methodAndParameterLevel(
         string $settingKey,
-
         #[Schema(description: "The specific new boolean value.", type: 'boolean')]
         mixed $newValue
     ): array {
@@ -206,10 +208,10 @@ class SchemaGeneratorFixture
     public function typeHintDocBlockAndParameterSchema(
         #[Schema(minLength: 3, pattern: '^[a-zA-Z0-9_]+$')]
         string $username,
-
         #[Schema(minimum: 1, maximum: 10)]
         int $priority
-    ): void {}
+    ): void {
+    }
 
     // ===== ENUM SCENARIOS =====
 
@@ -225,7 +227,8 @@ class SchemaGeneratorFixture
         UnitEnum $unitEnum,
         ?BackedStringEnum $nullableEnum = null,
         BackedIntEnum $enumWithDefault = BackedIntEnum::First
-    ): void {}
+    ): void {
+    }
 
     // ===== ARRAY TYPE SCENARIOS =====
 
@@ -245,14 +248,15 @@ class SchemaGeneratorFixture
         array $mixedMap,
         array $objectLikeArray,
         array $nestedObjectArray
-    ): void {}
+    ): void {
+    }
 
     // ===== NULLABLE AND OPTIONAL SCENARIOS =====
 
     /**
      * Nullable and optional parameter scenarios.
      * @param string|null $nullableString Nullable string
-     * @param int|null $nullableInt Nullable integer  
+     * @param int|null $nullableInt Nullable integer
      */
     public function nullableAndOptional(
         ?string $nullableString,
@@ -260,7 +264,8 @@ class SchemaGeneratorFixture
         string $optionalString = 'default',
         bool $optionalBool = true,
         array $optionalArray = []
-    ): void {}
+    ): void {
+    }
 
     // ===== UNION TYPE SCENARIOS =====
 
@@ -272,7 +277,8 @@ class SchemaGeneratorFixture
     public function unionTypes(
         string|int $stringOrInt,
         bool|string|null $multiUnion
-    ): void {}
+    ): void {
+    }
 
     // ===== VARIADIC SCENARIOS =====
 
@@ -280,7 +286,9 @@ class SchemaGeneratorFixture
      * Variadic parameter scenarios.
      * @param string ...$items Variadic strings
      */
-    public function variadicStrings(string ...$items): void {}
+    public function variadicStrings(string ...$items): void
+    {
+    }
 
     /**
      * Variadic with Schema constraints.
@@ -289,7 +297,8 @@ class SchemaGeneratorFixture
     public function variadicWithConstraints(
         #[Schema(items: ['type' => 'integer', 'minimum' => 0])]
         int ...$numbers
-    ): void {}
+    ): void {
+    }
 
     // ===== MIXED TYPE SCENARIOS =====
 
@@ -301,7 +310,8 @@ class SchemaGeneratorFixture
     public function mixedTypes(
         mixed $anyValue,
         mixed $optionalAny = 'default'
-    ): void {}
+    ): void {
+    }
 
     // ===== COMPLEX NESTED SCENARIOS =====
 
@@ -356,13 +366,12 @@ class SchemaGeneratorFixture
      */
     public function typePrecedenceTest(
         string $numericString,
-
         #[Schema(format: 'email', minLength: 5)]
         string $stringWithConstraints,
-
         #[Schema(items: ['type' => 'integer', 'minimum' => 1, 'maximum' => 100])]
         array $arrayWithItems
-    ): void {}
+    ): void {
+    }
 
     // ===== ERROR EDGE CASES =====
 
@@ -381,5 +390,6 @@ class SchemaGeneratorFixture
     public function parameterSchemaInferredType(
         #[Schema(description: "Some parameter", minLength: 3)]
         $inferredParam
-    ): void {}
+    ): void {
+    }
 }

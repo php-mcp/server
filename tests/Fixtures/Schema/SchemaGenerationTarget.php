@@ -13,7 +13,9 @@ use stdClass;
 
 class SchemaGenerationTarget
 {
-    public function noParamsMethod(): void {}
+    public function noParamsMethod(): void
+    {
+    }
 
     /**
      * Method with simple required types.
@@ -24,7 +26,9 @@ class SchemaGenerationTarget
      * @param array $pArray Array param
      * @param stdClass $pObject Object param
      */
-    public function simpleRequiredTypes(string $pString, int $pInt, bool $pBool, float $pFloat, array $pArray, stdClass $pObject): void {}
+    public function simpleRequiredTypes(string $pString, int $pInt, bool $pBool, float $pFloat, array $pArray, stdClass $pObject): void
+    {
+    }
 
     /**
      * Method with simple optional types with default values.
@@ -42,21 +46,26 @@ class SchemaGenerationTarget
         ?float $pFloatOptNullable = 1.23,
         array $pArrayOpt = ['a', 'b'],
         ?stdClass $pObjectOptNullable = null
-    ): void {}
+    ): void {
+    }
 
     /**
      * Nullable types without explicit defaults.
      * @param ?string $pNullableString Nullable string
      * @param int|null $pUnionNullableInt Union nullable int
      */
-    public function nullableTypes(?string $pNullableString, ?int $pUnionNullableInt, ?BackedStringEnum $pNullableEnum): void {}
+    public function nullableTypes(?string $pNullableString, ?int $pUnionNullableInt, ?BackedStringEnum $pNullableEnum): void
+    {
+    }
 
     /**
      * Union types.
      * @param string|int $pStringOrInt String or Int
      * @param bool|float|null $pBoolOrFloatOrNull Bool, Float or Null
      */
-    public function unionTypes(string|int $pStringOrInt, $pBoolOrFloatOrNull): void {} // PHP 7.x style union in docblock usually
+    public function unionTypes(string|int $pStringOrInt, $pBoolOrFloatOrNull): void
+    {
+    } // PHP 7.x style union in docblock usually
 
     /**
      * Various array type hints.
@@ -74,7 +83,8 @@ class SchemaGenerationTarget
         array $pEnumArray,
         array $pShapeArray,
         array $pArrayOfShapes
-    ): void {}
+    ): void {
+    }
 
     /**
      * Enum types.
@@ -82,19 +92,25 @@ class SchemaGenerationTarget
      * @param BackedIntEnum $pBackedIntEnum Backed int enum
      * @param UnitEnum $pUnitEnum Unit enum
      */
-    public function enumTypes(BackedStringEnum $pBackedStringEnum, BackedIntEnum $pBackedIntEnum, UnitEnum $pUnitEnum): void {}
+    public function enumTypes(BackedStringEnum $pBackedStringEnum, BackedIntEnum $pBackedIntEnum, UnitEnum $pUnitEnum): void
+    {
+    }
 
     /**
      * Variadic parameters.
      * @param string ...$pVariadicStrings Variadic strings
      */
-    public function variadicParams(string ...$pVariadicStrings): void {}
+    public function variadicParams(string ...$pVariadicStrings): void
+    {
+    }
 
     /**
      * Mixed type.
      * @param mixed $pMixed Mixed type
      */
-    public function mixedType(mixed $pMixed): void {}
+    public function mixedType(mixed $pMixed): void
+    {
+    }
 
     /**
      * With #[Schema] attributes for enhanced validation.
@@ -106,13 +122,10 @@ class SchemaGenerationTarget
     public function withSchemaAttributes(
         #[Schema(format: Format::EMAIL)]
         string $email,
-
         #[Schema(minimum: 1, maximum: 100, multipleOf: 5)]
         int $quantity,
-
         #[Schema(minItems: 1, maxItems: 5, uniqueItems: true, items: new ArrayItems(minLength: 3))]
         array $tags,
-
         #[Schema(
             properties: [
                 new Property(name: 'id', minimum: 1),
@@ -122,5 +135,6 @@ class SchemaGenerationTarget
             additionalProperties: false
         )]
         array $userProfile
-    ): void {}
+    ): void {
+    }
 }

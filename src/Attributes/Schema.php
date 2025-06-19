@@ -152,27 +152,57 @@ class Schema
         }
 
         // String
-        if ($this->minLength !== null) $schema['minLength'] = $this->minLength;
-        if ($this->maxLength !== null) $schema['maxLength'] = $this->maxLength;
-        if ($this->pattern !== null) $schema['pattern'] = $this->pattern;
+        if ($this->minLength !== null) {
+            $schema['minLength'] = $this->minLength;
+        }
+        if ($this->maxLength !== null) {
+            $schema['maxLength'] = $this->maxLength;
+        }
+        if ($this->pattern !== null) {
+            $schema['pattern'] = $this->pattern;
+        }
 
         // Numeric
-        if ($this->minimum !== null) $schema['minimum'] = $this->minimum;
-        if ($this->maximum !== null) $schema['maximum'] = $this->maximum;
-        if ($this->exclusiveMinimum !== null) $schema['exclusiveMinimum'] = $this->exclusiveMinimum;
-        if ($this->exclusiveMaximum !== null) $schema['exclusiveMaximum'] = $this->exclusiveMaximum;
-        if ($this->multipleOf !== null) $schema['multipleOf'] = $this->multipleOf;
+        if ($this->minimum !== null) {
+            $schema['minimum'] = $this->minimum;
+        }
+        if ($this->maximum !== null) {
+            $schema['maximum'] = $this->maximum;
+        }
+        if ($this->exclusiveMinimum !== null) {
+            $schema['exclusiveMinimum'] = $this->exclusiveMinimum;
+        }
+        if ($this->exclusiveMaximum !== null) {
+            $schema['exclusiveMaximum'] = $this->exclusiveMaximum;
+        }
+        if ($this->multipleOf !== null) {
+            $schema['multipleOf'] = $this->multipleOf;
+        }
 
         // Array
-        if ($this->items !== null) $schema['items'] = $this->items;
-        if ($this->minItems !== null) $schema['minItems'] = $this->minItems;
-        if ($this->maxItems !== null) $schema['maxItems'] = $this->maxItems;
-        if ($this->uniqueItems !== null) $schema['uniqueItems'] = $this->uniqueItems;
+        if ($this->items !== null) {
+            $schema['items'] = $this->items;
+        }
+        if ($this->minItems !== null) {
+            $schema['minItems'] = $this->minItems;
+        }
+        if ($this->maxItems !== null) {
+            $schema['maxItems'] = $this->maxItems;
+        }
+        if ($this->uniqueItems !== null) {
+            $schema['uniqueItems'] = $this->uniqueItems;
+        }
 
         // Object
-        if ($this->properties !== null) $schema['properties'] = $this->properties;
-        if ($this->required !== null) $schema['required'] = $this->required;
-        if ($this->additionalProperties !== null) $schema['additionalProperties'] = $this->additionalProperties;
+        if ($this->properties !== null) {
+            $schema['properties'] = $this->properties;
+        }
+        if ($this->required !== null) {
+            $schema['required'] = $this->required;
+        }
+        if ($this->additionalProperties !== null) {
+            $schema['additionalProperties'] = $this->additionalProperties;
+        }
 
         return $schema;
     }

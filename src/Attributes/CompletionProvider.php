@@ -13,5 +13,7 @@ class CompletionProvider
     /**
      * @param class-string<CompletionProviderInterface> $providerClass FQCN of the completion provider class.
      */
-    public function __construct(public string $providerClass) {}
+    public function __construct(public string $providerClass)
+    {
+    }
 }

@@ -9,7 +9,6 @@ use PhpMcp\Server\Contracts\SessionHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
 use PhpMcp\Server\Tests\Mocks\Clock\FixedClock;
 
-
 const SESSION_ID_CACHE_1 = 'cache-session-id-1';
 const SESSION_ID_CACHE_2 = 'cache-session-id-2';
 const SESSION_ID_CACHE_3 = 'cache-session-id-3';

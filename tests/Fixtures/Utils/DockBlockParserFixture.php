@@ -24,7 +24,8 @@ class DockBlockParserFixture
         array $floats,
         array $objects,
         array $dateTimeInstances
-    ): void {}
+    ): void {
+    }
 
     /**
      * Method with array<T> generic syntax
@@ -43,7 +44,8 @@ class DockBlockParserFixture
         array $floats,
         array $objects,
         array $dateTimeInstances
-    ): void {}
+    ): void {
+    }
 
     /**
      * Method with nested array syntax
@@ -58,7 +60,8 @@ class DockBlockParserFixture
         array $nestedIntArrays,
         array $doubleStringArrays,
         array $doubleIntArrays
-    ): void {}
+    ): void {
+    }
 
     /**
      * Method with object-like array syntax
@@ -71,5 +74,6 @@ class DockBlockParserFixture
         array $person,
         array $article,
         array $order
-    ): void {}
+    ): void {
+    }
 }

@@ -36,5 +36,7 @@ class DiscoverableResourceHandler
         return ["theme" => "dark", "fontSize" => 14];
     }
 
-    public function someOtherMethod(): void {}
+    public function someOtherMethod(): void
+    {
+    }
 }

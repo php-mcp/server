@@ -10,7 +10,9 @@ class DocBlockTestFixture
     /**
      * Simple summary line.
      */
-    public function methodWithSummaryOnly(): void {}
+    public function methodWithSummaryOnly(): void
+    {
+    }
 
     /**
      * Summary line here.
@@ -21,7 +23,9 @@ class DocBlockTestFixture
      *
      * @since 1.0
      */
-    public function methodWithSummaryAndDescription(): void {}
+    public function methodWithSummaryAndDescription(): void
+    {
+    }
 
     /**
      * Method with various parameter tags.
@@ -33,7 +37,9 @@ class DocBlockTestFixture
      * @param array<string, mixed> $param5 Array description.
      * @param \stdClass $param6 Object param.
      */
-    public function methodWithParams(string $param1, ?int $param2, bool $param3, $param4, array $param5, \stdClass $param6): void {}
+    public function methodWithParams(string $param1, ?int $param2, bool $param3, $param4, array $param5, \stdClass $param6): void
+    {
+    }
 
     /**
      * Method with return tag.
@@ -62,10 +68,16 @@ class DocBlockTestFixture
     /**
      * Malformed docblock - missing closing
      */
-    public function methodWithMalformedDocBlock(): void {}
+    public function methodWithMalformedDocBlock(): void
+    {
+    }
 
-    public function methodWithNoDocBlock(): void {}
+    public function methodWithNoDocBlock(): void
+    {
+    }
 
     // Some other method needed for a @see tag perhaps
-    public function newMethod(): void {}
+    public function newMethod(): void
+    {
+    }
 }

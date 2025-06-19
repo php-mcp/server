@@ -11,7 +11,6 @@ use React\Stream\ReadableStreamInterface;
 use function React\Async\await;
 use function React\Promise\resolve;
 
-
 const STREAMABLE_HTTP_SCRIPT_PATH = __DIR__ . '/../Fixtures/ServerScripts/StreamableHttpTestServer.php';
 const STREAMABLE_HTTP_PROCESS_TIMEOUT = 9;
 const STREAMABLE_HTTP_HOST = '127.0.0.1';
@@ -51,8 +50,12 @@ beforeEach(function () {
 
 afterEach(function () {
     if ($this->process instanceof Process && $this->process->isRunning()) {
-        if ($this->process->stdout instanceof ReadableStreamInterface) $this->process->stdout->close();
-        if ($this->process->stderr instanceof ReadableStreamInterface) $this->process->stderr->close();
+        if ($this->process->stdout instanceof ReadableStreamInterface) {
+            $this->process->stdout->close();
+        }
+        if ($this->process->stderr instanceof ReadableStreamInterface) {
+            $this->process->stderr->close();
+        }
 
         $this->process->terminate(SIGTERM);
         try {

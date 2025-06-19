@@ -342,7 +342,7 @@ class Dispatcher
             }
 
             $providerClass = $registeredPrompt->getCompletionProvider($argumentName);
-        } else if ($ref->type === 'ref/resource') {
+        } elseif ($ref->type === 'ref/resource') {
             $identifier = $ref->uri;
             $registeredResourceTemplate = $this->registry->getResourceTemplate($identifier);
             if (! $registeredResourceTemplate) {

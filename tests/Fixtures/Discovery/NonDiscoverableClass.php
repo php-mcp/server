@@ -12,11 +12,15 @@ class NonDiscoverableClass
     }
 }
 
-interface MyDiscoverableInterface {}
+interface MyDiscoverableInterface
+{
+}
 
 trait MyDiscoverableTrait
 {
-    public function traitMethod() {}
+    public function traitMethod()
+    {
+    }
 }
 
 enum MyDiscoverableEnum

@@ -37,7 +37,7 @@ class RegisteredResourceTemplate extends RegisteredElement
 
     /**
      * Gets the resource template.
-     * 
+     *
      * @return array<TextResourceContents|BlobResourceContents> Array of ResourceContents objects.
      */
     public function read(ContainerInterface $container, string $uri): array
@@ -156,7 +156,7 @@ class RegisteredResourceTemplate extends RegisteredElement
             }
 
             if ($allAreEmbeddedResource && $hasEmbeddedResource) {
-                return array_map(fn($item) => $item->resource, $readResult);
+                return array_map(fn ($item) => $item->resource, $readResult);
             }
 
             if ($hasResourceContents || $hasEmbeddedResource) {
