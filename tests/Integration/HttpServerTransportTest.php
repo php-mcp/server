@@ -1,7 +1,5 @@
 <?php
 
-namespace PhpMcp\Server\Tests\Integration;
-
 use PhpMcp\Server\Protocol;
 use PhpMcp\Server\Tests\Fixtures\General\ResourceHandlerFixture;
 use PhpMcp\Server\Tests\Mocks\Clients\MockSseClient;
@@ -13,6 +11,7 @@ use React\Http\Message\Uri;
 use React\Stream\ReadableStreamInterface;
 
 use function React\Async\await;
+
 
 const HTTP_SERVER_SCRIPT_PATH = __DIR__ . '/../Fixtures/ServerScripts/HttpTestServer.php';
 const HTTP_PROCESS_TIMEOUT_SECONDS = 8;
@@ -78,7 +77,6 @@ afterEach(function () {
 afterAll(function () {
     // Loop::stop();
 });
-
 
 it('starts the http server, initializes, calls a tool, and closes', function () {
     $this->sseClient = new MockSseClient();
@@ -155,7 +153,6 @@ it('can handle invalid JSON from client', function () {
         expect($errorResponse['error']['message'])->toContain('Invalid JSON-RPC message');
     }
 })->group('integration', 'http_transport');
-
 
 it('can handle request for non-existent method after initialization', function () {
     $this->sseClient = new MockSseClient();
@@ -242,7 +239,6 @@ it('can handle batch requests correctly over HTTP/SSE', function () {
 
     $this->sseClient->close();
 })->group('integration', 'http_transport');
-
 
 it('can handle tool list request over HTTP/SSE', function () {
     $this->sseClient = new MockSseClient();
@@ -373,7 +369,6 @@ it('returns 404 for POST to /message without valid clientId in query', function 
         expect($errorData['error']['message'])->toContain('Missing or invalid clientId');
     }
 })->group('integration', 'http_transport');
-
 
 it('returns 404 for POST to /message with clientId for a disconnected SSE stream', function () {
     $this->sseClient = new MockSseClient();

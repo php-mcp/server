@@ -1,7 +1,5 @@
 <?php
 
-namespace PhpMcp\Server\Tests\Integration;
-
 use PhpMcp\Server\Protocol;
 use PhpMcp\Server\Tests\Fixtures\General\ResourceHandlerFixture;
 use React\ChildProcess\Process;
@@ -11,6 +9,7 @@ use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
 
 use function React\Async\await;
+
 
 const STDIO_SERVER_SCRIPT_PATH = __DIR__ . '/../Fixtures/ServerScripts/StdioTestServer.php';
 const PROCESS_TIMEOUT_SECONDS = 5;
@@ -117,7 +116,6 @@ afterEach(function () {
     $this->process = null;
 });
 
-
 it('starts the stdio server, initializes, calls a tool, and closes', function () {
     // 1. Initialize Request
     sendRequestToServer($this->process, 'init-1', 'initialize', [
@@ -152,7 +150,6 @@ it('starts the stdio server, initializes, calls a tool, and closes', function ()
     $this->process->stdin->end();
 })->group('integration', 'stdio_transport');
 
-
 it('can handle invalid JSON request from client', function () {
     $this->process->stdin->write("this is not json\n");
 
@@ -164,7 +161,6 @@ it('can handle invalid JSON request from client', function () {
 
     $this->process->stdin->end();
 })->group('integration', 'stdio_transport');
-
 
 it('handles request for non-existent method', function () {
     sendRequestToServer($this->process, 'init-err', 'initialize', ['protocolVersion' => Protocol::LATEST_PROTOCOL_VERSION, 'clientInfo' => [], 'capabilities' => []]);
@@ -243,7 +239,6 @@ it('can handle batch requests correctly', function () {
 
     $this->process->stdin->end();
 })->group('integration', 'stdio_transport');
-
 
 it('can handle tool list request', function () {
     sendRequestToServer($this->process, 'init-tool-list', 'initialize', ['protocolVersion' => Protocol::LATEST_PROTOCOL_VERSION, 'clientInfo' => [], 'capabilities' => []]);

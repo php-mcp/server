@@ -1,19 +1,16 @@
 <?php
 
-namespace PhpMcp\Server\Tests\Integration;
-
 use PhpMcp\Server\Elements\RegisteredPrompt;
 use PhpMcp\Server\Elements\RegisteredResource;
 use PhpMcp\Server\Elements\RegisteredResourceTemplate;
 use PhpMcp\Server\Elements\RegisteredTool;
 use PhpMcp\Server\Registry;
-use PhpMcp\Server\Session\ArraySessionHandler;
-use PhpMcp\Server\Session\SessionManager;
 use PhpMcp\Server\Utils\Discoverer;
 use PhpMcp\Server\Utils\DocBlockParser;
 use PhpMcp\Server\Utils\SchemaGenerator;
 use PhpMcp\Server\Tests\Fixtures\General\CompletionProviderFixture;
 use Psr\Log\NullLogger;
+
 
 beforeEach(function () {
     $logger = new NullLogger();
@@ -126,7 +123,6 @@ it('does not discover elements from excluded directories', function () {
     $this->discoverer->discover($this->fixtureBasePath, ['Discovery'], ['SubDir']);
     expect($this->registry->getTool('hidden_subdir_tool'))->toBeNull();
 });
-
 
 it('handles empty directories or directories with no PHP files', function () {
     $this->discoverer->discover($this->fixtureBasePath, ['EmptyDir']);
