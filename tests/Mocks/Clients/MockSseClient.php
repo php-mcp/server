@@ -9,7 +9,6 @@ use React\EventLoop\Loop;
 use React\Http\Browser;
 use React\Promise\Deferred;
 use React\Promise\PromiseInterface;
-use React\Promise\Timer\TimeoutException;
 use React\Stream\ReadableStreamInterface;
 
 use function React\Promise\reject;
@@ -104,7 +103,7 @@ class MockSseClient
             }
 
             if (microtime(true) - $startTime > $timeoutSecs) {
-                $deferred->reject(new TimeoutException("Timeout waiting for SSE message with ID '{$expectedRequestId}'"));
+                $deferred->reject(new \RuntimeException("Timeout waiting for SSE message with ID '{$expectedRequestId}'"));
                 return;
             }
 
@@ -151,7 +150,7 @@ class MockSseClient
             }
 
             if (microtime(true) - $startTime > $timeoutSecs) {
-                $deferred->reject(new TimeoutException("Timeout waiting for SSE Batch Response with {$expectedItemCount} items."));
+                $deferred->reject(new \RuntimeException("Timeout waiting for SSE Batch Response with {$expectedItemCount} items."));
                 return;
             }
 
