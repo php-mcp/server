@@ -13,7 +13,7 @@
     "require": {
         "php": ">=8.1",
         "opis/json-schema": "^2.4",
-        "php-mcp/schema": "dev-main",
+        "php-mcp/schema": "^1.0",
         "phpdocumentor/reflection-docblock": "^5.6",
         "psr/clock": "^1.0",
         "psr/container": "^1.0 || ^2.0",
@@ -59,11 +59,5 @@
         }
     },
     "minimum-stability": "dev",
-    "prefer-stable": true,
-    "repositories": [
-        {
-            "type": "vcs",
-            "url": "https://github.com/php-mcp/schema"
-        }
-    ]
+    "prefer-stable": true
 }
