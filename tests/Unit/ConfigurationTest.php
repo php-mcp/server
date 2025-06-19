@@ -25,7 +25,6 @@ afterEach(function () {
 });
 
 it('constructs configuration object with all properties', function () {
-    $ttl = 1800;
     $paginationLimit = 100;
     $config = new Configuration(
         serverInfo: $this->serverInfo,
@@ -34,7 +33,6 @@ it('constructs configuration object with all properties', function () {
         loop: $this->loop,
         cache: $this->cache,
         container: $this->container,
-        definitionCacheTtl: $ttl,
         paginationLimit: $paginationLimit
     );
 
@@ -44,21 +42,7 @@ it('constructs configuration object with all properties', function () {
     expect($config->loop)->toBe($this->loop);
     expect($config->cache)->toBe($this->cache);
     expect($config->container)->toBe($this->container);
-    expect($config->definitionCacheTtl)->toBe($ttl);
     expect($config->paginationLimit)->toBe($paginationLimit);
-});
-
-it('constructs configuration object with default TTL', function () {
-    $config = new Configuration(
-        serverInfo: $this->serverInfo,
-        capabilities: $this->capabilities,
-        logger: $this->logger,
-        loop: $this->loop,
-        cache: $this->cache,
-        container: $this->container
-    );
-
-    expect($config->definitionCacheTtl)->toBe(3600); // Default value
 });
 
 it('constructs configuration object with default pagination limit', function () {
