@@ -2,7 +2,6 @@
 
 namespace PhpMcp\Server\Utils;
 
-use phpDocumentor\Reflection\DocBlock;
 use phpDocumentor\Reflection\DocBlock\Tags\Param;
 use PhpMcp\Server\Attributes\Schema;
 use ReflectionEnum;
@@ -15,7 +14,12 @@ use ReflectionUnionType;
 use stdClass;
 
 /**
- * Generates JSON Schema for method parameters.
+ * Generates JSON Schema for method parameters with intelligent Schema attribute handling.
+ * 
+ * Priority system:
+ * 1. Schema attributes (method-level and parameter-level)
+ * 2. Reflection type information
+ * 3. DocBlock type information
  */
 class SchemaGenerator
 {
@@ -28,10 +32,71 @@ class SchemaGenerator
 
     /**
      * Generates a JSON Schema object (as a PHP array) for a method's parameters.
-     *
+     */
+    public function generate(ReflectionMethod $method): array
+    {
+        $methodSchema = $this->extractMethodLevelSchema($method);
+
+        if ($methodSchema && isset($methodSchema['definition'])) {
+            return $methodSchema['definition'];
+        }
+
+        $parametersInfo = $this->parseParametersInfo($method);
+
+        return $this->buildSchemaFromParameters($parametersInfo, $methodSchema);
+    }
+
+    /**
+     * Extracts method-level Schema attribute.
+     */
+    private function extractMethodLevelSchema(ReflectionMethod $method): ?array
+    {
+        $schemaAttrs = $method->getAttributes(Schema::class, \ReflectionAttribute::IS_INSTANCEOF);
+        if (empty($schemaAttrs)) {
+            return null;
+        }
+
+        $schemaAttr = $schemaAttrs[0]->newInstance();
+        return $schemaAttr->toArray();
+    }
+
+    /**
+     * Extracts parameter-level Schema attribute.
+     */
+    private function extractParameterLevelSchema(ReflectionParameter $parameter): array
+    {
+        $schemaAttrs = $parameter->getAttributes(Schema::class, \ReflectionAttribute::IS_INSTANCEOF);
+        if (empty($schemaAttrs)) {
+            return [];
+        }
+
+        $schemaAttr = $schemaAttrs[0]->newInstance();
+        return $schemaAttr->toArray();
+    }
+
+    /**
+     * Builds the final schema from parameter information and method-level schema.
+     * 
+     * @param array<int, array{
+     *     name: string,
+     *     doc_block_tag: Param|null,
+     *     reflection_param: ReflectionParameter,
+     *     reflection_type_object: ReflectionType|null,
+     *     type_string: string,
+     *     description: string|null,
+     *     required: bool,
+     *     allows_null: bool,
+     *     default_value: mixed|null,
+     *     has_default: bool,
+     *     is_variadic: bool,
+     *     parameter_schema: array<string, mixed>
+     * }> $parametersInfo
+     * 
+     * @param array<string, mixed>|null $methodSchema
+     * 
      * @return array<string, mixed>
      */
-    public function fromMethodParameters(ReflectionMethod $method): array
+    private function buildSchemaFromParameters(array $parametersInfo, ?array $methodSchema): array
     {
         $schema = [
             'type' => 'object',
@@ -39,170 +104,39 @@ class SchemaGenerator
             'required' => [],
         ];
 
-        $docComment = $method->getDocComment() ?: null;
-        $docBlock = $this->docBlockParser->parseDocBlock($docComment);
-        $parametersInfo = $this->parseParametersInfo($method, $docBlock);
-
-        foreach ($parametersInfo as $paramInfo) {
-            $name = $paramInfo['name'];
-            $typeString = $paramInfo['type_string'];
-            $description = $paramInfo['description'];
-            $required = $paramInfo['required'];
-            $allowsNull = $paramInfo['allows_null'];
-            $defaultValue = $paramInfo['default_value'];
-            $hasDefault = $paramInfo['has_default'];
-            $reflectionType = $paramInfo['reflection_type_object'];
-            $isVariadic = $paramInfo['is_variadic'];
-            $schemaConstraints = $paramInfo['schema_constraints'] ?? [];
-
-            $paramSchema = [];
-
-            if ($isVariadic) {
-                $paramSchema['type'] = 'array';
-                if ($description) {
-                    $paramSchema['description'] = $description;
-                }
-                $itemJsonTypes = $this->mapPhpTypeToJsonSchemaType($typeString);
-                $nonNullItemTypes = array_filter($itemJsonTypes, fn($t) => $t !== 'null');
-                if (count($nonNullItemTypes) === 1) {
-                    $paramSchema['items'] = ['type' => $nonNullItemTypes[0]];
-                }
-            } else {
-                $jsonTypes = $this->mapPhpTypeToJsonSchemaType($typeString);
-
-                if ($allowsNull && strtolower($typeString) !== 'mixed' && ! in_array('null', $jsonTypes)) {
-                    $jsonTypes[] = 'null';
-                }
-
-                if (count($jsonTypes) > 1) {
-                    sort($jsonTypes);
-                }
-
-                $nonNullTypes = array_filter($jsonTypes, fn($t) => $t !== 'null');
-                if (count($jsonTypes) === 1) {
-                    $paramSchema['type'] = $jsonTypes[0];
-                } elseif (count($jsonTypes) > 1) {
-                    $paramSchema['type'] = $jsonTypes;
-                } else {
-                    // If $jsonTypes is still empty (meaning original type was 'mixed'),
-                    // DO NOTHING - omitting 'type' implies any type in JSON Schema.
-                }
-
-                if ($description) {
-                    $paramSchema['description'] = $description;
-                }
-
-                if ($hasDefault && ! $required) {
-                    $paramSchema['default'] = $defaultValue;
-                }
-
-                // Handle enums
-                if ($reflectionType instanceof ReflectionNamedType && ! $reflectionType->isBuiltin() && enum_exists($reflectionType->getName())) {
-                    $enumClass = $reflectionType->getName();
-                    $enumReflection = new ReflectionEnum($enumClass);
-                    $backingTypeReflection = $enumReflection->getBackingType();
-
-                    if ($enumReflection->isBacked() && $backingTypeReflection instanceof ReflectionNamedType) {
-                        $paramSchema['enum'] = array_column($enumClass::cases(), 'value');
-                        $jsonBackingType = match ($backingTypeReflection->getName()) {
-                            'int' => 'integer',
-                            'string' => 'string',
-                            default => null, // Should not happen for valid backed enums
-                        };
-
-                        if ($jsonBackingType) {
-                            // Ensure schema type matches backing type, considering nullability
-                            if (isset($paramSchema['type']) && is_array($paramSchema['type']) && in_array('null', $paramSchema['type'])) {
-                                $paramSchema['type'] = [$jsonBackingType, 'null'];
-                            } else {
-                                $paramSchema['type'] = $jsonBackingType;
-                            }
-                        }
-                    } else {
-                        // Non-backed enum - use names as enum values
-                        $paramSchema['enum'] = array_column($enumClass::cases(), 'name');
-                        // Ensure schema type is string, considering nullability
-                        if (isset($paramSchema['type']) && is_array($paramSchema['type']) && in_array('null', $paramSchema['type'])) {
-                            $paramSchema['type'] = ['string', 'null'];
-                        } else {
-                            $paramSchema['type'] = 'string';
-                        }
-                    }
-                }
-
-                // Handle array items type if possible
-                if (isset($paramSchema['type'])) {
-                    $schemaType = is_array($paramSchema['type']) ? (in_array('array', $paramSchema['type']) ? 'array' : null) : $paramSchema['type'];
-
-                    // Special handling for object-like arrays using array{} syntax
-                    if (preg_match('/^array\s*{/i', $typeString)) {
-                        $objectSchema = $this->inferArrayItemsType($typeString);
-                        if (is_array($objectSchema) && isset($objectSchema['properties'])) {
-                            // Override the type and merge in the properties
-                            $paramSchema = array_merge($paramSchema, $objectSchema);
-                            // Ensure type is object
-                            $paramSchema['type'] = $allowsNull ? ['object', 'null'] : 'object';
-                        }
-                    }
-                    // Handle regular arrays
-                    elseif (in_array('array', $this->mapPhpTypeToJsonSchemaType($typeString))) {
-                        $itemsType = $this->inferArrayItemsType($typeString);
-                        if ($itemsType !== 'any') {
-                            if (is_string($itemsType)) {
-                                $paramSchema['items'] = ['type' => $itemsType];
-                            } else {
-                                // Handle complex array item types (for nested arrays and object types)
-                                if (!isset($itemsType['type']) && isset($itemsType['properties'])) {
-                                    // This is an object schema from array{} syntax
-                                    $itemsType = array_merge(['type' => 'object'], $itemsType);
-                                }
-                                $paramSchema['items'] = $itemsType;
-                            }
-                        }
-                        // Ensure the main type is array, potentially adding null
-                        if ($allowsNull) {
-                            $paramSchema['type'] = ['array', 'null'];
-                            sort($paramSchema['type']);
-                        } else {
-                            $paramSchema['type'] = 'array'; // Just array if null not allowed
-                        }
-                    }
-                }
+        // Apply method-level schema as base
+        if ($methodSchema) {
+            $schema = array_merge($schema, $methodSchema);
+            if (!isset($schema['type'])) {
+                $schema['type'] = 'object';
             }
-
-            // Merge constraints from Schema attribute
-            if (!empty($schemaConstraints)) {
-                // Special handling for 'type' to avoid overriding detected type
-                if (isset($schemaConstraints['type']) && isset($paramSchema['type'])) {
-                    if (is_array($paramSchema['type']) && !is_array($schemaConstraints['type'])) {
-                        if (!in_array($schemaConstraints['type'], $paramSchema['type'])) {
-                            $paramSchema['type'][] = $schemaConstraints['type'];
-                            sort($paramSchema['type']);
-                        }
-                    } elseif (is_array($schemaConstraints['type']) && !is_array($paramSchema['type'])) {
-                        if (!in_array($paramSchema['type'], $schemaConstraints['type'])) {
-                            $schemaConstraints['type'][] = $paramSchema['type'];
-                            sort($schemaConstraints['type']);
-                            $paramSchema['type'] = $schemaConstraints['type'];
-                        }
-                    }
-                    // Remove 'type' to avoid overwriting in the array_merge
-                    unset($schemaConstraints['type']);
-                }
-
-                // Now merge the rest of the schema constraints
-                $paramSchema = array_merge($paramSchema, $schemaConstraints);
+            if (!isset($schema['properties'])) {
+                $schema['properties'] = [];
             }
-
-            $schema['properties'][$name] = $paramSchema;
-
-            if ($required) {
-                $schema['required'][] = $name;
+            if (!isset($schema['required'])) {
+                $schema['required'] = [];
             }
         }
 
+        foreach ($parametersInfo as $paramInfo) {
+            $paramName = $paramInfo['name'];
+
+            $methodLevelParamSchema = $schema['properties'][$paramName] ?? null;
+
+            $paramSchema = $this->buildParameterSchema($paramInfo, $methodLevelParamSchema);
+
+            $schema['properties'][$paramName] = $paramSchema;
+
+            if ($paramInfo['required'] && !in_array($paramName, $schema['required'])) {
+                $schema['required'][] = $paramName;
+            } elseif (!$paramInfo['required'] && ($key = array_search($paramName, $schema['required'])) !== false) {
+                unset($schema['required'][$key]);
+                $schema['required'] = array_values($schema['required']); // Re-index
+            }
+        }
+
+        // Clean up empty properties
         if (empty($schema['properties'])) {
-            // Keep properties object even if empty, per spec
             $schema['properties'] = new stdClass();
         }
         if (empty($schema['required'])) {
@@ -213,8 +147,249 @@ class SchemaGenerator
     }
 
     /**
+     * Builds the final schema for a single parameter by merging all three levels.
+     * 
+     * @param array{
+     *     name: string,
+     *     doc_block_tag: Param|null,
+     *     reflection_param: ReflectionParameter,
+     *     reflection_type_object: ReflectionType|null,
+     *     type_string: string,
+     *     description: string|null,
+     *     required: bool,
+     *     allows_null: bool,
+     *     default_value: mixed|null,
+     *     has_default: bool,
+     *     is_variadic: bool,
+     *     parameter_schema: array<string, mixed>
+     * } $paramInfo
+     * @param array<string, mixed>|null $methodLevelParamSchema
+     */
+    private function buildParameterSchema(array $paramInfo, ?array $methodLevelParamSchema = null): array
+    {
+        if ($paramInfo['is_variadic']) {
+            return $this->buildVariadicParameterSchema($paramInfo);
+        }
+
+        $inferredSchema = $this->buildInferredParameterSchema($paramInfo);
+
+        // Method-level takes precedence over inferred schema
+        $mergedSchema = $inferredSchema;
+        if ($methodLevelParamSchema) {
+            $mergedSchema = $this->mergeSchemas($inferredSchema, $methodLevelParamSchema);
+        }
+
+        // Parameter-level takes highest precedence
+        $parameterLevelSchema = $paramInfo['parameter_schema'];
+        if (!empty($parameterLevelSchema)) {
+            $mergedSchema = $this->mergeSchemas($mergedSchema, $parameterLevelSchema);
+        }
+
+        return $mergedSchema;
+    }
+
+    /**
+     * Merge two schemas where the dominant schema takes precedence over the recessive one.
+     * 
+     * @param array $recessiveSchema The schema with lower precedence
+     * @param array $dominantSchema The schema with higher precedence
+     */
+    private function mergeSchemas(array $recessiveSchema, array $dominantSchema): array
+    {
+        $mergedSchema = array_merge($recessiveSchema, $dominantSchema);
+
+        return $mergedSchema;
+    }
+
+    /**
+     * Builds parameter schema from inferred type and docblock information only.
+     * Returns empty array for variadic parameters (handled separately).
+     */
+    private function buildInferredParameterSchema(array $paramInfo): array
+    {
+        $paramSchema = [];
+
+        // Variadic parameters are handled separately
+        if ($paramInfo['is_variadic']) {
+            return [];
+        }
+
+        // Infer JSON Schema types
+        $jsonTypes = $this->inferParameterTypes($paramInfo);
+
+        if (count($jsonTypes) === 1) {
+            $paramSchema['type'] = $jsonTypes[0];
+        } elseif (count($jsonTypes) > 1) {
+            $paramSchema['type'] = $jsonTypes;
+        }
+
+        // Add description from docblock
+        if ($paramInfo['description']) {
+            $paramSchema['description'] = $paramInfo['description'];
+        }
+
+        // Add default value only if parameter actually has a default
+        if ($paramInfo['has_default']) {
+            $paramSchema['default'] = $paramInfo['default_value'];
+        }
+
+        // Handle enums
+        $paramSchema = $this->applyEnumConstraints($paramSchema, $paramInfo);
+
+        // Handle array items
+        $paramSchema = $this->applyArrayConstraints($paramSchema, $paramInfo);
+
+        return $paramSchema;
+    }
+
+    /**
+     * Builds schema for variadic parameters.
+     */
+    private function buildVariadicParameterSchema(array $paramInfo): array
+    {
+        $paramSchema = ['type' => 'array'];
+
+        // Apply parameter-level Schema attributes first
+        if (!empty($paramInfo['parameter_schema'])) {
+            $paramSchema = array_merge($paramSchema, $paramInfo['parameter_schema']);
+            // Ensure type is always array for variadic
+            $paramSchema['type'] = 'array';
+        }
+
+        if ($paramInfo['description']) {
+            $paramSchema['description'] = $paramInfo['description'];
+        }
+
+        // If no items specified by Schema attribute, infer from type
+        if (!isset($paramSchema['items'])) {
+            $itemJsonTypes = $this->mapPhpTypeToJsonSchemaType($paramInfo['type_string']);
+            $nonNullItemTypes = array_filter($itemJsonTypes, fn($t) => $t !== 'null');
+
+            if (count($nonNullItemTypes) === 1) {
+                $paramSchema['items'] = ['type' => $nonNullItemTypes[0]];
+            }
+        }
+
+        return $paramSchema;
+    }
+
+    /**
+     * Infers JSON Schema types for a parameter.
+     */
+    private function inferParameterTypes(array $paramInfo): array
+    {
+        $jsonTypes = $this->mapPhpTypeToJsonSchemaType($paramInfo['type_string']);
+
+        if ($paramInfo['allows_null'] && strtolower($paramInfo['type_string']) !== 'mixed' && !in_array('null', $jsonTypes)) {
+            $jsonTypes[] = 'null';
+        }
+
+        if (count($jsonTypes) > 1) {
+            // Sort but ensure null comes first for consistency
+            $nullIndex = array_search('null', $jsonTypes);
+            if ($nullIndex !== false) {
+                unset($jsonTypes[$nullIndex]);
+                sort($jsonTypes);
+                array_unshift($jsonTypes, 'null');
+            } else {
+                sort($jsonTypes);
+            }
+        }
+
+        return $jsonTypes;
+    }
+
+    /**
+     * Applies enum constraints to parameter schema.
+     */
+    private function applyEnumConstraints(array $paramSchema, array $paramInfo): array
+    {
+        $reflectionType = $paramInfo['reflection_type_object'];
+
+        if (!($reflectionType instanceof ReflectionNamedType) || $reflectionType->isBuiltin() || !enum_exists($reflectionType->getName())) {
+            return $paramSchema;
+        }
+
+        $enumClass = $reflectionType->getName();
+        $enumReflection = new ReflectionEnum($enumClass);
+        $backingTypeReflection = $enumReflection->getBackingType();
+
+        if ($enumReflection->isBacked() && $backingTypeReflection instanceof ReflectionNamedType) {
+            $paramSchema['enum'] = array_column($enumClass::cases(), 'value');
+            $jsonBackingType = match ($backingTypeReflection->getName()) {
+                'int' => 'integer',
+                'string' => 'string',
+                default => null,
+            };
+
+            if ($jsonBackingType) {
+                if (isset($paramSchema['type']) && is_array($paramSchema['type']) && in_array('null', $paramSchema['type'])) {
+                    $paramSchema['type'] = ['null', $jsonBackingType];
+                } else {
+                    $paramSchema['type'] = $jsonBackingType;
+                }
+            }
+        } else {
+            // Non-backed enum - use names as enum values
+            $paramSchema['enum'] = array_column($enumClass::cases(), 'name');
+            if (isset($paramSchema['type']) && is_array($paramSchema['type']) && in_array('null', $paramSchema['type'])) {
+                $paramSchema['type'] = ['null', 'string'];
+            } else {
+                $paramSchema['type'] = 'string';
+            }
+        }
+
+        return $paramSchema;
+    }
+
+    /**
+     * Applies array-specific constraints to parameter schema.
+     */
+    private function applyArrayConstraints(array $paramSchema, array $paramInfo): array
+    {
+        if (!isset($paramSchema['type'])) {
+            return $paramSchema;
+        }
+
+        $typeString = $paramInfo['type_string'];
+        $allowsNull = $paramInfo['allows_null'];
+
+        // Handle object-like arrays using array{} syntax
+        if (preg_match('/^array\s*{/i', $typeString)) {
+            $objectSchema = $this->inferArrayItemsType($typeString);
+            if (is_array($objectSchema) && isset($objectSchema['properties'])) {
+                $paramSchema = array_merge($paramSchema, $objectSchema);
+                $paramSchema['type'] = $allowsNull ? ['object', 'null'] : 'object';
+            }
+        }
+        // Handle regular arrays
+        elseif (in_array('array', $this->mapPhpTypeToJsonSchemaType($typeString))) {
+            $itemsType = $this->inferArrayItemsType($typeString);
+            if ($itemsType !== 'any') {
+                if (is_string($itemsType)) {
+                    $paramSchema['items'] = ['type' => $itemsType];
+                } else {
+                    if (!isset($itemsType['type']) && isset($itemsType['properties'])) {
+                        $itemsType = array_merge(['type' => 'object'], $itemsType);
+                    }
+                    $paramSchema['items'] = $itemsType;
+                }
+            }
+
+            if ($allowsNull) {
+                $paramSchema['type'] = ['array', 'null'];
+                sort($paramSchema['type']);
+            } else {
+                $paramSchema['type'] = 'array';
+            }
+        }
+
+        return $paramSchema;
+    }
+
+    /**
      * Parses detailed information about a method's parameters.
-     *
+     * 
      * @return array<int, array{
      *     name: string,
      *     doc_block_tag: Param|null,
@@ -227,16 +402,15 @@ class SchemaGenerator
      *     default_value: mixed|null,
      *     has_default: bool,
      *     is_variadic: bool,
-     *     schema_constraints: array<string, mixed>
+     *     parameter_schema: array<string, mixed>
      * }>
      */
-    private function parseParametersInfo(ReflectionMethod $method, ?DocBlock $docBlock): array
+    private function parseParametersInfo(ReflectionMethod $method): array
     {
+        $docComment = $method->getDocComment() ?: null;
+        $docBlock = $this->docBlockParser->parseDocBlock($docComment);
         $paramTags = $this->docBlockParser->getParamTags($docBlock);
         $parametersInfo = [];
-
-        // Extract method-level schema constraints (for all parameters)
-        $methodSchemaConstraints = $this->extractSchemaConstraintsFromAttributes($method);
 
         foreach ($method->getParameters() as $rp) {
             $paramName = $rp->getName();
@@ -249,16 +423,14 @@ class SchemaGenerator
             $defaultValue = $hasDefault ? $rp->getDefaultValue() : null;
             $isVariadic = $rp->isVariadic();
 
-            // Extract schema constraints from parameter attributes
-            // Parameter attributes override method attributes
-            $paramSchemaConstraints = $this->extractSchemaConstraintsFromAttributes($rp);
-            $schemaConstraints = !empty($paramSchemaConstraints)
-                ? $paramSchemaConstraints
-                : $methodSchemaConstraints;
+            $parameterSchema = $this->extractParameterLevelSchema($rp);
 
-            // If the default value is a BackedEnum, use its scalar value for JSON schema
-            if ($hasDefault && $defaultValue instanceof \BackedEnum) {
+            if ($defaultValue instanceof \BackedEnum) {
                 $defaultValue = $defaultValue->value;
+            }
+
+            if ($defaultValue instanceof \UnitEnum) {
+                $defaultValue = $defaultValue->name;
             }
 
             $allowsNull = false;
@@ -266,7 +438,7 @@ class SchemaGenerator
                 $allowsNull = true;
             } elseif ($hasDefault && $defaultValue === null) {
                 $allowsNull = true;
-            } elseif (stripos($typeString, 'null') !== false || strtolower($typeString) === 'mixed') {
+            } elseif (str_contains($typeString, 'null') || strtolower($typeString) === 'mixed') {
                 $allowsNull = true;
             }
 
@@ -277,37 +449,16 @@ class SchemaGenerator
                 'reflection_type_object' => $reflectionType,
                 'type_string' => $typeString,
                 'description' => $description,
-                'required' => ! $rp->isOptional(),
+                'required' => !$rp->isOptional(),
                 'allows_null' => $allowsNull,
                 'default_value' => $defaultValue,
                 'has_default' => $hasDefault,
                 'is_variadic' => $isVariadic,
-                'schema_constraints' => $schemaConstraints,
+                'parameter_schema' => $parameterSchema,
             ];
         }
 
         return $parametersInfo;
-    }
-
-    /**
-     * Extract schema constraints from attributes.
-     *
-     * @param ReflectionParameter|ReflectionMethod $reflection The reflection object to extract schema constraints from
-     * @return array<string, mixed> The extracted schema constraints
-     */
-    private function extractSchemaConstraintsFromAttributes(ReflectionParameter|ReflectionMethod $reflection): array
-    {
-        $constraints = [];
-
-        if (method_exists($reflection, 'getAttributes')) { // PHP 8+ check
-            $schemaAttrs = $reflection->getAttributes(Schema::class, \ReflectionAttribute::IS_INSTANCEOF);
-            if (!empty($schemaAttrs)) {
-                $schemaAttr = $schemaAttrs[0]->newInstance();
-                $constraints = $schemaAttr->toArray();
-            }
-        }
-
-        return $constraints;
     }
 
     /**
@@ -338,9 +489,9 @@ class SchemaGenerator
         }
 
         // Otherwise, use the DocBlock type if it was valid and non-generic
-        if ($docBlockType !== null && ! $isDocBlockTypeGeneric) {
+        if ($docBlockType !== null && !$isDocBlockTypeGeneric) {
             // Consider if DocBlock adds nullability missing from reflection
-            if (stripos($docBlockType, 'null') !== false && $reflectionTypeString && stripos($reflectionTypeString, 'null') === false && ! str_ends_with($reflectionTypeString, '|null')) {
+            if (stripos($docBlockType, 'null') !== false && $reflectionTypeString && stripos($reflectionTypeString, 'null') === false && !str_ends_with($reflectionTypeString, '|null')) {
                 // If reflection didn't capture null, but docblock did, append |null (if not already mixed)
                 if ($reflectionTypeString !== 'mixed') {
                     return $reflectionTypeString . '|null';
@@ -365,7 +516,7 @@ class SchemaGenerator
     private function getTypeStringFromReflection(?ReflectionType $type, bool $nativeAllowsNull): string
     {
         if ($type === null) {
-            return 'mixed'; // Or should it be null? MCP often uses 'mixed' for untyped. Let's stick to mixed for consistency.
+            return 'mixed';
         }
 
         $types = [];
@@ -385,7 +536,7 @@ class SchemaGenerator
         } elseif ($type instanceof ReflectionNamedType) {
             $typeString = $type->getName();
         } else {
-            return 'mixed'; // Fallback for unknown ReflectionType implementations
+            return 'mixed';
         }
 
         $typeString = match (strtolower($typeString)) {
@@ -401,7 +552,7 @@ class SchemaGenerator
             $isNullable = true;
         }
 
-        if ($type instanceof ReflectionUnionType && ! $nativeAllowsNull) {
+        if ($type instanceof ReflectionUnionType && !$nativeAllowsNull) {
             foreach ($type->getTypes() as $innerType) {
                 if ($innerType instanceof ReflectionNamedType && strtolower($innerType->getName()) === 'null') {
                     $isNullable = true;
@@ -411,7 +562,7 @@ class SchemaGenerator
         }
 
         if ($isNullable && $typeString !== 'mixed' && stripos($typeString, 'null') === false) {
-            if (! str_ends_with($typeString, '|null') && ! str_ends_with($typeString, '&null')) {
+            if (!str_ends_with($typeString, '|null') && !str_ends_with($typeString, '&null')) {
                 $typeString .= '|null';
             }
         }
@@ -428,8 +579,6 @@ class SchemaGenerator
 
     /**
      * Maps a PHP type string (potentially a union) to an array of JSON Schema type names.
-     *
-     * @return list<string> JSON schema types: "string", "integer", "number", "boolean", "array", "object", "null", "any" (custom placeholder)
      */
     private function mapPhpTypeToJsonSchemaType(string $phpTypeString): array
     {
@@ -470,21 +619,20 @@ class SchemaGenerator
             '?float', '?double', '?number' => ['null', 'number'],
             'bool', 'boolean' => ['boolean'],
             '?bool', '?boolean' => ['null', 'boolean'],
-            'array' => ['array'], // Catch native 'array' hint if not caught by generics/[]
+            'array' => ['array'],
             '?array' => ['null', 'array'],
-            'object', 'stdclass' => ['object'], // Catch native 'object' hint
+            'object', 'stdclass' => ['object'],
             '?object', '?stdclass' => ['null', 'object'],
             'null' => ['null'],
-            'resource', 'callable' => ['object'], // Represent these complex types as object
-            'mixed' => [], // Omit type for mixed
-            'void', 'never' => [], // Not applicable for parameters
-            default => ['object'], // Fallback: Treat unknown non-namespaced words as object
+            'resource', 'callable' => ['object'],
+            'mixed' => [],
+            'void', 'never' => [],
+            default => ['object'],
         };
     }
 
     /**
      * Infers the 'items' schema type for an array based on DocBlock type hints.
-     * Returns 'any' if type cannot be determined.
      */
     private function inferArrayItemsType(string $phpTypeString): string|array
     {
@@ -522,7 +670,6 @@ class SchemaGenerator
             return $this->parseObjectLikeArray($matches[2]);
         }
 
-        // No match or unsupported syntax
         return 'any';
     }
 
@@ -536,7 +683,6 @@ class SchemaGenerator
 
         // Parse properties from the string, handling nested structures
         $depth = 0;
-        $currentProp = '';
         $buffer = '';
 
         for ($i = 0; $i < strlen($propertiesStr); $i++) {

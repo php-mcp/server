@@ -13,7 +13,6 @@ use PhpMcp\Server\Defaults\BasicContainer;
 use PhpMcp\Server\Elements\RegisteredPrompt;
 use PhpMcp\Server\Elements\RegisteredTool;
 use PhpMcp\Server\Exception\ConfigurationException;
-use PhpMcp\Server\Exception\DefinitionException;
 use PhpMcp\Server\Protocol;
 use PhpMcp\Server\Registry;
 use PhpMcp\Server\Server;

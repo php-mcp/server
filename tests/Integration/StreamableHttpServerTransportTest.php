@@ -1,7 +1,5 @@
 <?php
 
-namespace PhpMcp\Server\Tests\Integration;
-
 use PhpMcp\Server\Protocol;
 use PhpMcp\Server\Tests\Mocks\Clients\MockJsonHttpClient;
 use PhpMcp\Server\Tests\Mocks\Clients\MockStreamHttpClient;
@@ -12,6 +10,7 @@ use React\Stream\ReadableStreamInterface;
 
 use function React\Async\await;
 use function React\Promise\resolve;
+
 
 const STREAMABLE_HTTP_SCRIPT_PATH = __DIR__ . '/../Fixtures/ServerScripts/StreamableHttpTestServer.php';
 const STREAMABLE_HTTP_PROCESS_TIMEOUT = 9;
@@ -66,7 +65,6 @@ afterEach(function () {
     }
     $this->process = null;
 });
-
 
 describe('JSON MODE', function () {
     beforeEach(function () {

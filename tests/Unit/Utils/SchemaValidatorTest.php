@@ -248,7 +248,7 @@ test('handles empty schema (allows anything)', function () {
 });
 
 test('validates schema with string format constraints from Schema attribute', function () {
-    $emailSchema = (new Schema(format: Format::EMAIL))->toArray();
+    $emailSchema = (new Schema(format: 'email'))->toArray();
 
     // Valid email
     $validErrors = $this->validator->validateAgainstJsonSchema('user@example.com', $emailSchema);
@@ -318,9 +318,9 @@ test('validates schema with array constraints from Schema attribute', function (
 test('validates schema with object constraints from Schema attribute', function () {
     $userSchema = (new Schema(
         properties: [
-            new Property('name', minLength: 2),
-            new Property('email', format: Format::EMAIL),
-            new Property('age', minimum: 18)
+            'name' => ['type' => 'string', 'minLength' => 2],
+            'email' => ['type' => 'string', 'format' => 'email'],
+            'age' => ['type' => 'integer', 'minimum' => 18]
         ],
         required: ['name', 'email']
     ))->toArray();
@@ -367,25 +367,25 @@ test('validates schema with object constraints from Schema attribute', function 
 test('validates schema with nested constraints from Schema attribute', function () {
     $orderSchema = (new Schema(
         properties: [
-            new Property(
-                'customer',
-                properties: [
-                    new Property('id', pattern: '^CUS-[0-9]{6}$'),
-                    new Property('name', minLength: 2)
+            'customer' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'pattern' => '^CUS-[0-9]{6}$'],
+                    'name' => ['type' => 'string', 'minLength' => 2]
                 ],
-                required: ['id']
-            ),
-            new Property(
-                'items',
-                minItems: 1,
-                items: new ArrayItems(
-                    properties: [
-                        new Property('product_id', pattern: '^PRD-[0-9]{4}$'),
-                        new Property('quantity', minimum: 1)
+            ],
+            'items' => [
+                'type' => 'array',
+                'minItems' => 1,
+                'items' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'product_id' => ['type' => 'string', 'pattern' => '^PRD-[0-9]{4}$'],
+                        'quantity' => ['type' => 'integer', 'minimum' => 1]
                     ],
-                    required: ['product_id', 'quantity']
-                )
-            )
+                    'required' => ['product_id', 'quantity']
+                ]
+            ]
         ],
         required: ['customer', 'items']
     ))->toArray();

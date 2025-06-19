@@ -296,7 +296,7 @@ final class ServerBuilder
 
                 $name = $data['name'] ?? ($methodName === '__invoke' ? $classShortName : $methodName);
                 $description = $data['description'] ?? $docBlockParser->getSummary($docBlock) ?? null;
-                $inputSchema = $schemaGenerator->fromMethodParameters($reflectionMethod);
+                $inputSchema = $schemaGenerator->generate($reflectionMethod);
 
                 $tool = Tool::make($name, $inputSchema, $description, $data['annotations']);
                 $registry->registerTool($tool, $className, $methodName, true);
