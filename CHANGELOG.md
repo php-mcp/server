@@ -2,6 +2,90 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v3.0.0 - 2025-06-21
+
+This release brings support for the latest MCP protocol version along with enhanced schema generation, new transport capabilities, and streamlined APIs.
+
+### ✨ New Features
+
+* **StreamableHttpServerTransport**: New transport with resumability, event sourcing, and JSON response mode for production deployments
+* **Smart Schema Generation**: Automatic JSON schema generation from method signatures with optional `#[Schema]` attribute enhancements
+* **Completion Providers**: `#[CompletionProvider]` attribute for auto-completion in resource templates and prompts
+* **Batch Request Processing**: Full support for JSON-RPC 2.0 batch requests
+* **Enhanced Session Management**: Multiple session backends (array, cache, custom) with persistence and garbage collection
+
+### 🔥 Breaking Changes
+
+* **Schema Package Integration**: Now uses `php-mcp/schema` package for all DTOs, requests, responses, and content types
+* **Session Management**: `ClientStateManager` replaced with `SessionManager` and `Session` classes
+* **Component Reorganization**: `Support\*` classes moved to `Utils\*` namespace
+* **Request Processing**: `RequestHandler` renamed to `Dispatcher`
+
+*Note: Most of these changes are internal and won't affect your existing MCP element definitions and handlers.*
+
+### 🔧 Enhanced Features
+
+* **Improved Schema System**: The `#[Schema]` attribute can now be used at both method-level and parameter-level (previously parameter-level only)
+* **Better Error Handling**: Enhanced JSON-RPC error responses with proper status codes
+* **PSR-20 Clock Interface**: Time management with `SystemClock` implementation
+* **Event Store Interface**: Pluggable event storage for resumable connections
+
+### 📦 Dependencies
+
+* Now requires `php-mcp/schema` ^1.0
+* Enhanced PSR compliance (PSR-3, PSR-11, PSR-16, PSR-20)
+
+### 🚧 Migration Guide
+
+#### Capabilities Configuration
+
+**Before:**
+
+```php
+->withCapabilities(Capabilities::forServer(
+    resourcesEnabled: true,
+    promptsEnabled: true,
+    toolsEnabled: true,
+    resourceSubscribe: true
+))
+
+```
+**After:**
+
+```php
+->withCapabilities(ServerCapabilities::make(
+    resources: true,
+    prompts: true,
+    tools: true,
+    resourcesSubscribe: true
+))
+
+```
+#### Transport Upgrade (Optional)
+
+For production HTTP deployments, consider upgrading to the new `StreamableHttpServerTransport`:
+
+**Before:**
+
+```php
+$transport = new HttpServerTransport(host: '127.0.0.1', port: 8080);
+
+```
+**After:**
+
+```php
+$transport = new StreamableHttpServerTransport(host: '127.0.0.1',  port: 8080);
+
+```
+### 📚 Documentation
+
+* Complete README rewrite with comprehensive examples and deployment guides
+* New production deployment section covering VPS, Docker, and SSL setup
+* Enhanced schema generation documentation
+* Migration guide for v2.x users
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/2.3.1...3.0.0
+
 ## v2.3.1 - 2025-06-13
 
 ### What's Changed
@@ -162,6 +246,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
    
