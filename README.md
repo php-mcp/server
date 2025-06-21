@@ -5,68 +5,89 @@
 [![Tests](https://img.shields.io/github/actions/workflow/status/php-mcp/server/tests.yml?branch=main&style=flat-square)](https://github.com/php-mcp/server/actions/workflows/tests.yml)
 [![License](https://img.shields.io/packagist/l/php-mcp/server.svg?style=flat-square)](LICENSE)
 
-**PHP MCP Server provides a robust and flexible server-side implementation of the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) for PHP applications.**
+**A comprehensive and production-ready PHP implementation of the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) server. Built for PHP 8.1+ with modern architecture, extensive testing, and flexible transport options.**
 
-Easily expose parts of your application as standardized MCP **Tools**, **Resources**, and **Prompts**, allowing AI assistants (like Anthropic's Claude, Cursor IDE, etc.) to interact with your PHP backend using the MCP standard.
+The PHP MCP Server enables you to expose your PHP application's functionality as standardized MCP **Tools**, **Resources**, and **Prompts**, allowing AI assistants (like Anthropic's Claude, Cursor IDE, OpenAI's ChatGPT, etc.) to interact with your backend using the MCP standard.
 
-This package simplifies building MCP servers through:
+## 🚀 Key Features
 
-*   **Attribute-Based Definition:** Define MCP elements using PHP 8 Attributes (`#[McpTool]`, `#[McpResource]`, `#[McpPrompt]`, `#[McpResourceTemplate]`) on your methods or invokable classes.
-*   **Manual Registration:** Programmatically register elements using a fluent builder API.
-*   **Explicit Discovery:** Trigger attribute scanning on demand via the `$server->discover()` method.
-*   **Metadata Inference:** Intelligently generate MCP schemas and descriptions from PHP type hints and DocBlocks.
-*   **Selective Caching:** Optionally cache *discovered* element definitions to speed up startup, while always preserving manually registered elements.
-*   **Flexible Transports:** Supports `stdio` and `http+sse`, separating core logic from network communication.
-*   **PSR Compliance:** Integrates with PSR-3 (Logging), PSR-11 (Container), and PSR-16 (SimpleCache).
+- **🏗️ Modern Architecture**: Built with PHP 8.1+ features, PSR standards, and modular design
+- **📡 Multiple Transports**: Supports `stdio`, `http+sse`, and new **streamable HTTP** with resumability
+- **🎯 Attribute-Based Definition**: Use PHP 8 Attributes (`#[McpTool]`, `#[McpResource]`, etc.) for zero-config element registration
+- **📝 Smart Schema Generation**: Automatic JSON schema generation from method signatures with optional `#[Schema]` attribute enhancements
+- **⚡ Session Management**: Advanced session handling with multiple storage backends
+- **🔄 Event-Driven**: ReactPHP-based for high concurrency and non-blocking operations  
+- **📊 Batch Processing**: Full support for JSON-RPC batch requests
+- **💾 Smart Caching**: Intelligent caching of discovered elements with manual override precedence
+- **🧪 Completion Providers**: Built-in support for argument completion in tools and prompts
+- **🔌 Dependency Injection**: Full PSR-11 container support with auto-wiring
+- **📋 Comprehensive Testing**: Extensive test suite with integration tests for all transports
 
-This package currently supports the `2024-11-05` version of the Model Context Protocol.
+This package supports the **2025-03-26** version of the Model Context Protocol with backward compatibility.
 
-## Requirements
+## 📋 Requirements
 
-*   PHP >= 8.1
-*   Composer
-*   *(For Http Transport)*: An event-driven PHP environment capable of handling concurrent requests (see [HTTP Transport](#http-transport-httpsse) section).
+- **PHP** >= 8.1
+- **Composer**
+- **For HTTP Transport**: An event-driven PHP environment (CLI recommended)
+- **Extensions**: `json`, `mbstring`, `pcre` (typically enabled by default)
 
-## Installation
+## 📦 Installation
 
 ```bash
 composer require php-mcp/server
 ```
 
-> **Note for Laravel Users:** While this package works standalone, consider using [`php-mcp/laravel`](https://github.com/php-mcp/laravel) for enhanced framework integration, configuration, and Artisan commands.
+> **💡 Laravel Users**: Consider using [`php-mcp/laravel`](https://github.com/php-mcp/laravel) for enhanced framework integration, configuration management, and Artisan commands.
 
-## Quick Start: Standalone `stdio` Server with Discovery
+## ⚡ Quick Start: Stdio Server with Discovery
 
-This example creates a server using **attribute discovery** to find elements and runs via the `stdio` transport.
+This example demonstrates the most common usage pattern - a `stdio` server using attribute discovery.
 
-**1. Define Your MCP Element:**
+**1. Define Your MCP Elements**
 
-Create `src/MyMcpElements.php`:
+Create `src/CalculatorElements.php`:
 
 ```php
 <?php
+
 namespace App;
 
 use PhpMcp\Server\Attributes\McpTool;
+use PhpMcp\Server\Attributes\Schema;
 
-class MyMcpElements
+class CalculatorElements
 {
     /**
      * Adds two numbers together.
-     * @param int $a The first number.
-     * @param int $b The second number.
-     * @return int The sum.
+     * 
+     * @param int $a The first number
+     * @param int $b The second number  
+     * @return int The sum of the two numbers
      */
-    #[McpTool(name: 'simple_adder')]
+    #[McpTool(name: 'add_numbers')]
     public function add(int $a, int $b): int
     {
-        fwrite(STDERR, "Executing simple_adder with a=$a, b=$b\n");
         return $a + $b;
+    }
+
+    /**
+     * Calculates power with validation.
+     */
+    #[McpTool(name: 'calculate_power')]
+    public function power(
+        #[Schema(type: 'number', minimum: 0, maximum: 1000)]
+        float $base,
+        
+        #[Schema(type: 'integer', minimum: 0, maximum: 10)]
+        int $exponent
+    ): float {
+        return pow($base, $exponent);
     }
 }
 ```
 
-**2. Create the Server Script:**
+**2. Create the Server Script**
 
 Create `mcp-server.php`:
 
@@ -82,532 +103,1194 @@ use PhpMcp\Server\Server;
 use PhpMcp\Server\Transports\StdioServerTransport;
 
 try {
-    // 1. Build the Server configuration
+    // Build server configuration
     $server = Server::make()
-        ->withServerInfo('My Discovery Server', '1.0.2')
+        ->withServerInfo('PHP Calculator Server', '1.0.0') 
         ->build();
 
-    // 2. **Explicitly run discovery**
+    // Discover MCP elements via attributes
     $server->discover(
         basePath: __DIR__,
-        scanDirs: ['src'],
+        scanDirs: ['src']
     );
 
-    // 3. Create the Stdio Transport
+    // Start listening via stdio transport
     $transport = new StdioServerTransport();
-
-    // 4. Start Listening (BLOCKING call)
     $server->listen($transport);
 
-    exit(0);
-
 } catch (\Throwable $e) {
-    fwrite(STDERR, "[MCP SERVER CRITICAL ERROR]\n" . $e . "\n");
+    fwrite(STDERR, "[CRITICAL ERROR] " . $e->getMessage() . "\n");
     exit(1);
 }
 ```
 
-**3. Configure Your MCP Client:**
+**3. Configure Your MCP Client**
 
-Instruct your MCP client (e.g., Cursor, Claude Desktop) to use the `stdio` transport by running your script. Make sure to use the **absolute path**:
+Add to your client configuration (e.g., `.cursor/mcp.json`):
 
 ```json
-// Example: .cursor/mcp.json
 {
     "mcpServers": {
-        "my-php-stdio": {
+        "php-calculator": {
             "command": "php",
-            "args": ["/full/path/to/your/project/mcp-server.php"]
+            "args": ["/absolute/path/to/your/mcp-server.php"]
         }
     }
 }
 ```
 
-**Flow:**
+**4. Test the Server**
 
-1.  `Server::make()->...->build()`: Creates the `Server` instance, resolves dependencies, performs *manual* registrations (if any), and implicitly attempts to load *discovered* elements from cache (if configured and cache exists).
-2.  `$server->discover(__DIR__, ['src'])`: Explicitly triggers a filesystem scan within `src/`. Clears previously discovered/cached elements from the registry, finds `MyMcpElements::add`, creates its `ToolDefinition`, and registers it. If caching is enabled and `saveToCache` is true, saves this discovered definition to the cache.
-3.  `$server->listen($transport)`: Binds the transport, checks if *any* elements are registered (in this case, yes), starts the transport listener, and runs the event loop.
+Your AI assistant can now call:
+- `add_numbers` - Add two integers
+- `calculate_power` - Calculate power with validation constraints
 
-## Core Architecture
+## 🏗️ Architecture Overview
 
-The server uses a decoupled architecture:
+The PHP MCP Server uses a modern, decoupled architecture:
 
-*   **`ServerBuilder`:** Fluent interface (`Server::make()->...`) for configuration. Collects server identity, dependencies (Logger, Cache, Container, Loop), capabilities, and **manual** element registrations. Calls `build()` to create the `Server` instance.
-*   **`Configuration`:** A value object holding the resolved configuration and dependencies.
-*   **`Server`:** The central object holding the configured state and core logic components (`Registry`, `Protocol`, `Configuration`). It's transport-agnostic. Provides methods to `discover()` elements and `listen()` via a specific transport.
-*   **`Protocol`:** Internal bridge listening to transport events and processes JSON-RPC messages from the transport.
-*   **`Registry`:** Stores MCP element definitions. **Distinguishes between manually registered and discovered elements.** Handles optional caching of *discovered* elements only. Loads cached discovered elements upon instantiation if available.
-*   **`ServerTransportInterface`:** Event-driven interface for server-side transports (`StdioServerTransport`, `HttpServerTransport`). Handles communication, emits events.
-
-## Defining MCP Elements
-
-Expose your application's functionality as MCP Tools, Resources, or Prompts using attributes or manual registration.
-
-### 1. Using Attributes (`#[Mcp*]`)
-
-Decorate public, non-static methods or invokable classes with  `#[Mcp*]` attributes to mark them as MCP Elements. After building the server, you **must** call `$server->discover(...)` at least once with the correct paths to find and register these elements. It will also cache the discovered elements if set, so that you can skip discovery on subsequent runs.
-
-```php
-$server = ServerBuilder::make()->...->build();
-// Scan 'src/Handlers' relative to the project root
-$server->discover(basePath: __DIR__, scanDirs: ['src/Handlers']);
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   MCP Client    │◄──►│   Transport      │◄──►│   Protocol      │
+│  (Claude, etc.) │    │ (Stdio/HTTP/SSE) │    │   (JSON-RPC)    │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                                         │
+                       ┌─────────────────┐              │
+                       │ Session Manager │◄─────────────┤
+                       │ (Multi-backend) │              │
+                       └─────────────────┘              │
+                                                         │
+┌─────────────────┐    ┌──────────────────┐              │
+│   Dispatcher    │◄───│   Server Core    │◄─────────────┤
+│ (Method Router) │    │   Configuration  │              │
+└─────────────────┘    └──────────────────┘              │
+         │                                               │
+         ▼                                               │
+┌─────────────────┐    ┌──────────────────┐              │
+│    Registry     │    │   Elements       │◄─────────────┘
+│  (Element Store)│◄──►│ (Tools/Resources │
+└─────────────────┘    │  Prompts/etc.)   │
+                       └──────────────────┘
 ```
 
-Attributes:
+### Core Components
 
-*   **`#[McpTool(name?, description?)`**: Defines an action. Parameters/return types/DocBlocks define the MCP schema. Use on public, non-static methods or invokable classes.
-*   **`#[McpResource(uri, name?, description?, mimeType?, size?, annotations?)]`**: Defines a static resource instance. Use on public, non-static methods or invokable classes. Method returns resource content.
-*   **`#[McpResourceTemplate(uriTemplate, name?, description?, mimeType?, annotations?)]`**: Defines a handler for templated URIs (e.g., `item://{id}`). Use on public, non-static methods or invokable classes. Method parameters must match template variables. Method returns content for the resolved instance.
-*   **`#[McpPrompt(name?, description?)`**: Defines a prompt generator. Use on public, non-static methods or invokable classes. Method parameters are prompt arguments. Method returns prompt messages.
+- **`ServerBuilder`**: Fluent configuration interface (`Server::make()->...->build()`)
+- **`Server`**: Central coordinator containing all configured components
+- **`Protocol`**: JSON-RPC 2.0 handler bridging transports and core logic
+- **`SessionManager`**: Multi-backend session storage (array, cache, custom)
+- **`Dispatcher`**: Method routing and request processing
+- **`Registry`**: Element storage with smart caching and precedence rules
+- **`Elements`**: Registered MCP components (Tools, Resources, Prompts, Templates)
 
-*(See [Attribute Details](#attribute-details-and-return-formatting) below for more on parameters and return value formatting)*
+### Transport Options
 
-### 2. Manual Registration (`ServerBuilder->with*`)
+1. **`StdioServerTransport`**: Standard I/O for direct client launches
+2. **`HttpServerTransport`**: HTTP + Server-Sent Events for web integration  
+3. **`StreamableHttpServerTransport`**: Enhanced HTTP with resumability and event sourcing
 
-Use `withTool`, `withResource`, `withResourceTemplate`, `withPrompt` on the `ServerBuilder` *before* calling `build()`.
+## ⚙️ Server Configuration
+
+### Basic Configuration
 
 ```php
-use App\Handlers\MyToolHandler;
-use App\Handlers\MyResourceHandler;
+use PhpMcp\Server\Server;
+use PhpMcp\Schema\ServerCapabilities;
 
 $server = Server::make()
-    ->withServerInfo(...)
-    ->withTool(
-        [MyToolHandler::class, 'processData'], // Handler: [class, method]
-        'data_processor'                       // MCP Name (Optional)
-    )
-    ->withResource(
-        MyResourceHandler::class,              // Handler: Invokable class
-        'config://app/name'                    // URI (Required)
-    )
-    // ->withResourceTemplate(...)
-    // ->withPrompt(...)
+    ->withServerInfo('My App Server', '2.1.0')
+    ->withCapabilities(ServerCapabilities::make(
+        resources: true,
+        resourcesSubscribe: true,
+        prompts: true,
+        tools: true
+    ))
+    ->withPaginationLimit(100)
     ->build();
 ```
 
-*   **Handlers:** Can be `[ClassName::class, 'methodName']` or `InvokableHandler::class`. Dependencies are resolved via the configured PSR-11 Container.
-*   Metadata (name, description) is inferred from the handler if not provided explicitly.
-*   These elements are registered **immediately** when `build()` is called.
-*   They are **never cached** by the Registry's caching mechanism.
-*   They are **not removed** when `$registry->clearDiscoveredElements()` is called (e.g., at the start of `$server->discover()`).
-
-### Precedence: Manual vs. Discovered/Cached
-
-If an element is registered both manually (via the builder) and is also found via attribute discovery (or loaded from cache) with the **same identifying key** (tool name, resource URI, prompt name, template URI):
-
-*   **The manually registered element always takes precedence.**
-*   The discovered/cached version will be ignored, and a debug message will be logged.
-
-This ensures explicit manual configuration overrides any potentially outdated discovered or cached definitions.
-
-## Discovery and Caching
-
-Attribute discovery is an **explicit step** performed on a built `Server` instance.
-
-*   **`$server->discover(string $basePath, array $scanDirs = [...], array $excludeDirs = [...], bool $force = false, bool $saveToCache = true)`**
-    *   `$basePath`, `$scanDirs`, `$excludeDirs`: Define where to scan.
-    *   `$force`: If `true`, forces a re-scan even if discovery ran earlier in the same script execution. Default is `false`.
-    *   `$saveToCache`: If `true` (default) and a PSR-16 cache was provided to the builder, the results of *this scan* (discovered elements only) will be saved to the cache, overwriting previous cache content. If `false` or no cache is configured, results are not saved.
-*   **Default Behavior:** Calling `discover()` performs a fresh scan. It first clears previously discovered items from the cache `$saveToCache` is true), then scans the filesystem, registers found elements (marking them as discovered), and finally saves the newly discovered elements to cache if `$saveToCache` is true.
-*   **Implicit Cache Loading:** When `ServerBuilder::build()` creates the `Registry`, the `Registry` constructor automatically attempts to load *discovered* elements from the cache (if a cache was configured and the cache key exists). Manually registered elements are added *after* this potential cache load.
-*   **Cache Content:** Only elements found via discovery are stored in the cache. Manually registered elements are never cached.
-
-## Configuration (`ServerBuilder`)
-
-You can get a server builder instance by either calling `new ServerBuilder` or more conveniently using `Server::make()`. The available methods for configuring your server instance include:
-
-*   **`withServerInfo(string $name, string $version)`**: **Required.** Server identity.
-*   **`withLogger(LoggerInterface $logger)`**: Optional. PSR-3 logger. Defaults to `NullLogger`.
-*   **`withCache(CacheInterface $cache, int $ttl = 3600)`**: Optional. PSR-16 cache for registry and client state. Defaults to `ArrayCache` only for the client state manager. 
-*   **`withContainer(ContainerInterface $container)`**: Optional. PSR-11 container for resolving *your handler classes*. Defaults to `BasicContainer`.
-*   **`withLoop(LoopInterface $loop)`**: Optional. ReactPHP event loop. Defaults to `Loop::get()`.
-*   **`withCapabilities(Capabilities $capabilities)`**: Optional. Configure advertised capabilities (e.g., resource subscriptions). Use `Capabilities::forServer(...)`.
-*   **`withPaginationLimit(int $paginationLimit)`: Optional. Configures the server's pagination limit for list requests.
-*   `withTool(...)`, `withResource(...)`, etc.: Optional manual registration.
-
-## Running the Server (Transports)
-
-The core `Server` object doesn't handle network I/O directly. You activate it using a specific transport implementation passed to `$server->listen($transport)`.
-
-### Stdio Transport
-
-Handles communication over Standard Input/Output. Ideal for servers launched directly by an MCP client (like Cursor).
+### Advanced Configuration with Dependencies
 
 ```php
-use PhpMcp\Server\Transports\StdioServerTransport;
+use Psr\Log\Logger;
+use Psr\SimpleCache\CacheInterface;
+use Psr\Container\ContainerInterface;
 
-// ... build $server ...
-
-$transport = new StdioServerTransport();
-
-// This blocks until the transport is closed (e.g., SIGINT/SIGTERM)
-$server->listen($transport);
+$server = Server::make()
+    ->withServerInfo('Production Server', '1.0.0')
+    ->withLogger($myPsrLogger)                    // PSR-3 Logger
+    ->withCache($myPsrCache)                      // PSR-16 Cache  
+    ->withContainer($myPsrContainer)              // PSR-11 Container
+    ->withSession('cache', 7200)                  // Cache-backed sessions, 2hr TTL
+    ->withPaginationLimit(50)                     // Limit list responses
+    ->build();
 ```
 
-> **Warning:** When using `StdioServerTransport`, your application code (including tool/resource handlers) **MUST NOT** write arbitrary output to `STDOUT` (using `echo`, `print`, `var_dump`, etc.). `STDOUT` is reserved for sending framed JSON-RPC messages back to the client. Use `STDERR` for logging or debugging output:
-> ```php
-> fwrite(STDERR, "Debug: Processing tool X\n");
-> // Or use a PSR-3 logger configured to write to STDERR:
-> // $logger->debug("Processing tool X", ['param' => $value]);
-> ```
-
-### HTTP Transport (HTTP+SSE)
-
-Listens for HTTP connections, handling client messages via POST and sending server messages/notifications via Server-Sent Events (SSE).
+### Session Management Options
 
 ```php
-use PhpMcp\Server\Transports\HttpServerTransport;
+// In-memory sessions (default, not persistent)
+->withSession('array', 3600)
 
-// ... build $server ...
+// Cache-backed sessions (persistent across restarts)  
+->withSession('cache', 7200)
 
-$transport = new HttpServerTransport(
-    host: '127.0.0.1',   // Listen on all interfaces
-    port: 8080,          // Port to listen on
-    mcpPathPrefix: 'mcp' // Base path for endpoints (/mcp/sse, /mcp/message)
-    // sslContext: [...] // Optional: ReactPHP socket context for HTTPS
-);
-
-// This blocks, starting the HTTP server and running the event loop
-$server->listen($transport);
+// Custom session handler (implement SessionHandlerInterface)
+->withSessionHandler(new MyCustomSessionHandler(), 1800)
 ```
 
-**Concurrency Requirement:** The `HttpServerTransport` relies on ReactPHP's non-blocking I/O model. It's designed to handle multiple concurrent SSE connections efficiently. Running this transport requires a PHP environment that supports an event loop and non-blocking operations. **It will generally NOT work correctly with traditional synchronous web servers like Apache+mod_php or the built-in PHP development server.** You should run the `listen()` command using the PHP CLI in a persistent process (potentially managed by Supervisor, Docker, etc.).
+## 🎯 Defining MCP Elements
 
-**Endpoints:**
-*   **SSE:** `GET /{mcpPathPrefix}/sse` (e.g., `GET /mcp/sse`) - Client connects here.
-*   **Messages:** `POST /{mcpPathPrefix}/message?clientId={clientId}` (e.g., `POST /mcp/message?clientId=sse_abc123`) - Client sends requests here. The `clientId` query parameter is essential for the server to route the message correctly to the state associated with the SSE connection. The server sends the POST path (including the generated `clientId`) via the initial `endpoint` SSE event to the client, so you will never have to manually handle this.
+The server provides two powerful ways to define MCP elements: **Attribute-Based Discovery** (recommended) and **Manual Registration**. Both can be combined, with manual registrations taking precedence.
 
-## Connecting MCP Clients
+### Element Types
 
-Instruct clients how to connect to your server:
+- **🔧 Tools**: Executable functions/actions (e.g., `calculate`, `send_email`, `query_database`)
+- **📄 Resources**: Static content/data (e.g., `config://settings`, `file://readme.txt`)
+- **📋 Resource Templates**: Dynamic resources with URI patterns (e.g., `user://{id}/profile`)  
+- **💬 Prompts**: Conversation starters/templates (e.g., `summarize`, `translate`)
 
-*   **`stdio`:** Provide the full command to execute your server script (e.g., `php /path/to/mcp-server.php`). The client needs execute permissions.
-*   **`http`:** Provide the full URL to your SSE endpoint (e.g., `http://your.domain:8080/mcp/sse`). Ensure the server process running `listen()` is accessible.
+### 1. 🏷️ Attribute-Based Discovery (Recommended)
 
-Refer to specific client documentation (Cursor, Claude Desktop, etc.) for their configuration format.
-
-## Attribute Details & Return Formatting {#attribute-details-and-return-formatting}
-
-These attributes mark classes or methods to be found by the `->discover()` process.
-
-#### `#[McpTool]`
-
-Marks a method **or an invokable class** as an MCP Tool. Tools represent actions or functions the client can invoke, often with parameters.
-
-**Usage:**
-
-*   **On a Method:** Place the attribute directly above a public, non-static method.
-*   **On an Invokable Class:** Place the attribute directly above a class definition that contains a public `__invoke` method. The `__invoke` method will be treated as the tool's handler.
-
-The attribute accepts the following parameters:
-
-*   `name` (optional): The name of the tool exposed to the client.
-    *   When on a method, defaults to the method name (e.g., `addNumbers` becomes `addNumbers`).
-    *   When on an invokable class, defaults to the class's short name (e.g., `class AdderTool` becomes `AdderTool`).
-*   `description` (optional): A description for the tool. Defaults to the method's DocBlock summary (or the `__invoke` method's summary if on a class).
-
-The parameters (including name, type hints, and defaults) of the target method (or `__invoke`) define the tool's input schema. The return type hint defines the output schema. DocBlock `@param` and `@return` descriptions are used for parameter/output descriptions.
-
-**Return Value Formatting**
-
-The value returned by your method determines the content sent back to the client. The library automatically formats common types:
-
-*   `null`: Returns empty content (if return type hint is `void`) or `TextContent` with `(null)`.
-*   `string`, `int`, `float`, `bool`: Automatically wrapped in `PhpMcp\Server\JsonRpc\Contents\TextContent`.
-*   `array`, `object`: Automatically JSON-encoded (pretty-printed) and wrapped in `TextContent`.
-*   `PhpMcp\Server\JsonRpc\Contents\Content` object(s): If you return an instance of `Content` (e.g., `TextContent`, `ImageContent`, `AudioContent`, `ResourceContent`) or an array of `Content` objects, they are used directly. This gives you full control over the output format. *Example:* `return TextContent::code('echo \'Hello\';', 'php');`
-*   Exceptions: If your method throws an exception, a `TextContent` containing the error message and type is returned.
-
-The method's return type hint (`@return` tag in DocBlock) is used to generate the tool's output schema, but the actual formatting depends on the *value* returned at runtime.
-
-**Schema Generation**
-
-The server automatically generates JSON Schema for tool parameters based on:
-
-1. PHP type hints
-2. DocBlock annotations
-3. Schema attributes (for enhanced validation)
-
-**Examples:**
+Use PHP 8 attributes to mark methods or invokable classes as MCP elements. The server will discover them via filesystem scanning.
 
 ```php
-/**
- * Fetches user details by ID.
- *
- * @param int $userId The ID of the user to fetch.
- * @param bool $includeEmail Include the email address?
- * @return array{id: int, name: string, email?: string} User details.
- */
-#[McpTool(name: 'get_user')]
-public function getUserById(int $userId, bool $includeEmail = false): array
+use PhpMcp\Server\Attributes\{McpTool, McpResource, McpResourceTemplate, McpPrompt};
+
+class UserManager
 {
-    // ... implementation returning an array ...
-}
-
-/**
- * Process user data with nested structures.
- * 
- * @param array{name: string, contact: array{email: string, phone?: string}} $userData
- * @param string[] $tags Tags associated with the user
- * @return array{success: bool, message: string}
- */
-#[McpTool]
-public function processUserData(array $userData, array $tags): array {
-    // Implementation
-}
-
-/**
- * Returns PHP code as formatted text.
- *
- * @return TextContent
- */
-#[McpTool(name: 'get_php_code')]
-public function getPhpCode(): TextContent
-{
-    return TextContent::code('<?php echo \'Hello World\';', 'php');
-}
-
-/**
- * An invokable class acting as a tool.
- */
-#[McpTool(description: 'An invokable adder tool.')]
-class AdderTool {
     /**
-     * Adds two numbers.
-     * @param int $a First number.
-     * @param int $b Second number.
-     * @return int The sum.
+     * Creates a new user account.
      */
-    public function __invoke(int $a, int $b): int {
-        return $a + $b;
+    #[McpTool(name: 'create_user')]
+    public function createUser(string $email, string $password, string $role = 'user'): array
+    {
+        // Create user logic
+        return ['id' => 123, 'email' => $email, 'role' => $role];
     }
-}
-```
 
-**Additional Validation with `#[Schema]`**
-
-For enhanced schema generation and parameter validation, you can use the `Schema` attribute:
-
-```php
-use PhpMcp\Server\Attributes\Schema;
-use PhpMcp\Server\Attributes\Schema\Format;
-use PhpMcp\Server\Attributes\Schema\ArrayItems;
-use PhpMcp\Server\Attributes\Schema\Property;
-
-/**
- * Validates user information.
- */
-#[McpTool]
-public function validateUser(
-    #[Schema(format: 'email')] 
-    string $email,
-    
-    #[Schema(minItems: 2, uniqueItems: true)]
-    array $tags
-): bool {
-    // Implementation
-}
-```
-
-The Schema attribute adds JSON Schema constraints like string formats, numeric ranges, array constraints, and object property validations.
-
-#### `#[McpResource]`
-
-Marks a method **or an invokable class** as representing a specific, static MCP Resource instance. Resources represent pieces of content or data identified by a URI. The target method (or `__invoke`) will typically be called when a client performs a `resources/read` for the specified URI.
-
-**Usage:**
-
-*   **On a Method:** Place the attribute directly above a public, non-static method.
-*   **On an Invokable Class:** Place the attribute directly above a class definition that contains a public `__invoke` method. The `__invoke` method will be treated as the resource handler.
-
-The attribute accepts the following parameters:
-
-*   `uri` (required): The unique URI for this resource instance (e.g., `config://app/settings`, `file:///data/status.txt`). Must conform to [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986).
-*   `name` (optional): Human-readable name. Defaults inferred from method name or class short name.
-*   `description` (optional): Description. Defaults to DocBlock summary of the method or `__invoke`.
-*   `mimeType` (optional): The resource's MIME type (e.g., `text/plain`, `application/json`).
-*   `size` (optional): Resource size in bytes, if known and static.
-*   `annotations` (optional): Array of MCP annotations (e.g., `['audience' => ['user']]`).
-
-The target method (or `__invoke`) should return the content of the resource.
-
-**Return Value Formatting**
-
-The return value determines the resource content:
-
-*   `string`: Treated as text content. MIME type is taken from the attribute or guessed (`text/plain`, `application/json`, `text/html`).
-*   `array`: If the attribute's `mimeType` is `application/json` (or contains `json`), the array is JSON-encoded. Otherwise, it attempts JSON encoding with a warning.
-*   `stream resource`: Content is read from the stream. `mimeType` must be provided in the attribute or defaults to `application/octet-stream`.
-*   `SplFileInfo` object: Content is read from the file. `mimeType` is taken from the attribute or guessed.
-*   `PhpMcp\Server\JsonRpc\Contents\EmbeddedResource`: Used directly. Gives full control over URI, MIME type, text/blob content.
-*   `PhpMcp\Server\JsonRpc\Contents\ResourceContent`: The inner `EmbeddedResource` is extracted and used.
-*   `array{'blob': string, 'mimeType'?: string}`: Creates a blob resource.
-*   `array{'text': string, 'mimeType'?: string}`: Creates a text resource.
-
-```php
-#[McpResource(uri: 'status://system/load', mimeType: 'text/plain')]
-public function getSystemLoad(): string
-{
-    return file_get_contents('/proc/loadavg');
-}
-
-/**
- * An invokable class providing system load resource.
- */
-#[McpResource(uri: 'status://system/load/invokable', mimeType: 'text/plain')]
-class SystemLoadResource {
-    public function __invoke(): string {
-        return file_get_contents('/proc/loadavg');
-    }
-}
-```
-
-#### `#[McpResourceTemplate]`
-
-Marks a method **or an invokable class** that can generate resource instances based on a template URI. This is useful for resources whose URI contains variable parts (like user IDs or document IDs). The target method (or `__invoke`) will be called when a client performs a `resources/read` matching the template.
-
-**Usage:**
-
-*   **On a Method:** Place the attribute directly above a public, non-static method.
-*   **On an Invokable Class:** Place the attribute directly above a class definition that contains a public `__invoke` method.
-
-The attribute accepts the following parameters:
-
-*   `uriTemplate` (required): The URI template string, conforming to [RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) (e.g., `user://{userId}/profile`, `document://{docId}?format={fmt}`).
-*   `name`, `description`, `mimeType`, `annotations` (optional): Similar to `#[McpResource]`, but describe the template itself. Defaults inferred from method/class name and DocBlocks.
-
-The parameters of the target method (or `__invoke`) *must* match the variables defined in the `uriTemplate`. The method should return the content for the resolved resource instance.
-
-**Return Value Formatting**
-
-Same as `#[McpResource]` (see above). The returned value represents the content of the *resolved* resource instance.
-
-```php
-/**
- * Gets a user's profile data.
- *
- * @param string $userId The user ID from the URI.
- * @return array The user profile.
- */
-#[McpResourceTemplate(uriTemplate: 'user://{userId}/profile', name: 'user_profile', mimeType: 'application/json')]
-public function getUserProfile(string $userId): array
-{
-    // Fetch user profile for $userId
-    return ['id' => $userId, /* ... */ ];
-}
-
-/**
- * An invokable class providing user profiles via template.
- */
-#[McpResourceTemplate(uriTemplate: 'user://{userId}/profile/invokable', name: 'user_profile_invokable', mimeType: 'application/json')]
-class UserProfileTemplate {
     /**
-     * Gets a user's profile data.
-     * @param string $userId The user ID from the URI.
-     * @return array The user profile.
+     * Get user configuration.
      */
-    public function __invoke(string $userId): array {
-        // Fetch user profile for $userId
-        return ['id' => $userId, 'source' => 'invokable', /* ... */ ];
+    #[McpResource(
+        uri: 'config://user/settings',
+        mimeType: 'application/json'
+    )]
+    public function getUserConfig(): array
+    {
+        return ['theme' => 'dark', 'notifications' => true];
     }
-}
-```
 
-#### `#[McpPrompt]`
-
-Marks a method **or an invokable class** as an MCP Prompt generator. Prompts are pre-defined templates or functions that generate conversational messages (like user or assistant turns) based on input parameters.
-
-**Usage:**
-
-*   **On a Method:** Place the attribute directly above a public, non-static method.
-*   **On an Invokable Class:** Place the attribute directly above a class definition that contains a public `__invoke` method.
-
-The attribute accepts the following parameters:
-
-*   `name` (optional): The prompt name. Defaults to method name or class short name.
-*   `description` (optional): Description. Defaults to DocBlock summary of the method or `__invoke`.
-
-Method parameters (or `__invoke` parameters) define the prompt's input arguments. The method should return the prompt content, typically an array conforming to the MCP message structure.
-
-**Return Value Formatting**
-
-Your method should return the prompt messages in one of these formats:
-
-*   **Array of `PhpMcp\Server\JsonRpc\Contents\PromptMessage` objects**: The recommended way for full control.
-    *   `PromptMessage::user(string|Content $content)`
-    *   `PromptMessage::assistant(string|Content $content)`
-    *   The `$content` can be a simple string (becomes `TextContent`) or any `Content` object (`TextContent`, `ImageContent`, `ResourceContent`, etc.).
-*   **Simple list array:** `[['role' => 'user', 'content' => 'Some text'], ['role' => 'assistant', 'content' => $someContentObject]]`
-    *   `role` must be `'user'` or `'assistant'`.
-    *   `content` can be a string (becomes `TextContent`) or a `Content` object.
-    *   `content` can also be an array structure like `['type' => 'image', 'data' => '...', 'mimeType' => '...']`, `['type' => 'text', 'text' => '...']`, or `['type' => 'resource', 'resource' => ['uri' => '...', 'text|blob' => '...']]`.
-*   **Simple associative array:** `['user' => 'User prompt text', 'assistant' => 'Optional assistant prefix']` (converted to one or two `PromptMessage`s with `TextContent`).
-
-```php
-/**
- * Generates a prompt to summarize text.
- *
- * @param string $textToSummarize The text to summarize.
- * @return array The prompt messages.
- */
-#[McpPrompt(name: 'summarize')]
-public function generateSummaryPrompt(string $textToSummarize): array
-{
-    return [
-        ['role' => 'user', 'content' => "Summarize the following text:\n\n{$textToSummarize}"],
-    ];
-}
-
-/**
- * An invokable class generating a summary prompt.
- */
-#[McpPrompt(name: 'summarize_invokable')]
-class SummarizePrompt {
-     /**
-     * Generates a prompt to summarize text.
-     * @param string $textToSummarize The text to summarize.
-     * @return array The prompt messages.
+    /**
+     * Get user profile by ID.
      */
-    public function __invoke(string $textToSummarize): array {
+    #[McpResourceTemplate(
+        uriTemplate: 'user://{userId}/profile',
+        mimeType: 'application/json'
+    )]
+    public function getUserProfile(string $userId): array
+    {
+        return ['id' => $userId, 'name' => 'John Doe'];
+    }
+
+    /**
+     * Generate welcome message prompt.
+     */
+    #[McpPrompt(name: 'welcome_user')]
+    public function welcomeUserPrompt(string $username, string $role): array
+    {
         return [
-            ['role' => 'user', 'content' => "[Invokable] Summarize:
-
-{$textToSummarize}"],
+            ['role' => 'user', 'content' => "Create a welcome message for {$username} with role {$role}"]
         ];
     }
 }
 ```
 
-## Error Handling
+**Discovery Process:**
 
-The server uses specific exceptions inheriting from `PhpMcp\Server\Exception\McpServerException`. The `Protocol` catches these and `Throwable` during message processing, converting them to appropriate JSON-RPC error responses. Transport-level errors are emitted via the transport's `error` event.
+```php
+// Build server first
+$server = Server::make()
+    ->withServerInfo('My App Server', '1.0.0')
+    ->build();
 
-## Examples
-
-See the [`examples/`](./examples/) directory:
-
-*   **`01-discovery-stdio-calculator/`**: Basic `stdio` server demonstrating attribute discovery for a simple calculator.
-*   **`02-discovery-http-userprofile/`**: `http+sse` server using discovery for a user profile service.
-*   **`03-manual-registration-stdio/`**: `stdio` server showcasing only manual element registration.
-*   **`04-combined-registration-http/`**: `http+sse` server combining manual and discovered elements, demonstrating precedence.
-*   **`05-stdio-env-variables/`**: `stdio` server with a tool that uses environment variables passed by the MCP client.
-*   **`06-custom-dependencies-stdio/`**: `stdio` server showing DI container usage for injecting services into MCP handlers (Task Manager example).
-*   **`07-complex-tool-schema-http/`**: `http+sse` server with a tool demonstrating complex input schemas (optionals, defaults, enums).
-
-## Testing
-
-```bash
-composer install --dev
-composer test
-composer test:coverage # Requires Xdebug
+// Then discover elements
+$server->discover(
+    basePath: __DIR__,
+    scanDirs: ['src/Handlers', 'src/Services'],  // Directories to scan
+    excludeDirs: ['src/Tests'],                  // Directories to skip
+    saveToCache: true                            // Cache results (default: true)
+);
 ```
 
-## Contributing
+**Available Attributes:**
 
-Please see [CONTRIBUTING.md](CONTRIBUTING.md).
+- **`#[McpTool]`**: Executable actions
+- **`#[McpResource]`**: Static content accessible via URI
+- **`#[McpResourceTemplate]`**: Dynamic resources with URI templates  
+- **`#[McpPrompt]`**: Conversation templates and prompt generators
 
-## License
+### 2. 🔧 Manual Registration 
 
-The MIT License (MIT). See [LICENSE](LICENSE).
+Register elements programmatically using the `ServerBuilder` before calling `build()`. Useful for dynamic registration or when you prefer explicit control.
+
+```php
+use App\Handlers\{EmailHandler, ConfigHandler, UserHandler, PromptHandler};
+use PhpMcp\Schema\{ToolAnnotations, Annotations};
+
+$server = Server::make()
+    ->withServerInfo('Manual Registration Server', '1.0.0')
+    
+    // Register a tool with handler method
+    ->withTool(
+        [EmailHandler::class, 'sendEmail'],     // Handler: [class, method]
+        name: 'send_email',                     // Tool name (optional)
+        description: 'Send email to user',     // Description (optional)
+        annotations: ToolAnnotations::make(     // Annotations (optional)
+            title: 'Send Email Tool'
+        )
+    )
+    
+    // Register invokable class as tool
+    ->withTool(UserHandler::class)             // Handler: Invokable class
+    
+    // Register a resource
+    ->withResource(
+        [ConfigHandler::class, 'getConfig'],
+        uri: 'config://app/settings',          // URI (required)
+        mimeType: 'application/json'           // MIME type (optional)
+    )
+    
+    // Register a resource template
+    ->withResourceTemplate(
+        [UserHandler::class, 'getUserProfile'],
+        uriTemplate: 'user://{userId}/profile'  // URI template (required)
+    )
+    
+    // Register a prompt
+    ->withPrompt(
+        [PromptHandler::class, 'generateSummary'],
+        name: 'summarize_text'                  // Prompt name (optional)
+    )
+    
+    ->build();
+```
+
+**Key Features:**
+
+- **Handler Formats**: Use `[ClassName::class, 'methodName']` or `InvokableClass::class`
+- **Dependency Injection**: Handlers resolved via configured PSR-11 container
+- **Immediate Registration**: Elements registered when `build()` is called
+- **No Caching**: Manual elements are never cached (always fresh)
+- **Precedence**: Manual registrations override discovered elements with same identifier
+
+### 🏆 Element Precedence & Discovery
+
+**Precedence Rules:**
+- Manual registrations **always** override discovered/cached elements with the same identifier
+- Discovered elements are cached for performance (configurable)
+- Cache is automatically invalidated on fresh discovery runs
+
+**Discovery Process:**
+
+```php
+$server->discover(
+    basePath: __DIR__,
+    scanDirs: ['src/Handlers', 'src/Services'],  // Scan these directories
+    excludeDirs: ['tests', 'vendor'],            // Skip these directories
+    force: false,                                // Force re-scan (default: false)
+    saveToCache: true                            // Save to cache (default: true)
+);
+```
+
+**Caching Behavior:**
+- Only **discovered** elements are cached (never manual registrations)
+- Cache loaded automatically during `build()` if available
+- Fresh `discover()` calls clear and rebuild cache
+- Use `force: true` to bypass discovery-already-ran check
+
+## 🚀 Running the Server (Transports)
+
+The server core is transport-agnostic. Choose a transport based on your deployment needs:
+
+### 1. 📟 Stdio Transport
+
+**Best for**: Direct client execution, command-line tools, simple deployments
+
+```php
+use PhpMcp\Server\Transports\StdioServerTransport;
+
+$server = Server::make()
+    ->withServerInfo('Stdio Server', '1.0.0')
+    ->build();
+
+$server->discover(__DIR__, ['src']);
+
+// Create stdio transport (uses STDIN/STDOUT by default)
+$transport = new StdioServerTransport();
+
+// Start listening (blocking call)
+$server->listen($transport);
+```
+
+**Client Configuration:**
+```json
+{
+    "mcpServers": {
+        "my-php-server": {
+            "command": "php",
+            "args": ["/absolute/path/to/server.php"]
+        }
+    }
+}
+```
+
+> ⚠️ **Important**: When using stdio transport, **never** write to `STDOUT` in your handlers (use `STDERR` for debugging). `STDOUT` is reserved for JSON-RPC communication.
+
+### 2. 🌐 HTTP + Server-Sent Events Transport (Deprecated)
+
+> ⚠️ **Note**: This transport is deprecated in the latest MCP protocol version but remains available for backwards compatibility. For new projects, use the [StreamableHttpServerTransport](#3--streamable-http-transport-new) which provides enhanced features and better protocol compliance.
+
+**Best for**: Legacy applications requiring backwards compatibility
+
+```php
+use PhpMcp\Server\Transports\HttpServerTransport;
+
+$server = Server::make()
+    ->withServerInfo('HTTP Server', '1.0.0')
+    ->withLogger($logger)  // Recommended for HTTP
+    ->build();
+
+$server->discover(__DIR__, ['src']);
+
+// Create HTTP transport
+$transport = new HttpServerTransport(
+    host: '127.0.0.1',      // MCP protocol prohibits 0.0.0.0
+    port: 8080,             // Port number
+    mcpPathPrefix: 'mcp'    // URL prefix (/mcp/sse, /mcp/message)
+);
+
+$server->listen($transport);
+```
+
+**Client Configuration:**
+```json
+{
+    "mcpServers": {
+        "my-http-server": {
+            "url": "http://localhost:8080/mcp/sse"
+        }
+    }
+}
+```
+
+**Endpoints:**
+- **SSE Connection**: `GET /mcp/sse`
+- **Message Sending**: `POST /mcp/message?clientId={clientId}`
+
+### 3. 🔄 Streamable HTTP Transport (Recommended)
+
+**Best for**: Production deployments, remote MCP servers, multiple clients, resumable connections
+
+```php
+use PhpMcp\Server\Transports\StreamableHttpServerTransport;
+
+$server = Server::make()
+    ->withServerInfo('Streamable Server', '1.0.0')
+    ->withLogger($logger)
+    ->withCache($cache)     // Required for resumability
+    ->build();
+
+$server->discover(__DIR__, ['src']);
+
+// Create streamable transport with resumability
+$transport = new StreamableHttpServerTransport(
+    host: '127.0.0.1',      // MCP protocol prohibits 0.0.0.0
+    port: 8080,
+    mcpPathPrefix: 'mcp',
+    enableJsonResponse: false  // Use SSE streaming (default)
+);
+
+$server->listen($transport);
+```
+
+**JSON Response Mode:**
+
+The `enableJsonResponse` option controls how responses are delivered:
+
+- **`false` (default)**: Uses Server-Sent Events (SSE) streams for responses. Best for tools that may take time to process.
+- **`true`**: Returns immediate JSON responses without opening SSE streams. Use this when your tools execute quickly and don't need streaming.
+
+```php
+// For fast-executing tools, enable JSON mode
+$transport = new StreamableHttpServerTransport(
+    host: '127.0.0.1',
+    port: 8080,
+    enableJsonResponse: true  // Immediate JSON responses
+);
+```
+
+**Features:**
+- **Resumable connections** - clients can reconnect and replay missed events
+- **Event sourcing** - all events are stored for replay
+- **JSON mode** - optional JSON-only responses for fast tools
+- **Enhanced session management** - persistent session state
+- **Multiple client support** - designed for concurrent clients
+
+## 📋 Schema Generation and Validation
+
+The server automatically generates JSON schemas for tool parameters using a sophisticated priority system that combines PHP type hints, docblock information, and the optional `#[Schema]` attribute. These generated schemas are used both for input validation and for providing schema information to MCP clients.
+
+### Schema Generation Priority
+
+The server follows this order of precedence when generating schemas:
+
+1. **`#[Schema]` attribute with `definition`** - Complete schema override (highest precedence)
+2. **Parameter-level `#[Schema]` attribute** - Parameter-specific schema enhancements
+3. **Method-level `#[Schema]` attribute** - Method-wide schema configuration
+4. **PHP type hints + docblocks** - Automatic inference from code (lowest precedence)
+
+When a `definition` is provided in the Schema attribute, all automatic inference is bypassed and the complete definition is used as-is.
+
+### Parameter-Level Schema Attributes
+
+```php
+use PhpMcp\Server\Attributes\{McpTool, Schema};
+
+#[McpTool(name: 'validate_user')]
+public function validateUser(
+    #[Schema(format: 'email')]              // PHP already knows it's string
+    string $email,
+    
+    #[Schema(
+        pattern: '^[A-Z][a-z]+$',
+        description: 'Capitalized name'
+    )]
+    string $name,
+    
+    #[Schema(minimum: 18, maximum: 120)]    // PHP already knows it's integer
+    int $age
+): bool {
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+}
+```
+
+### Method-Level Schema
+
+```php
+/**
+ * Process user data with nested validation.
+ */
+#[McpTool(name: 'create_user')]
+#[Schema(
+    properties: [
+        'profile' => [
+            'type' => 'object',
+            'properties' => [
+                'name' => ['type' => 'string', 'minLength' => 2],
+                'age' => ['type' => 'integer', 'minimum' => 18],
+                'email' => ['type' => 'string', 'format' => 'email']
+            ],
+            'required' => ['name', 'email']
+        ]
+    ],
+    required: ['profile']
+)]
+public function createUser(array $userData): array
+{
+    // PHP type hint provides base 'array' type
+    // Method-level Schema adds object structure validation
+    return ['id' => 123, 'status' => 'created'];
+}
+```
+
+### Complete Schema Override (Method-Level Only)
+
+```php
+#[McpTool(name: 'process_api_request')]
+#[Schema(definition: [
+    'type' => 'object',
+    'properties' => [
+        'endpoint' => ['type' => 'string', 'format' => 'uri'],
+        'method' => ['type' => 'string', 'enum' => ['GET', 'POST', 'PUT', 'DELETE']],
+        'headers' => [
+            'type' => 'object',
+            'patternProperties' => [
+                '^[A-Za-z0-9-]+$' => ['type' => 'string']
+            ]
+        ]
+    ],
+    'required' => ['endpoint', 'method']
+])]
+public function processApiRequest(string $endpoint, string $method, array $headers): array
+{
+    // PHP type hints are completely ignored when definition is provided
+    // The schema definition above takes full precedence
+    return ['status' => 'processed', 'endpoint' => $endpoint];
+}
+```
+
+> ⚠️ **Important**: Complete schema definition override should rarely be used. It bypasses all automatic schema inference and requires you to define the entire JSON schema manually. Only use this if you're well-versed with JSON Schema specification and have complex validation requirements that cannot be achieved through the priority system. In most cases, parameter-level and method-level `#[Schema]` attributes provide sufficient flexibility.
+
+## 🎨 Return Value Formatting
+
+The server automatically formats return values from your handlers into appropriate MCP content types:
+
+### Automatic Formatting
+
+```php
+// Simple values are auto-wrapped in TextContent
+public function getString(): string { return "Hello World"; }           // → TextContent
+public function getNumber(): int { return 42; }                        // → TextContent  
+public function getBool(): bool { return true; }                       // → TextContent
+public function getArray(): array { return ['key' => 'value']; }       // → TextContent (JSON)
+
+// Null handling
+public function getNull(): ?string { return null; }                    // → TextContent("(null)")
+public function returnVoid(): void { /* no return */ }                 // → Empty content
+```
+
+### Advanced Content Types
+
+```php
+use PhpMcp\Schema\Content\{TextContent, ImageContent, AudioContent, ResourceContent};
+
+public function getFormattedCode(): TextContent
+{
+    return TextContent::code('<?php echo "Hello";', 'php');
+}
+
+public function getMarkdown(): TextContent  
+{
+    return TextContent::make('# Title\n\nContent here');
+}
+
+public function getImage(): ImageContent
+{
+    return ImageContent::make(
+        data: base64_encode(file_get_contents('image.png')),
+        mimeType: 'image/png'
+    );
+}
+
+public function getAudio(): AudioContent
+{
+    return AudioContent::make(
+        data: base64_encode(file_get_contents('audio.mp3')),
+        mimeType: 'audio/mpeg'
+    );
+}
+```
+
+### File and Stream Handling
+
+```php
+// File objects are automatically read and formatted
+public function getFileContent(): \SplFileInfo
+{
+    return new \SplFileInfo('/path/to/file.txt');  // Auto-detects MIME type
+}
+
+// Stream resources are read completely
+public function getStreamContent()
+{
+    $stream = fopen('/path/to/data.json', 'r');
+    return $stream;  // Will be read and closed automatically
+}
+
+// Structured resource responses
+public function getStructuredResource(): array
+{
+    return [
+        'text' => 'File content here',
+        'mimeType' => 'text/plain'
+    ];
+    
+    // Or for binary data:
+    // return [
+    //     'blob' => base64_encode($binaryData),
+    //     'mimeType' => 'application/octet-stream'
+    // ];
+}
+```
+
+## 🔄 Batch Processing
+
+The server automatically handles JSON-RPC batch requests:
+
+```php
+// Client can send multiple requests in a single HTTP call:
+[
+    {"jsonrpc": "2.0", "id": "1", "method": "tools/call", "params": {...}},
+    {"jsonrpc": "2.0", "method": "notifications/ping"},              // notification
+    {"jsonrpc": "2.0", "id": "2", "method": "tools/call", "params": {...}}
+]
+
+// Server returns batch response (excluding notifications):
+[
+    {"jsonrpc": "2.0", "id": "1", "result": {...}},
+    {"jsonrpc": "2.0", "id": "2", "result": {...}}
+]
+```
+
+## 🔧 Advanced Features
+
+### Completion Providers
+
+Completion providers enable MCP clients to offer auto-completion suggestions in their user interfaces. They are specifically designed for **Resource Templates** and **Prompts** to help users discover available options for dynamic parts like template variables or prompt arguments.
+
+> **Note**: Tools and resources can be discovered via standard MCP commands (`tools/list`, `resources/list`), so completion providers are not needed for them. Completion providers are used only for resource templates (URI variables) and prompt arguments.
+
+Completion providers must implement the `CompletionProviderInterface`:
+
+```php
+use PhpMcp\Server\Contracts\CompletionProviderInterface;
+use PhpMcp\Server\Contracts\SessionInterface;
+use PhpMcp\Server\Attributes\{McpResourceTemplate, CompletionProvider};
+
+class UserIdCompletionProvider implements CompletionProviderInterface
+{
+    public function getCompletions(string $currentValue, SessionInterface $session): array
+    {
+        // Return completion suggestions based on current input
+        $allUsers = ['user_1', 'user_2', 'user_3', 'admin_user'];
+        
+        // Filter based on what user has typed so far
+        return array_filter($allUsers, fn($user) => str_starts_with($user, $currentValue));
+    }
+}
+
+class UserService
+{
+    #[McpResourceTemplate(uriTemplate: 'user://{userId}/profile')]
+    public function getUserProfile(
+        #[CompletionProvider(UserIdCompletionProvider::class)]
+        string $userId
+    ): array {
+        // Always validate input even with completion providers
+        // Users can still pass any value regardless of completion suggestions
+        if (!$this->isValidUserId($userId)) {
+            throw new \InvalidArgumentException('Invalid user ID provided');
+        }
+        
+        return ['id' => $userId, 'name' => 'John Doe'];
+    }
+}
+```
+
+> **Important**: Completion providers only offer suggestions to users in the MCP client interface. Users can still input any value, so always validate parameters in your handlers regardless of completion provider constraints.
+
+### Custom Dependency Injection
+
+Your MCP element handlers can use constructor dependency injection to access services like databases, APIs, or other business logic. When handlers have constructor dependencies, you must provide a pre-configured PSR-11 container that contains those dependencies.
+
+By default, the server uses a `BasicContainer` - a simple implementation that attempts to auto-wire dependencies by instantiating classes with parameterless constructors. For dependencies that require configuration (like database connections), you can either manually add them to the BasicContainer or use a more advanced PSR-11 container like PHP-DI or Laravel's container.
+
+```php
+use Psr\Container\ContainerInterface;
+
+class DatabaseService
+{
+    public function __construct(private \PDO $pdo) {}
+    
+    #[McpTool(name: 'query_users')]
+    public function queryUsers(): array
+    {
+        $stmt = $this->pdo->query('SELECT * FROM users');
+        return $stmt->fetchAll();
+    }
+}
+
+// Option 1: Use the basic container and manually add dependencies
+$basicContainer = new \PhpMcp\Server\Defaults\BasicContainer();
+$basicContainer->set(\PDO::class, new \PDO('sqlite::memory:'));
+
+// Option 2: Use any PSR-11 compatible container (PHP-DI, Laravel, etc.)
+$container = new \DI\Container();
+$container->set(\PDO::class, new \PDO('mysql:host=localhost;dbname=app', $user, $pass));
+
+$server = Server::make()
+    ->withContainer($basicContainer)  // Handlers get dependencies auto-injected
+    ->build();
+```
+
+### Resource Subscriptions
+
+```php
+use PhpMcp\Schema\ServerCapabilities;
+
+$server = Server::make()
+    ->withCapabilities(ServerCapabilities::make(
+        resourcesSubscribe: true,  // Enable resource subscriptions
+        prompts: true,
+        tools: true
+    ))
+    ->build();
+
+// In your resource handler, you can notify clients of changes:
+#[McpResource(uri: 'file://config.json')]
+public function getConfig(): array
+{
+    // When config changes, notify subscribers
+    $this->notifyResourceChange('file://config.json');
+    return ['setting' => 'value'];
+}
+```
+
+### Resumability and Event Store
+
+For production deployments using `StreamableHttpServerTransport`, you can implement resumability with event sourcing by providing a custom event store:
+
+```php
+use PhpMcp\Server\Contracts\EventStoreInterface;
+use PhpMcp\Server\Defaults\InMemoryEventStore;
+use PhpMcp\Server\Transports\StreamableHttpServerTransport;
+
+// Use the built-in in-memory event store (for development/testing)
+$eventStore = new InMemoryEventStore();
+
+// Or implement your own persistent event store
+class DatabaseEventStore implements EventStoreInterface
+{
+    public function storeEvent(string $streamId, string $message): string
+    {
+        // Store event in database and return unique event ID
+        return $this->database->insert('events', [
+            'stream_id' => $streamId,
+            'message' => $message,
+            'created_at' => now()
+        ]);
+    }
+
+    public function replayEventsAfter(string $lastEventId, callable $sendCallback): void
+    {
+        // Replay events for resumability
+        $events = $this->database->getEventsAfter($lastEventId);
+        foreach ($events as $event) {
+            $sendCallback($event['id'], $event['message']);
+        }
+    }
+}
+
+// Configure transport with event store
+$transport = new StreamableHttpServerTransport(
+    host: '127.0.0.1',
+    port: 8080,
+    eventStore: new DatabaseEventStore()  // Enable resumability
+);
+```
+
+### Custom Session Handlers
+
+Implement custom session storage by creating a class that implements `SessionHandlerInterface`:
+
+```php
+use PhpMcp\Server\Contracts\SessionHandlerInterface;
+
+class DatabaseSessionHandler implements SessionHandlerInterface
+{
+    public function __construct(private \PDO $db) {}
+
+    public function read(string $id): string|false
+    {
+        $stmt = $this->db->prepare('SELECT data FROM sessions WHERE id = ?');
+        $stmt->execute([$id]);
+        $session = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $session ? $session['data'] : false;
+    }
+
+    public function write(string $id, string $data): bool
+    {
+        $stmt = $this->db->prepare(
+            'INSERT OR REPLACE INTO sessions (id, data, updated_at) VALUES (?, ?, ?)'
+        );
+        return $stmt->execute([$id, $data, time()]);
+    }
+
+    public function destroy(string $id): bool
+    {
+        $stmt = $this->db->prepare('DELETE FROM sessions WHERE id = ?');
+        return $stmt->execute([$id]);
+    }
+
+    public function gc(int $maxLifetime): array
+    {
+        $cutoff = time() - $maxLifetime;
+        $stmt = $this->db->prepare('DELETE FROM sessions WHERE updated_at < ?');
+        $stmt->execute([$cutoff]);
+        return []; // Return array of cleaned session IDs if needed
+    }
+}
+
+// Use custom session handler
+$server = Server::make()
+    ->withSessionHandler(new DatabaseSessionHandler(), 3600)
+    ->build();
+```
+
+### SSL Context Configuration
+
+For HTTPS deployments of `StreamableHttpServerTransport`, configure SSL context options:
+
+```php
+$sslContext = [
+    'ssl' => [
+        'local_cert' => '/path/to/certificate.pem',
+        'local_pk' => '/path/to/private-key.pem',
+        'verify_peer' => false,
+        'allow_self_signed' => true,
+    ]
+];
+
+$transport = new StreamableHttpServerTransport(
+    host: '0.0.0.0',
+    port: 8443,
+    sslContext: $sslContext
+);
+```
+
+> **SSL Context Reference**: For complete SSL context options, see the [PHP SSL Context Options documentation](https://www.php.net/manual/en/context.ssl.php).
+## 🔍 Error Handling & Debugging
+
+The server provides comprehensive error handling and debugging capabilities:
+
+### Exception Handling
+
+Tool handlers can throw any PHP exception when errors occur. The server automatically converts these exceptions into proper JSON-RPC error responses for MCP clients.
+
+```php
+#[McpTool(name: 'divide_numbers')]
+public function divideNumbers(float $dividend, float $divisor): float
+{
+    if ($divisor === 0.0) {
+        // Any exception with descriptive message will be sent to client
+        throw new \InvalidArgumentException('Division by zero is not allowed');
+    }
+    
+    return $dividend / $divisor;
+}
+
+#[McpTool(name: 'calculate_factorial')]
+public function calculateFactorial(int $number): int
+{
+    if ($number < 0) {
+        throw new \InvalidArgumentException('Factorial is not defined for negative numbers');
+    }
+    
+    if ($number > 20) {
+        throw new \OverflowException('Number too large, factorial would cause overflow');
+    }
+    
+    // Implementation continues...
+    return $this->factorial($number);
+}
+```
+
+The server will convert these exceptions into appropriate JSON-RPC error responses that MCP clients can understand and display to users.
+
+### Logging and Debugging
+
+```php
+use Psr\Log\LoggerInterface;
+
+class DebugAwareHandler
+{
+    public function __construct(private LoggerInterface $logger) {}
+    
+    #[McpTool(name: 'debug_tool')]
+    public function debugTool(string $data): array
+    {
+        $this->logger->info('Processing debug tool', ['input' => $data]);
+        
+        // For stdio transport, use STDERR for debug output
+        fwrite(STDERR, "Debug: Processing data length: " . strlen($data) . "\n");
+        
+        return ['processed' => true];
+    }
+}
+```
+
+## 🚀 Production Deployment
+
+Since `$server->listen()` runs a persistent process, you can deploy it using any strategy that suits your infrastructure needs. The server can be deployed on VPS, cloud instances, containers, or any environment that supports long-running processes.
+
+Here are two popular deployment approaches to consider:
+
+### Option 1: VPS with Supervisor + Nginx (Recommended)
+
+**Best for**: Most production deployments, cost-effective, full control
+
+```bash
+# 1. Install your application on VPS
+git clone https://github.com/yourorg/your-mcp-server.git /var/www/mcp-server
+cd /var/www/mcp-server
+composer install --no-dev --optimize-autoloader
+
+# 2. Install Supervisor
+sudo apt-get install supervisor
+
+# 3. Create Supervisor configuration
+sudo nano /etc/supervisor/conf.d/mcp-server.conf
+```
+
+**Supervisor Configuration:**
+```ini
+[program:mcp-server]
+process_name=%(program_name)s_%(process_num)02d
+command=php /var/www/mcp-server/server.php --transport=http --host=127.0.0.1 --port=8080
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=/var/log/mcp-server.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=3
+```
+
+**Nginx Configuration with SSL:**
+```nginx
+# /etc/nginx/sites-available/mcp-server
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name mcp.yourdomain.com;
+
+    # SSL configuration
+    ssl_certificate /etc/letsencrypt/live/mcp.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mcp.yourdomain.com/privkey.pem;
+    
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # MCP Server proxy
+    location / {
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Important for SSE connections
+        proxy_buffering off;
+        proxy_cache off;
+        
+        proxy_pass http://127.0.0.1:8080/;
+    }
+}
+
+# Redirect HTTP to HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name mcp.yourdomain.com;
+    return 301 https://$server_name$request_uri;
+}
+```
+
+**Start Services:**
+```bash
+# Enable and start supervisor
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start mcp-server:*
+
+# Enable and start nginx
+sudo systemctl enable nginx
+sudo systemctl restart nginx
+
+# Check status
+sudo supervisorctl status
+```
+
+**Client Configuration:**
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "url": "https://mcp.yourdomain.com/mcp"
+    }
+  }
+}
+```
+
+### Option 2: Docker Deployment
+
+**Best for**: Containerized environments, Kubernetes, cloud platforms
+
+**Production Dockerfile:**
+```dockerfile
+FROM php:8.3-fpm-alpine
+
+# Install system dependencies
+RUN apk --no-cache add \
+    nginx \
+    supervisor \
+    && docker-php-ext-enable opcache
+
+# Install PHP extensions for MCP
+RUN docker-php-ext-install pdo_mysql pdo_sqlite opcache
+
+# Create application directory
+WORKDIR /var/www/mcp
+
+# Copy application code
+COPY . /var/www/mcp
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+COPY docker/supervisord.conf /etc/supervisord.conf
+COPY docker/php.ini /usr/local/etc/php/conf.d/production.ini
+
+# Install Composer dependencies
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Set permissions
+RUN chown -R www-data:www-data /var/www/mcp
+
+# Expose port
+EXPOSE 80
+
+# Start supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+```
+
+**docker-compose.yml:**
+```yaml
+services:
+  mcp-server:
+    build: .
+    ports:
+      - "8080:80"
+    environment:
+      - MCP_ENV=production
+      - MCP_LOG_LEVEL=info
+    volumes:
+      - ./storage:/var/www/mcp/storage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional: Add database if needed
+  database:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: secure_password
+      MYSQL_DATABASE: mcp_server
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+```
+
+### Security Best Practices
+
+1. **Firewall Configuration:**
+```bash
+# Only allow necessary ports
+sudo ufw allow ssh
+sudo ufw allow 80
+sudo ufw allow 443
+sudo ufw deny 8080  # MCP port should not be publicly accessible
+sudo ufw enable
+```
+
+2. **SSL/TLS Setup:**
+```bash
+# Install Certbot for Let's Encrypt
+sudo apt install certbot python3-certbot-nginx
+
+# Generate SSL certificate
+sudo certbot --nginx -d mcp.yourdomain.com
+```
+
+## 📚 Examples & Use Cases
+
+Explore comprehensive examples in the [`examples/`](./examples/) directory:
+
+### Available Examples
+
+- **`01-discovery-stdio-calculator/`** - Basic stdio calculator with attribute discovery
+- **`02-discovery-http-userprofile/`** - HTTP server with user profile management  
+- **`03-manual-registration-stdio/`** - Manual element registration patterns
+- **`04-combined-registration-http/`** - Combining manual and discovered elements
+- **`05-stdio-env-variables/`** - Environment variable handling
+- **`06-custom-dependencies-stdio/`** - Dependency injection with task management
+- **`07-complex-tool-schema-http/`** - Advanced schema validation examples
+- **`08-schema-showcase-streamable/`** - Comprehensive schema feature showcase
+
+### Running Examples
+
+```bash
+# Navigate to an example directory
+cd examples/01-discovery-stdio-calculator/
+
+# Make the server executable
+chmod +x server.php
+
+# Run the server (or configure it in your MCP client)
+./server.php
+```
+
+## 🚧 Migration from v2.x
+
+If migrating from version 2.x, note these key changes:
+
+### Schema Updates
+- Uses `php-mcp/schema` package for DTOs instead of internal classes
+- Content types moved to `PhpMcp\Schema\Content\*` namespace
+- Updated method signatures for better type safety
+
+### Session Management
+- New session management with multiple backends
+- Use `->withSession()` or `->withSessionHandler()` for configuration
+- Sessions are now persistent across reconnections (with cache backend)
+
+### Transport Changes
+- New `StreamableHttpServerTransport` with resumability
+- Enhanced error handling and event sourcing
+- Better batch request processing
+
+## 🧪 Testing
+
+```bash
+# Install development dependencies
+composer install --dev
+
+# Run the test suite
+composer test
+
+# Run tests with coverage (requires Xdebug)
+composer test:coverage
+
+# Run code style checks
+composer lint
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## 📄 License
+
+The MIT License (MIT). See [LICENSE](LICENSE) for details.
+
+## 🙏 Acknowledgments
+
+- Built on the [Model Context Protocol](https://modelcontextprotocol.io/) specification
+- Powered by [ReactPHP](https://reactphp.org/) for async operations
+- Uses [PSR standards](https://www.php-fig.org/) for maximum interoperability
+
+---
+
+**Ready to build powerful MCP servers with PHP?** Start with our [Quick Start](#-quick-start-stdio-server-with-discovery) guide! 🚀
 
