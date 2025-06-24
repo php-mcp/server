@@ -233,7 +233,7 @@ test('handles empty data object against schema requiring properties', function (
     $errors = $this->validator->validateAgainstJsonSchema($data, $schema);
 
     expect($errors)->not->toBeEmpty()
-        ->and($errors[0]['keyword'])->toBe('type');
+        ->and($errors[0]['keyword'])->toBe('required');
 });
 
 test('handles empty schema (allows anything)', function () {
