@@ -2,6 +2,14 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v3.0.1 - 2025-06-24
+
+### What's Changed
+
+* Fix validation failure for MCP tools without parameters by @CodeWithKyrian in https://github.com/php-mcp/server/pull/28
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/3.0.0...3.0.1
+
 ## v3.0.0 - 2025-06-21
 
 This release brings support for the latest MCP protocol version along with enhanced schema generation, new transport capabilities, and streamlined APIs.
@@ -49,6 +57,7 @@ This release brings support for the latest MCP protocol version along with enhan
     resourceSubscribe: true
 ))
 
+
 ```
 **After:**
 
@@ -60,6 +69,7 @@ This release brings support for the latest MCP protocol version along with enhan
     resourcesSubscribe: true
 ))
 
+
 ```
 #### Transport Upgrade (Optional)
 
@@ -70,11 +80,13 @@ For production HTTP deployments, consider upgrading to the new `StreamableHttpSe
 ```php
 $transport = new HttpServerTransport(host: '127.0.0.1', port: 8080);
 
+
 ```
 **After:**
 
 ```php
 $transport = new StreamableHttpServerTransport(host: '127.0.0.1',  port: 8080);
+
 
 ```
 ### 📚 Documentation
@@ -246,6 +258,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
    
