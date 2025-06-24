@@ -32,6 +32,10 @@ class SchemaValidator
      */
     public function validateAgainstJsonSchema(mixed $data, array|object $schema): array
     {
+        if (is_array($data) && empty($data)) {
+            $data = new \stdClass();
+        }
+
         try {
             // --- Schema Preparation ---
             if (is_array($schema)) {
@@ -192,7 +196,7 @@ class SchemaValidator
         switch (strtolower($keyword)) {
             case 'required':
                 $missing = $args['missing'] ?? [];
-                $formattedMissing = implode(', ', array_map(fn ($p) => "`{$p}`", $missing));
+                $formattedMissing = implode(', ', array_map(fn($p) => "`{$p}`", $missing));
                 $message = "Missing required properties: {$formattedMissing}.";
                 break;
             case 'type':
@@ -286,7 +290,7 @@ class SchemaValidator
                 break;
             case 'additionalProperties': // Corrected casing
                 $unexpected = $args['properties'] ?? [];
-                $formattedUnexpected = implode(', ', array_map(fn ($p) => "`{$p}`", $unexpected));
+                $formattedUnexpected = implode(', ', array_map(fn($p) => "`{$p}`", $unexpected));
                 $message = "Object contains unexpected additional properties: {$formattedUnexpected}.";
                 break;
             case 'format':

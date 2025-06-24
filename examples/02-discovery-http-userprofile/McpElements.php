@@ -99,6 +99,12 @@ class McpElements
         return ['success' => true, 'message_sent' => $message];
     }
 
+    #[McpTool(name: 'test_tool_without_params')]
+    public function testToolWithoutParams()
+    {
+        return ['success' => true, 'message' => 'Test tool without params'];
+    }
+
     /**
      * Generates a prompt to write a bio for a user.
      *
