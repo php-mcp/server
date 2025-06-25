@@ -132,8 +132,9 @@ class Dispatcher
 
         $serverInfo = $this->configuration->serverInfo;
         $capabilities = $this->configuration->capabilities;
+        $instructions = $this->configuration->instructions;
 
-        return new InitializeResult($protocolVersion, $capabilities, $serverInfo);
+        return new InitializeResult($protocolVersion, $capabilities, $serverInfo, $instructions);
     }
 
     public function handlePing(PingRequest $request): EmptyResult
