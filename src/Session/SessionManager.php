@@ -38,19 +38,24 @@ class SessionManager implements EventEmitterInterface
             return;
         }
 
-        $this->gcTimer = $this->loop->addPeriodicTimer($this->gcInterval, function () {
-            $deletedSessions = $this->handler->gc($this->ttl);
+        $this->gcTimer = $this->loop->addPeriodicTimer($this->gcInterval, [$this, 'gc']);
+    }
 
-            foreach ($deletedSessions as $sessionId) {
-                $this->emit('session_deleted', [$sessionId]);
-            }
+    public function gc(): array
+    {
+        $deletedSessions = $this->handler->gc($this->ttl);
 
-            if (count($deletedSessions) > 0) {
-                $this->logger->debug('Session garbage collection complete', [
-                    'purged_sessions' => count($deletedSessions),
-                ]);
-            }
-        });
+        foreach ($deletedSessions as $sessionId) {
+            $this->emit('session_deleted', [$sessionId]);
+        }
+
+        if (count($deletedSessions) > 0) {
+            $this->logger->debug('Session garbage collection complete', [
+                'purged_sessions' => count($deletedSessions),
+            ]);
+        }
+
+        return $deletedSessions;
     }
 
     /**
@@ -93,13 +98,7 @@ class SessionManager implements EventEmitterInterface
      */
     public function getSession(string $sessionId): ?SessionInterface
     {
-        $session = new Session($this->handler, $sessionId);
-
-        if (empty($session->all())) {
-            return null;
-        }
-
-        return $session;
+        return Session::make($sessionId, $this->handler);
     }
 
     /**

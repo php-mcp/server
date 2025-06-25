@@ -25,20 +25,47 @@ class Session implements SessionInterface
 
     public function __construct(
         protected SessionHandlerInterface $handler,
-        protected string $id = ''
+        protected string $id = '',
+        ?array $data = null
     ) {
         if (empty($this->id)) {
             $this->id = $this->generateId();
         }
 
-        if ($data = $this->handler->read($this->id)) {
-            $this->data = json_decode($data, true) ?? [];
+        if ($data !== null) {
+            $this->hydrate($data);
+        } elseif ($sessionData = $this->handler->read($this->id)) {
+            $this->data = json_decode($sessionData, true) ?? [];
         }
+    }
+
+    /**
+     * Create a session instance from handler or return null if session doesn't exist
+     */
+    public static function make(string $id, SessionHandlerInterface $handler): ?SessionInterface
+    {
+        $sessionData = $handler->read($id);
+
+        if (!$sessionData) {
+            return null;
+        }
+
+        $data = json_decode($sessionData, true);
+        if ($data === null) {
+            return null;
+        }
+
+        return new static($handler, $id, $data);
     }
 
     public function getId(): string
     {
         return $this->id;
+    }
+
+    public function getHandler(): SessionHandlerInterface
+    {
+        return $this->handler;
     }
 
     public function generateId(): string
