@@ -79,4 +79,11 @@ interface SessionInterface extends JsonSerializable
      * Check if there are any messages in the queue.
      */
     public function hasQueuedMessages(): bool;
+
+    /**
+     * Get the session handler instance.
+     *
+     * @return SessionHandlerInterface
+     */
+    public function getHandler(): SessionHandlerInterface;
 }

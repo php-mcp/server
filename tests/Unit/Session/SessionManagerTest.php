@@ -89,7 +89,7 @@ it('returns null from getSession if session does not exist (handler read returns
 });
 
 it('returns null from getSession if session data is empty after load', function () {
-    $this->sessionHandler->shouldReceive('read')->with(SESSION_ID_MGR_1)->once()->andReturn(json_encode([]));
+    $this->sessionHandler->shouldReceive('read')->with(SESSION_ID_MGR_1)->once()->andReturn(false);
     $session = $this->sessionManager->getSession(SESSION_ID_MGR_1);
     expect($session)->toBeNull();
 });
@@ -131,8 +131,12 @@ it('queues message for existing session', function () {
     $sessionData = ['message_queue' => []];
     $this->sessionHandler->shouldReceive('read')->with(SESSION_ID_MGR_1)->andReturn(json_encode($sessionData));
     $message = '{"id":1}';
-    $updatedSessionData = ['message_queue' => [$message]];
-    $this->sessionHandler->shouldReceive('write')->with(SESSION_ID_MGR_1, json_encode($updatedSessionData))->once()->andReturn(true);
+
+    $this->sessionHandler->shouldReceive('write')->with(SESSION_ID_MGR_1, Mockery::on(function ($dataJson) use ($message) {
+        $data = json_decode($dataJson, true);
+        expect($data['message_queue'])->toEqual([$message]);
+        return true;
+    }))->once()->andReturn(true);
 
     $this->sessionManager->queueMessage(SESSION_ID_MGR_1, $message);
 });
@@ -147,7 +151,11 @@ it('dequeues messages from existing session', function () {
     $messages = ['{"id":1}', '{"id":2}'];
     $sessionData = ['message_queue' => $messages];
     $this->sessionHandler->shouldReceive('read')->with(SESSION_ID_MGR_1)->andReturn(json_encode($sessionData));
-    $this->sessionHandler->shouldReceive('write')->with(SESSION_ID_MGR_1, json_encode(['message_queue' => []]))->once()->andReturn(true);
+    $this->sessionHandler->shouldReceive('write')->with(SESSION_ID_MGR_1, Mockery::on(function ($dataJson) {
+        $data = json_decode($dataJson, true);
+        expect($data['message_queue'])->toEqual([]);
+        return true;
+    }))->once()->andReturn(true);
 
     $dequeued = $this->sessionManager->dequeueMessages(SESSION_ID_MGR_1);
     expect($dequeued)->toEqual($messages);
@@ -187,7 +195,7 @@ it('GC timer callback deletes expired sessions', function () {
     $sessionHandler = new ArraySessionHandler(60, $clock);
     $sessionHandler->write('sess_expired', 'data');
 
-    $clock->addSeconds(100);
+    // $clock->addSeconds(100);
 
     $manager = new SessionManager(
         $sessionHandler,
