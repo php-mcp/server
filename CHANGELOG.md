@@ -2,6 +2,15 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v3.0.2 - 2025-06-25
+
+### What's Changed
+
+* fix: Registry cache clearing bug preventing effective caching by @CodeWithKyrian in https://github.com/php-mcp/server/pull/29
+* Fix ServerBuilder error handling for manual element registration by @CodeWithKyrian in https://github.com/php-mcp/server/pull/30
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/3.0.1...3.0.2
+
 ## v3.0.1 - 2025-06-24
 
 ### What's Changed
@@ -58,6 +67,7 @@ This release brings support for the latest MCP protocol version along with enhan
 ))
 
 
+
 ```
 **After:**
 
@@ -68,6 +78,7 @@ This release brings support for the latest MCP protocol version along with enhan
     tools: true,
     resourcesSubscribe: true
 ))
+
 
 
 ```
@@ -81,11 +92,13 @@ For production HTTP deployments, consider upgrading to the new `StreamableHttpSe
 $transport = new HttpServerTransport(host: '127.0.0.1', port: 8080);
 
 
+
 ```
 **After:**
 
 ```php
 $transport = new StreamableHttpServerTransport(host: '127.0.0.1',  port: 8080);
+
 
 
 ```
@@ -258,6 +271,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
    
