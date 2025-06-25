@@ -85,7 +85,7 @@ class Registry implements EventEmitterInterface
             return;
         }
 
-        $this->clear();
+        $this->clear(false);
 
         try {
             $cached = $this->cache->get(self::DISCOVERED_ELEMENTS_CACHE_KEY);
@@ -176,8 +176,6 @@ class Registry implements EventEmitterInterface
             $this->logger->debug("Loaded {$loadCount} elements from cache.");
         } catch (CacheInvalidArgumentException $e) {
             $this->logger->error('Invalid registry cache key used.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'exception' => $e]);
-        } catch (DefinitionException $e) {
-            $this->logger->error('Error hydrating definition from cache.', ['exception' => $e]);
         } catch (Throwable $e) {
             $this->logger->error('Unexpected error loading from cache.', ['key' => self::DISCOVERED_ELEMENTS_CACHE_KEY, 'exception' => $e]);
         }
@@ -351,9 +349,14 @@ class Registry implements EventEmitterInterface
             || ! empty($this->resourceTemplates);
     }
 
-    public function clear(): void
+    /**
+     * Clear discovered elements from registry
+     * 
+     * @param bool $includeCache Whether to clear the cache as well (default: true)
+     */
+    public function clear(bool $includeCache = true): void
     {
-        if ($this->cache !== null) {
+        if ($includeCache && $this->cache !== null) {
             try {
                 $this->cache->delete(self::DISCOVERED_ELEMENTS_CACHE_KEY);
                 $this->logger->debug('Registry cache cleared.');
@@ -438,24 +441,24 @@ class Registry implements EventEmitterInterface
     /** @return array<string, Tool> */
     public function getTools(): array
     {
-        return array_map(fn ($tool) => $tool->schema, $this->tools);
+        return array_map(fn($tool) => $tool->schema, $this->tools);
     }
 
     /** @return array<string, Resource> */
     public function getResources(): array
     {
-        return array_map(fn ($resource) => $resource->schema, $this->resources);
+        return array_map(fn($resource) => $resource->schema, $this->resources);
     }
 
     /** @return array<string, Prompt> */
     public function getPrompts(): array
     {
-        return array_map(fn ($prompt) => $prompt->schema, $this->prompts);
+        return array_map(fn($prompt) => $prompt->schema, $this->prompts);
     }
 
     /** @return array<string, ResourceTemplate> */
     public function getResourceTemplates(): array
     {
-        return array_map(fn ($template) => $template->schema, $this->resourceTemplates);
+        return array_map(fn($template) => $template->schema, $this->resourceTemplates);
     }
 }
