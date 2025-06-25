@@ -40,9 +40,9 @@ class Session implements SessionInterface
     }
 
     /**
-     * Create a session instance from handler or return null if session doesn't exist
+     * Retrieve an existing session instance from handler or return null if session doesn't exist
      */
-    public static function make(string $id, SessionHandlerInterface $handler): ?SessionInterface
+    public static function retrieve(string $id, SessionHandlerInterface $handler): ?SessionInterface
     {
         $sessionData = $handler->read($id);
 

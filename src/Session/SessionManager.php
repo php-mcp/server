@@ -98,7 +98,12 @@ class SessionManager implements EventEmitterInterface
      */
     public function getSession(string $sessionId): ?SessionInterface
     {
-        return Session::make($sessionId, $this->handler);
+        return Session::retrieve($sessionId, $this->handler);
+    }
+
+    public function hasSession(string $sessionId): bool
+    {
+        return $this->getSession($sessionId) !== null;
     }
 
     /**
