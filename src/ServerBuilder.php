@@ -17,7 +17,7 @@ use PhpMcp\Server\Attributes\CompletionProvider;
 use PhpMcp\Server\Contracts\SessionHandlerInterface;
 use PhpMcp\Server\Defaults\BasicContainer;
 use PhpMcp\Server\Exception\ConfigurationException;
-use PhpMcp\Server\Exception\DefinitionException;
+
 use PhpMcp\Server\Session\ArraySessionHandler;
 use PhpMcp\Server\Session\CacheSessionHandler;
 use PhpMcp\Server\Session\SessionManager;
@@ -286,7 +286,6 @@ final class ServerBuilder
             return;
         }
 
-        $errorCount = 0;
         $docBlockParser = new Utils\DocBlockParser($logger);
         $schemaGenerator = new Utils\SchemaGenerator($docBlockParser);
 
@@ -308,8 +307,8 @@ final class ServerBuilder
 
                 $logger->debug("Registered manual tool {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
-                $errorCount++;
                 $logger->error('Failed to register manual tool', ['handler' => $data['handler'], 'name' => $data['name'], 'exception' => $e]);
+                throw new ConfigurationException("Error registering manual tool '{$data['name']}': {$e->getMessage()}", 0, $e);
             }
         }
 
@@ -334,8 +333,8 @@ final class ServerBuilder
 
                 $logger->debug("Registered manual resource {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
-                $errorCount++;
                 $logger->error('Failed to register manual resource', ['handler' => $data['handler'], 'uri' => $data['uri'], 'exception' => $e]);
+                throw new ConfigurationException("Error registering manual resource '{$data['uri']}': {$e->getMessage()}", 0, $e);
             }
         }
 
@@ -360,8 +359,8 @@ final class ServerBuilder
 
                 $logger->debug("Registered manual template {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
-                $errorCount++;
                 $logger->error('Failed to register manual template', ['handler' => $data['handler'], 'uriTemplate' => $data['uriTemplate'], 'exception' => $e]);
+                throw new ConfigurationException("Error registering manual resource template '{$data['uriTemplate']}': {$e->getMessage()}", 0, $e);
             }
         }
 
@@ -401,13 +400,9 @@ final class ServerBuilder
 
                 $logger->debug("Registered manual prompt {$name} from handler {$className}::{$methodName}");
             } catch (Throwable $e) {
-                $errorCount++;
                 $logger->error('Failed to register manual prompt', ['handler' => $data['handler'], 'name' => $data['name'], 'exception' => $e]);
+                throw new ConfigurationException("Error registering manual prompt '{$data['name']}': {$e->getMessage()}", 0, $e);
             }
-        }
-
-        if ($errorCount > 0) {
-            throw new DefinitionException("{$errorCount} error(s) occurred during manual element registration. Check logs.");
         }
 
         $logger->debug('Manual element registration complete.');
