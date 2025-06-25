@@ -129,7 +129,7 @@ final class ServerBuilder
      * etc. It can be thought of like a "hint" to the model. For example, this information MAY 
      * be added to the system prompt.
      */
-    public function withInstructions(string $instructions): self
+    public function withInstructions(?string $instructions): self
     {
         $this->instructions = $instructions;
 
