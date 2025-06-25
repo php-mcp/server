@@ -2,6 +2,16 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v3.1.0 - 2025-06-25
+
+### What's Changed
+
+* Refactor: expose session garbage collection method for integration by @CodeWithKyrian in https://github.com/php-mcp/server/pull/31
+* feat: add instructions in server initialization result by @CodeWithKyrian in https://github.com/php-mcp/server/pull/32
+* fix(cache): handle missing session in index for CacheSessionHandler by @CodeWithKyrian in https://github.com/php-mcp/server/pull/33
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/3.0.2...3.1.0
+
 ## v3.0.2 - 2025-06-25
 
 ### What's Changed
@@ -68,6 +78,7 @@ This release brings support for the latest MCP protocol version along with enhan
 
 
 
+
 ```
 **After:**
 
@@ -78,6 +89,7 @@ This release brings support for the latest MCP protocol version along with enhan
     tools: true,
     resourcesSubscribe: true
 ))
+
 
 
 
@@ -93,11 +105,13 @@ $transport = new HttpServerTransport(host: '127.0.0.1', port: 8080);
 
 
 
+
 ```
 **After:**
 
 ```php
 $transport = new StreamableHttpServerTransport(host: '127.0.0.1',  port: 8080);
+
 
 
 
@@ -271,6 +285,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
    
