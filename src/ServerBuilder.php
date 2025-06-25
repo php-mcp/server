@@ -52,6 +52,8 @@ final class ServerBuilder
 
     private ?int $paginationLimit = 50;
 
+    private ?string $instructions = null;
+
     /** @var array<
      *     array{handler: array|string,
      *     name: string|null,
@@ -116,6 +118,20 @@ final class ServerBuilder
     public function withPaginationLimit(int $paginationLimit): self
     {
         $this->paginationLimit = $paginationLimit;
+
+        return $this;
+    }
+
+    /**
+     * Configures the instructions describing how to use the server and its features. 
+     * 
+     * This can be used by clients to improve the LLM's understanding of available tools, resources,
+     * etc. It can be thought of like a "hint" to the model. For example, this information MAY 
+     * be added to the system prompt.
+     */
+    public function withInstructions(string $instructions): self
+    {
+        $this->instructions = $instructions;
 
         return $this;
     }
@@ -257,7 +273,8 @@ final class ServerBuilder
             loop: $loop,
             cache: $cache,
             container: $container,
-            paginationLimit: $this->paginationLimit ?? 50
+            paginationLimit: $this->paginationLimit ?? 50,
+            instructions: $this->instructions,
         );
 
         $sessionHandler = $this->createSessionHandler();
