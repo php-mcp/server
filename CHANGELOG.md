@@ -2,6 +2,14 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v3.1.1 - 2025-06-26
+
+### What's Changed
+
+* Fix: implement proper MCP protocol version negotiation by @CodeWithKyrian in https://github.com/php-mcp/server/pull/35
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/3.1.0...3.1.1
+
 ## v3.1.0 - 2025-06-25
 
 ### What's Changed
@@ -79,6 +87,7 @@ This release brings support for the latest MCP protocol version along with enhan
 
 
 
+
 ```
 **After:**
 
@@ -89,6 +98,7 @@ This release brings support for the latest MCP protocol version along with enhan
     tools: true,
     resourcesSubscribe: true
 ))
+
 
 
 
@@ -106,11 +116,13 @@ $transport = new HttpServerTransport(host: '127.0.0.1', port: 8080);
 
 
 
+
 ```
 **After:**
 
 ```php
 $transport = new StreamableHttpServerTransport(host: '127.0.0.1',  port: 8080);
+
 
 
 
@@ -285,6 +297,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
    
