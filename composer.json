@@ -1,7 +1,19 @@
 {
     "name": "php-mcp/server",
-    "description": "Core PHP implementation for the Model Context Protocol (MCP) server",
-    "keywords": ["mcp", "model context protocol", "server", "php", "ai", "llm"],
+    "description": "PHP SDK for building Model Context Protocol (MCP) servers - Create MCP tools, resources, and prompts",
+    "keywords": [
+        "mcp",
+        "model context protocol",
+        "server",
+        "php",
+        "php mcp",
+        "php mcp sdk",
+        "php mcp server",
+        "php mcp tools",
+        "php mcp resources",
+        "php mcp prompts",
+        "php model context protocol"
+    ],
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -46,7 +58,6 @@
             "PhpMcp\\Server\\Tests\\": "tests/"
         }
     },
-    
     "scripts": {
         "test": "vendor/bin/pest",
         "test:coverage": "XDEBUG_MODE=coverage ./vendor/bin/pest --coverage",

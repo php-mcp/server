@@ -1,13 +1,13 @@
-# PHP MCP Server
+# PHP MCP Server SDK
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/php-mcp/server.svg?style=flat-square)](https://packagist.org/packages/php-mcp/server)
 [![Total Downloads](https://img.shields.io/packagist/dt/php-mcp/server.svg?style=flat-square)](https://packagist.org/packages/php-mcp/server)
 [![Tests](https://img.shields.io/github/actions/workflow/status/php-mcp/server/tests.yml?branch=main&style=flat-square)](https://github.com/php-mcp/server/actions/workflows/tests.yml)
 [![License](https://img.shields.io/packagist/l/php-mcp/server.svg?style=flat-square)](LICENSE)
 
-**A comprehensive and production-ready PHP implementation of the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) server. Built for PHP 8.1+ with modern architecture, extensive testing, and flexible transport options.**
+**A comprehensive PHP SDK for building [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) servers. Create production-ready MCP servers in PHP with modern architecture, extensive testing, and flexible transport options.**
 
-The PHP MCP Server enables you to expose your PHP application's functionality as standardized MCP **Tools**, **Resources**, and **Prompts**, allowing AI assistants (like Anthropic's Claude, Cursor IDE, OpenAI's ChatGPT, etc.) to interact with your backend using the MCP standard.
+This SDK enables you to expose your PHP application's functionality as standardized MCP **Tools**, **Resources**, and **Prompts**, allowing AI assistants (like Anthropic's Claude, Cursor IDE, OpenAI's ChatGPT, etc.) to interact with your backend using the MCP standard.
 
 ## 🚀 Key Features
 
