@@ -125,7 +125,8 @@ class Dispatcher
             $protocolVersion = Protocol::LATEST_PROTOCOL_VERSION;
         }
 
-        $session->set('client_info', $request->clientInfo);
+        $session->set('client_info', $request->clientInfo->toArray());
+        $session->set('protocol_version', $protocolVersion);
 
         $serverInfo = $this->configuration->serverInfo;
         $capabilities = $this->configuration->capabilities;
