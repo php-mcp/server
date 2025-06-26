@@ -119,16 +119,13 @@ class Dispatcher
 
     public function handleInitialize(InitializeRequest $request, SessionInterface $session): InitializeResult
     {
-        if (! in_array($request->protocolVersion, Protocol::SUPPORTED_PROTOCOL_VERSIONS)) {
-            $this->logger->warning("Unsupported protocol version: {$request->protocolVersion}", [
-                'supportedVersions' => Protocol::SUPPORTED_PROTOCOL_VERSIONS,
-            ]);
+        if (in_array($request->protocolVersion, Protocol::SUPPORTED_PROTOCOL_VERSIONS)) {
+            $protocolVersion = $request->protocolVersion;
+        } else {
+            $protocolVersion = Protocol::LATEST_PROTOCOL_VERSION;
         }
 
-        $protocolVersion = Protocol::LATEST_PROTOCOL_VERSION;
-
         $session->set('client_info', $request->clientInfo);
-
 
         $serverInfo = $this->configuration->serverInfo;
         $capabilities = $this->configuration->capabilities;
