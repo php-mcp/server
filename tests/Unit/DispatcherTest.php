@@ -100,7 +100,8 @@ it('routes to handleInitialize for initialize request', function () {
             'capabilities' => [],
         ]
     );
-    $this->session->shouldReceive('set')->with('client_info', Mockery::on(fn($value) => $value->name === 'client' && $value->version === '1.0'))->once();
+    $this->session->shouldReceive('set')->with('client_info', Mockery::on(fn($value) => $value['name'] === 'client' && $value['version'] === '1.0'))->once();
+    $this->session->shouldReceive('set')->with('protocol_version', Protocol::LATEST_PROTOCOL_VERSION)->once();
 
     $result = $this->dispatcher->handleRequest($request, $this->session);
     expect($result)->toBeInstanceOf(InitializeResult::class);
@@ -135,7 +136,8 @@ it('does nothing for unknown notification method', function () {
 it('can handle initialize request', function () {
     $clientInfo = Implementation::make('TestClient', '0.9.9');
     $request = InitializeRequest::make(1, Protocol::LATEST_PROTOCOL_VERSION, ClientCapabilities::make(), $clientInfo, []);
-    $this->session->shouldReceive('set')->with('client_info', $clientInfo)->once();
+    $this->session->shouldReceive('set')->with('client_info', $clientInfo->toArray())->once();
+    $this->session->shouldReceive('set')->with('protocol_version', Protocol::LATEST_PROTOCOL_VERSION)->once();
 
     $result = $this->dispatcher->handleInitialize($request, $this->session);
     expect($result->protocolVersion)->toBe(Protocol::LATEST_PROTOCOL_VERSION);
@@ -147,7 +149,8 @@ it('can handle initialize request with older supported protocol version', functi
     $clientInfo = Implementation::make('TestClient', '0.9.9');
     $clientRequestedVersion = '2024-11-05';
     $request = InitializeRequest::make(1, $clientRequestedVersion, ClientCapabilities::make(), $clientInfo, []);
-    $this->session->shouldReceive('set')->with('client_info', $clientInfo)->once();
+    $this->session->shouldReceive('set')->with('client_info', $clientInfo->toArray())->once();
+    $this->session->shouldReceive('set')->with('protocol_version', $clientRequestedVersion)->once();
 
     $result = $this->dispatcher->handleInitialize($request, $this->session);
     expect($result->protocolVersion)->toBe($clientRequestedVersion);
@@ -159,7 +162,8 @@ it('can handle initialize request with unsupported protocol version', function (
     $clientInfo = Implementation::make('TestClient', '0.9.9');
     $unsupportedVersion = '1999-01-01';
     $request = InitializeRequest::make(1, $unsupportedVersion, ClientCapabilities::make(), $clientInfo, []);
-    $this->session->shouldReceive('set')->with('client_info', $clientInfo)->once();
+    $this->session->shouldReceive('set')->with('client_info', $clientInfo->toArray())->once();
+    $this->session->shouldReceive('set')->with('protocol_version', Protocol::LATEST_PROTOCOL_VERSION)->once();
 
     $result = $this->dispatcher->handleInitialize($request, $this->session);
     expect($result->protocolVersion)->toBe(Protocol::LATEST_PROTOCOL_VERSION);
