@@ -27,8 +27,18 @@ class CacheSessionHandler implements SessionHandlerInterface
     public function read(string $sessionId): string|false
     {
         $session = $this->cache->get($sessionId, false);
-        if ($session === false || !isset($this->sessionIndex[$sessionId])) {
+        if ($session === false) {
+            if (isset($this->sessionIndex[$sessionId])) {
+                unset($this->sessionIndex[$sessionId]);
+                $this->cache->set(self::SESSION_INDEX_KEY, $this->sessionIndex);
+            }
             return false;
+        }
+
+        if (!isset($this->sessionIndex[$sessionId])) {
+            $this->sessionIndex[$sessionId] = $this->clock->now()->getTimestamp();
+            $this->cache->set(self::SESSION_INDEX_KEY, $this->sessionIndex);
+            return $session;
         }
 
         if ($this->clock->now()->getTimestamp() - $this->sessionIndex[$sessionId] > $this->ttl) {
