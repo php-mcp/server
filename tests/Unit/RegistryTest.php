@@ -64,7 +64,7 @@ function getRegistryProperty(Registry $reg, string $propName)
 
 it('registers manual tool correctly', function () {
     $toolSchema = createTestToolSchema('manual-tool-1');
-    $this->registry->registerTool($toolSchema, 'HandlerClass', 'method', true);
+    $this->registry->registerTool($toolSchema, ['HandlerClass', 'method'], true);
 
     $registeredTool = $this->registry->getTool('manual-tool-1');
     expect($registeredTool)->toBeInstanceOf(RegisteredTool::class)
@@ -75,7 +75,7 @@ it('registers manual tool correctly', function () {
 
 it('registers discovered tool correctly', function () {
     $toolSchema = createTestToolSchema('discovered-tool-1');
-    $this->registry->registerTool($toolSchema, 'HandlerClass', 'method', false);
+    $this->registry->registerTool($toolSchema, ['HandlerClass', 'method'], false);
 
     $registeredTool = $this->registry->getTool('discovered-tool-1');
     expect($registeredTool)->toBeInstanceOf(RegisteredTool::class)
@@ -85,7 +85,7 @@ it('registers discovered tool correctly', function () {
 
 it('registers manual resource correctly', function () {
     $resourceSchema = createTestResourceSchema('manual://res/1');
-    $this->registry->registerResource($resourceSchema, 'HandlerClass', 'method', true);
+    $this->registry->registerResource($resourceSchema, ['HandlerClass', 'method'], true);
 
     $registeredResource = $this->registry->getResource('manual://res/1');
     expect($registeredResource)->toBeInstanceOf(RegisteredResource::class)
@@ -96,7 +96,7 @@ it('registers manual resource correctly', function () {
 
 it('registers discovered resource correctly', function () {
     $resourceSchema = createTestResourceSchema('discovered://res/1');
-    $this->registry->registerResource($resourceSchema, 'HandlerClass', 'method', false);
+    $this->registry->registerResource($resourceSchema, ['HandlerClass', 'method'], false);
 
     $registeredResource = $this->registry->getResource('discovered://res/1');
     expect($registeredResource)->toBeInstanceOf(RegisteredResource::class)
@@ -106,7 +106,7 @@ it('registers discovered resource correctly', function () {
 
 it('registers manual prompt correctly', function () {
     $promptSchema = createTestPromptSchema('manual-prompt-1');
-    $this->registry->registerPrompt($promptSchema, 'HandlerClass', 'method', [], true);
+    $this->registry->registerPrompt($promptSchema, ['HandlerClass', 'method'], [], true);
 
     $registeredPrompt = $this->registry->getPrompt('manual-prompt-1');
     expect($registeredPrompt)->toBeInstanceOf(RegisteredPrompt::class)
@@ -117,7 +117,7 @@ it('registers manual prompt correctly', function () {
 
 it('registers discovered prompt correctly', function () {
     $promptSchema = createTestPromptSchema('discovered-prompt-1');
-    $this->registry->registerPrompt($promptSchema, 'HandlerClass', 'method', [], false);
+    $this->registry->registerPrompt($promptSchema, ['HandlerClass', 'method'], [], false);
 
     $registeredPrompt = $this->registry->getPrompt('discovered-prompt-1');
     expect($registeredPrompt)->toBeInstanceOf(RegisteredPrompt::class)
@@ -127,7 +127,7 @@ it('registers discovered prompt correctly', function () {
 
 it('registers manual resource template correctly', function () {
     $templateSchema = createTestTemplateSchema('manual://tmpl/{id}');
-    $this->registry->registerResourceTemplate($templateSchema, 'HandlerClass', 'method', [], true);
+    $this->registry->registerResourceTemplate($templateSchema, ['HandlerClass', 'method'], [], true);
 
     $registeredTemplate = $this->registry->getResourceTemplate('manual://tmpl/{id}');
     expect($registeredTemplate)->toBeInstanceOf(RegisteredResourceTemplate::class)
@@ -138,7 +138,7 @@ it('registers manual resource template correctly', function () {
 
 it('registers discovered resource template correctly', function () {
     $templateSchema = createTestTemplateSchema('discovered://tmpl/{id}');
-    $this->registry->registerResourceTemplate($templateSchema, 'HandlerClass', 'method', [], false);
+    $this->registry->registerResourceTemplate($templateSchema, ['HandlerClass', 'method'], [], false);
 
     $registeredTemplate = $this->registry->getResourceTemplate('discovered://tmpl/{id}');
     expect($registeredTemplate)->toBeInstanceOf(RegisteredResourceTemplate::class)
@@ -150,8 +150,8 @@ test('getResource finds exact URI match before template match', function () {
     $exactResourceSchema = createTestResourceSchema('test://item/exact');
     $templateSchema = createTestTemplateSchema('test://item/{itemId}');
 
-    $this->registry->registerResource($exactResourceSchema, 'H', 'm');
-    $this->registry->registerResourceTemplate($templateSchema, 'H', 'm');
+    $this->registry->registerResource($exactResourceSchema, ['H', 'm']);
+    $this->registry->registerResourceTemplate($templateSchema, ['H', 'm']);
 
     $found = $this->registry->getResource('test://item/exact');
     expect($found)->toBeInstanceOf(RegisteredResource::class)
@@ -160,7 +160,7 @@ test('getResource finds exact URI match before template match', function () {
 
 test('getResource finds template match if no exact URI match', function () {
     $templateSchema = createTestTemplateSchema('test://item/{itemId}');
-    $this->registry->registerResourceTemplate($templateSchema, 'H', 'm');
+    $this->registry->registerResourceTemplate($templateSchema, ['H', 'm']);
 
     $found = $this->registry->getResource('test://item/123');
     expect($found)->toBeInstanceOf(RegisteredResourceTemplate::class)
@@ -169,7 +169,7 @@ test('getResource finds template match if no exact URI match', function () {
 
 test('getResource returns null if no match and templates excluded', function () {
     $templateSchema = createTestTemplateSchema('test://item/{itemId}');
-    $this->registry->registerResourceTemplate($templateSchema, 'H', 'm');
+    $this->registry->registerResourceTemplate($templateSchema, ['H', 'm']);
 
     $found = $this->registry->getResource('test://item/123', false);
     expect($found)->toBeNull();
@@ -182,13 +182,13 @@ test('getResource returns null if no match at all', function () {
 
 it('hasElements returns true if any manual elements exist', function () {
     expect($this->registry->hasElements())->toBeFalse();
-    $this->registry->registerTool(createTestToolSchema('manual-only'), 'H', 'm', true);
+    $this->registry->registerTool(createTestToolSchema('manual-only'), ['H', 'm'], true);
     expect($this->registry->hasElements())->toBeTrue();
 });
 
 it('hasElements returns true if any discovered elements exist', function () {
     expect($this->registry->hasElements())->toBeFalse();
-    $this->registry->registerTool(createTestToolSchema('discovered-only'), 'H', 'm', false);
+    $this->registry->registerTool(createTestToolSchema('discovered-only'), ['H', 'm'], false);
     expect($this->registry->hasElements())->toBeTrue();
 });
 
@@ -205,17 +205,17 @@ it('overrides existing discovered element with manual registration', function (s
     $manualSchema = clone $discoveredSchema;
 
     match ($type) {
-        'tool' => $this->registry->registerTool($discoveredSchema, 'H', 'm', false),
-        'resource' => $this->registry->registerResource($discoveredSchema, 'H', 'm', false),
-        'prompt' => $this->registry->registerPrompt($discoveredSchema, 'H', 'm', [], false),
-        'template' => $this->registry->registerResourceTemplate($discoveredSchema, 'H', 'm', [], false),
+        'tool' => $this->registry->registerTool($discoveredSchema, ['H', 'm'], false),
+        'resource' => $this->registry->registerResource($discoveredSchema, ['H', 'm'], false),
+        'prompt' => $this->registry->registerPrompt($discoveredSchema, ['H', 'm'], [], false),
+        'template' => $this->registry->registerResourceTemplate($discoveredSchema, ['H', 'm'], [], false),
     };
 
     match ($type) {
-        'tool' => $this->registry->registerTool($manualSchema, 'H', 'm', true),
-        'resource' => $this->registry->registerResource($manualSchema, 'H', 'm', true),
-        'prompt' => $this->registry->registerPrompt($manualSchema, 'H', 'm', [], true),
-        'template' => $this->registry->registerResourceTemplate($manualSchema, 'H', 'm', [], true),
+        'tool' => $this->registry->registerTool($manualSchema, ['H', 'm'], true),
+        'resource' => $this->registry->registerResource($manualSchema, ['H', 'm'], true),
+        'prompt' => $this->registry->registerPrompt($manualSchema, ['H', 'm'], [], true),
+        'template' => $this->registry->registerResourceTemplate($manualSchema, ['H', 'm'], [], true),
     };
 
     $registeredElement = match ($type) {
@@ -242,17 +242,17 @@ it('does not override existing manual element with discovered registration', fun
     $discoveredSchema = clone $manualSchema;
 
     match ($type) {
-        'tool' => $this->registry->registerTool($manualSchema, 'H', 'm', true),
-        'resource' => $this->registry->registerResource($manualSchema, 'H', 'm', true),
-        'prompt' => $this->registry->registerPrompt($manualSchema, 'H', 'm', [], true),
-        'template' => $this->registry->registerResourceTemplate($manualSchema, 'H', 'm', [], true),
+        'tool' => $this->registry->registerTool($manualSchema, ['H', 'm'], true),
+        'resource' => $this->registry->registerResource($manualSchema, ['H', 'm'], true),
+        'prompt' => $this->registry->registerPrompt($manualSchema, ['H', 'm'], [], true),
+        'template' => $this->registry->registerResourceTemplate($manualSchema, ['H', 'm'], [], true),
     };
 
     match ($type) {
-        'tool' => $this->registry->registerTool($discoveredSchema, 'H', 'm', false),
-        'resource' => $this->registry->registerResource($discoveredSchema, 'H', 'm', false),
-        'prompt' => $this->registry->registerPrompt($discoveredSchema, 'H', 'm', [], false),
-        'template' => $this->registry->registerResourceTemplate($discoveredSchema, 'H', 'm', [], false),
+        'tool' => $this->registry->registerTool($discoveredSchema, ['H', 'm'], false),
+        'resource' => $this->registry->registerResource($discoveredSchema, ['H', 'm'], false),
+        'prompt' => $this->registry->registerPrompt($discoveredSchema, ['H', 'm'], [], false),
+        'template' => $this->registry->registerResourceTemplate($discoveredSchema, ['H', 'm'], [], false),
     };
 
     $registeredElement = match ($type) {
@@ -271,8 +271,8 @@ it('loads discovered elements from cache correctly on construction', function ()
     $toolSchema1 = createTestToolSchema('cached-tool-1');
     $resourceSchema1 = createTestResourceSchema('cached://res/1');
     $cachedData = [
-        'tools' => [$toolSchema1->name => json_encode(RegisteredTool::make($toolSchema1, 'H', 'm'))],
-        'resources' => [$resourceSchema1->uri => json_encode(RegisteredResource::make($resourceSchema1, 'H', 'm'))],
+        'tools' => [$toolSchema1->name => json_encode(RegisteredTool::make($toolSchema1, ['H', 'm']))],
+        'resources' => [$resourceSchema1->uri => json_encode(RegisteredResource::make($resourceSchema1, ['H', 'm']))],
         'prompts' => [],
         'resourceTemplates' => [],
     ];
@@ -292,7 +292,7 @@ it('skips loading cached element if manual one with same key is registered later
     $cachedToolSchema = createTestToolSchema($conflictName);
     $manualToolSchema = createTestToolSchema($conflictName); // Different instance
 
-    $cachedData = ['tools' => [$conflictName => json_encode(RegisteredTool::make($cachedToolSchema, 'H', 'm'))]];
+    $cachedData = ['tools' => [$conflictName => json_encode(RegisteredTool::make($cachedToolSchema, ['H', 'm']))]];
     $this->cache->shouldReceive('get')->with(DISCOVERED_CACHE_KEY_REG)->once()->andReturn($cachedData);
 
     $registry = new Registry($this->logger, $this->cache);
@@ -300,7 +300,7 @@ it('skips loading cached element if manual one with same key is registered later
     expect($registry->getTool($conflictName)->schema->name)->toBe($cachedToolSchema->name);
     expect($registry->getTool($conflictName)->isManual)->toBeFalse();
 
-    $registry->registerTool($manualToolSchema, 'H', 'm', true);
+    $registry->registerTool($manualToolSchema, ['H', 'm'], true);
 
     expect($registry->getTool($conflictName)->schema->name)->toBe($manualToolSchema->name);
     expect($registry->getTool($conflictName)->isManual)->toBeTrue();
@@ -310,10 +310,10 @@ it('skips loading cached element if manual one with same key is registered later
 it('saves only non-manual elements to cache', function () {
     $manualToolSchema = createTestToolSchema('manual-save');
     $discoveredToolSchema = createTestToolSchema('discovered-save');
-    $expectedRegisteredDiscoveredTool = RegisteredTool::make($discoveredToolSchema, 'H', 'm', false);
+    $expectedRegisteredDiscoveredTool = RegisteredTool::make($discoveredToolSchema, ['H', 'm'], false);
 
-    $this->registry->registerTool($manualToolSchema, 'H', 'm', true);
-    $this->registry->registerTool($discoveredToolSchema, 'H', 'm', false);
+    $this->registry->registerTool($manualToolSchema, ['H', 'm'], true);
+    $this->registry->registerTool($discoveredToolSchema, ['H', 'm'], false);
 
     $expectedCachedData = [
         'tools' => ['discovered-save' => json_encode($expectedRegisteredDiscoveredTool)],
@@ -331,7 +331,7 @@ it('saves only non-manual elements to cache', function () {
 });
 
 it('does not attempt to save to cache if cache is null', function () {
-    $this->registryNoCache->registerTool(createTestToolSchema('discovered-no-cache'), 'H', 'm', false);
+    $this->registryNoCache->registerTool(createTestToolSchema('discovered-no-cache'), ['H', 'm'], false);
     $result = $this->registryNoCache->save();
     expect($result)->toBeFalse();
 });
@@ -363,7 +363,7 @@ it('handles cache general exceptions during load gracefully', function () {
 });
 
 it('handles cache InvalidArgumentException during load gracefully', function () {
-    $this->cache->shouldReceive('get')->with(DISCOVERED_CACHE_KEY_REG)->once()->andThrow(new class () extends \Exception implements CacheInvalidArgumentException {});
+    $this->cache->shouldReceive('get')->with(DISCOVERED_CACHE_KEY_REG)->once()->andThrow(new class() extends \Exception implements CacheInvalidArgumentException {});
 
     $registry = new Registry($this->logger, $this->cache);
     expect($registry->hasElements())->toBeFalse();
@@ -371,8 +371,8 @@ it('handles cache InvalidArgumentException during load gracefully', function () 
 
 
 it('clears non-manual elements and deletes cache file', function () {
-    $this->registry->registerTool(createTestToolSchema('manual-clear'), 'H', 'm', true);
-    $this->registry->registerTool(createTestToolSchema('discovered-clear'), 'H', 'm', false);
+    $this->registry->registerTool(createTestToolSchema('manual-clear'), ['H', 'm'], true);
+    $this->registry->registerTool(createTestToolSchema('discovered-clear'), ['H', 'm'], false);
 
     $this->cache->shouldReceive('delete')->with(DISCOVERED_CACHE_KEY_REG)->once()->andReturn(true);
 
@@ -384,7 +384,7 @@ it('clears non-manual elements and deletes cache file', function () {
 
 
 it('handles cache exceptions during clear gracefully', function () {
-    $this->registry->registerTool(createTestToolSchema('discovered-clear'), 'H', 'm', false);
+    $this->registry->registerTool(createTestToolSchema('discovered-clear'), ['H', 'm'], false);
     $this->cache->shouldReceive('delete')->with(DISCOVERED_CACHE_KEY_REG)->once()->andThrow(new \RuntimeException("Cache delete failed"));
 
     $this->registry->clear();
@@ -398,7 +398,7 @@ it('emits list_changed event when a new tool is registered', function () {
         $emitted = $listType;
     });
 
-    $this->registry->registerTool(createTestToolSchema('notifying-tool'), 'H', 'm');
+    $this->registry->registerTool(createTestToolSchema('notifying-tool'), ['H', 'm']);
     expect($emitted)->toBe('tools');
 });
 
@@ -408,7 +408,7 @@ it('emits list_changed event when a new resource is registered', function () {
         $emitted = $listType;
     });
 
-    $this->registry->registerResource(createTestResourceSchema('notify://res'), 'H', 'm');
+    $this->registry->registerResource(createTestResourceSchema('notify://res'), ['H', 'm']);
     expect($emitted)->toBe('resources');
 });
 
@@ -419,7 +419,7 @@ it('does not emit list_changed event if notifications are disabled', function ()
         $emitted = true;
     });
 
-    $this->registry->registerTool(createTestToolSchema('silent-tool'), 'H', 'm');
+    $this->registry->registerTool(createTestToolSchema('silent-tool'), ['H', 'm']);
     expect($emitted)->toBeFalse();
 
     $this->registry->enableNotifications();
@@ -450,12 +450,143 @@ it('recomputes and emits list_changed only when content actually changes', funct
         }
     });
 
-    $this->registry->registerTool($tool1, 'H', 'm1');
+    $this->registry->registerTool($tool1, ['H', 'm1']);
     expect($callCount)->toBe(1);
 
-    $this->registry->registerTool($tool1, 'H', 'm1');
+    $this->registry->registerTool($tool1, ['H', 'm1']);
     expect($callCount)->toBe(1);
 
-    $this->registry->registerTool($tool2, 'H', 'm2');
+    $this->registry->registerTool($tool2, ['H', 'm2']);
     expect($callCount)->toBe(2);
 });
+
+it('registers tool with closure handler correctly', function () {
+    $toolSchema = createTestToolSchema('closure-tool');
+    $closure = function (string $input): string {
+        return "processed: $input";
+    };
+
+    $this->registry->registerTool($toolSchema, $closure, true);
+
+    $registeredTool = $this->registry->getTool('closure-tool');
+    expect($registeredTool)->toBeInstanceOf(RegisteredTool::class)
+        ->and($registeredTool->schema)->toBe($toolSchema)
+        ->and($registeredTool->isManual)->toBeTrue()
+        ->and($registeredTool->handler)->toBe($closure);
+});
+
+it('registers resource with closure handler correctly', function () {
+    $resourceSchema = createTestResourceSchema('closure://res');
+    $closure = function (string $uri): array {
+        return [new \PhpMcp\Schema\Content\TextContent("Resource: $uri")];
+    };
+
+    $this->registry->registerResource($resourceSchema, $closure, true);
+
+    $registeredResource = $this->registry->getResource('closure://res');
+    expect($registeredResource)->toBeInstanceOf(RegisteredResource::class)
+        ->and($registeredResource->schema)->toBe($resourceSchema)
+        ->and($registeredResource->isManual)->toBeTrue()
+        ->and($registeredResource->handler)->toBe($closure);
+});
+
+it('registers prompt with closure handler correctly', function () {
+    $promptSchema = createTestPromptSchema('closure-prompt');
+    $closure = function (string $topic): array {
+        return [
+            \PhpMcp\Schema\Content\PromptMessage::make(
+                \PhpMcp\Schema\Enum\Role::User,
+                new \PhpMcp\Schema\Content\TextContent("Tell me about $topic")
+            )
+        ];
+    };
+
+    $this->registry->registerPrompt($promptSchema, $closure, [], true);
+
+    $registeredPrompt = $this->registry->getPrompt('closure-prompt');
+    expect($registeredPrompt)->toBeInstanceOf(RegisteredPrompt::class)
+        ->and($registeredPrompt->schema)->toBe($promptSchema)
+        ->and($registeredPrompt->isManual)->toBeTrue()
+        ->and($registeredPrompt->handler)->toBe($closure);
+});
+
+it('registers resource template with closure handler correctly', function () {
+    $templateSchema = createTestTemplateSchema('closure://item/{id}');
+    $closure = function (string $uri, string $id): array {
+        return [new \PhpMcp\Schema\Content\TextContent("Item $id from $uri")];
+    };
+
+    $this->registry->registerResourceTemplate($templateSchema, $closure, [], true);
+
+    $registeredTemplate = $this->registry->getResourceTemplate('closure://item/{id}');
+    expect($registeredTemplate)->toBeInstanceOf(RegisteredResourceTemplate::class)
+        ->and($registeredTemplate->schema)->toBe($templateSchema)
+        ->and($registeredTemplate->isManual)->toBeTrue()
+        ->and($registeredTemplate->handler)->toBe($closure);
+});
+
+it('does not save closure handlers to cache', function () {
+    $closure = function (): string {
+        return 'test';
+    };
+    $arrayHandler = ['TestClass', 'testMethod'];
+
+    $closureTool = createTestToolSchema('closure-tool');
+    $arrayTool = createTestToolSchema('array-tool');
+
+    $this->registry->registerTool($closureTool, $closure, true);
+    $this->registry->registerTool($arrayTool, $arrayHandler, false);
+
+    $expectedCachedData = [
+        'tools' => ['array-tool' => json_encode(RegisteredTool::make($arrayTool, $arrayHandler, false))],
+        'resources' => [],
+        'prompts' => [],
+        'resourceTemplates' => [],
+    ];
+
+    $this->cache->shouldReceive('set')->once()
+        ->with(DISCOVERED_CACHE_KEY_REG, $expectedCachedData)
+        ->andReturn(true);
+
+    $result = $this->registry->save();
+    expect($result)->toBeTrue();
+});
+
+it('handles static method handlers correctly', function () {
+    $toolSchema = createTestToolSchema('static-tool');
+    $staticHandler = [TestStaticHandler::class, 'handle'];
+
+    $this->registry->registerTool($toolSchema, $staticHandler, true);
+
+    $registeredTool = $this->registry->getTool('static-tool');
+    expect($registeredTool)->toBeInstanceOf(RegisteredTool::class)
+        ->and($registeredTool->handler)->toBe($staticHandler);
+});
+
+it('handles invokable class string handlers correctly', function () {
+    $toolSchema = createTestToolSchema('invokable-tool');
+    $invokableHandler = TestInvokableHandler::class;
+
+    $this->registry->registerTool($toolSchema, $invokableHandler, true);
+
+    $registeredTool = $this->registry->getTool('invokable-tool');
+    expect($registeredTool)->toBeInstanceOf(RegisteredTool::class)
+        ->and($registeredTool->handler)->toBe($invokableHandler);
+});
+
+// Test helper classes
+class TestStaticHandler
+{
+    public static function handle(): string
+    {
+        return 'static result';
+    }
+}
+
+class TestInvokableHandler
+{
+    public function __invoke(): string
+    {
+        return 'invokable result';
+    }
+}

@@ -330,7 +330,7 @@ it('can handle resource template list request and return paginated templates', f
 it('can handle resource read request and return resource contents', function () {
     $uri = 'file://data.txt';
     $resourceSchema = ResourceSchema::make($uri, 'file_resource');
-    $registeredResourceMock = Mockery::mock(RegisteredResource::class, [$resourceSchema, 'MyResourceHandler', 'read', false]);
+    $registeredResourceMock = Mockery::mock(RegisteredResource::class, [$resourceSchema, ['MyResourceHandler', 'read'], false]);
     $resourceContents = [TextContent::make('File content')];
 
     $this->registry->shouldReceive('getResource')->with($uri)->andReturn($registeredResourceMock);
@@ -388,7 +388,7 @@ it('can handle prompt get request and return prompt messages', function () {
     $promptName = 'daily-summary';
     $args = ['date' => '2024-07-16'];
     $promptSchema = PromptSchema::make($promptName, 'summary_prompt', [PromptArgument::make('date', required: true)]);
-    $registeredPromptMock = Mockery::mock(RegisteredPrompt::class, [$promptSchema, 'MyPromptHandler', 'get', false]);
+    $registeredPromptMock = Mockery::mock(RegisteredPrompt::class, [$promptSchema, ['MyPromptHandler', 'get'], false]);
     $promptMessages = [PromptMessage::make(Role::User, TextContent::make("Summary for 2024-07-16"))];
 
     $this->registry->shouldReceive('getPrompt')->with($promptName)->andReturn($registeredPromptMock);
@@ -405,7 +405,7 @@ it('can handle prompt get request and return prompt messages', function () {
 it('can handle prompt get request and throw exception if required argument is missing', function () {
     $promptName = 'needs-topic';
     $promptSchema = PromptSchema::make($promptName, '', [PromptArgument::make('topic', required: true)]);
-    $registeredPromptMock = Mockery::mock(RegisteredPrompt::class, [$promptSchema, 'MyPromptHandler', 'get', false]);
+    $registeredPromptMock = Mockery::mock(RegisteredPrompt::class, [$promptSchema, ['MyPromptHandler', 'get'], false]);
     $this->registry->shouldReceive('getPrompt')->with($promptName)->andReturn($registeredPromptMock);
 
     $request = GetPromptRequest::make(1, $promptName, ['other_arg' => 'value']); // 'topic' is missing
@@ -433,7 +433,7 @@ it('can handle completion complete request for prompt and delegate to provider',
     $providerClass = get_class($mockCompletionProvider);
 
     $promptSchema = PromptSchema::make($promptName, '', [PromptArgument::make($argName)]);
-    $registeredPromptMock = Mockery::mock(RegisteredPrompt::class, [$promptSchema, 'MyPromptHandler', 'get', false]);
+    $registeredPromptMock = Mockery::mock(RegisteredPrompt::class, [$promptSchema, ['MyPromptHandler', 'get'], false]);
     $registeredPromptMock->shouldReceive('getCompletionProvider')->with($argName)->andReturn($providerClass);
 
     $this->registry->shouldReceive('getPrompt')->with($promptName)->andReturn($registeredPromptMock);
@@ -458,7 +458,7 @@ it('can handle completion complete request for resource template and delegate to
     $providerClass = get_class($mockCompletionProvider);
 
     $templateSchema = ResourceTemplateSchema::make($templateUri, 'item-template');
-    $registeredTemplateMock = Mockery::mock(RegisteredResourceTemplate::class, [$templateSchema, 'MyResourceTemplateHandler', 'get', false]);
+    $registeredTemplateMock = Mockery::mock(RegisteredResourceTemplate::class, [$templateSchema, ['MyResourceTemplateHandler', 'get'], false]);
     $registeredTemplateMock->shouldReceive('getVariableNames')->andReturn(['itemId', 'catName']);
     $registeredTemplateMock->shouldReceive('getCompletionProvider')->with($uriVarName)->andReturn($providerClass);
 
@@ -475,7 +475,7 @@ it('can handle completion complete request for resource template and delegate to
 it('can handle completion complete request and return empty if no provider', function () {
     $promptName = 'no-provider-prompt';
     $promptSchema = PromptSchema::make($promptName, '', [PromptArgument::make('arg')]);
-    $registeredPromptMock = Mockery::mock(RegisteredPrompt::class, [$promptSchema, 'MyPromptHandler', 'get', false]);
+    $registeredPromptMock = Mockery::mock(RegisteredPrompt::class, [$promptSchema, ['MyPromptHandler', 'get'], false]);
     $registeredPromptMock->shouldReceive('getCompletionProvider')->andReturn(null);
     $this->registry->shouldReceive('getPrompt')->with($promptName)->andReturn($registeredPromptMock);
 
