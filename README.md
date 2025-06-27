@@ -14,6 +14,7 @@ This SDK enables you to expose your PHP application's functionality as standardi
 - **🏗️ Modern Architecture**: Built with PHP 8.1+ features, PSR standards, and modular design
 - **📡 Multiple Transports**: Supports `stdio`, `http+sse`, and new **streamable HTTP** with resumability
 - **🎯 Attribute-Based Definition**: Use PHP 8 Attributes (`#[McpTool]`, `#[McpResource]`, etc.) for zero-config element registration
+- **🔧 Flexible Handlers**: Support for closures, class methods, static methods, and invokable classes
 - **📝 Smart Schema Generation**: Automatic JSON schema generation from method signatures with optional `#[Schema]` attribute enhancements
 - **⚡ Session Management**: Advanced session handling with multiple storage backends
 - **🔄 Event-Driven**: ReactPHP-based for high concurrency and non-blocking operations  
@@ -332,7 +333,7 @@ $server->discover(
 
 ### 2. 🔧 Manual Registration 
 
-Register elements programmatically using the `ServerBuilder` before calling `build()`. Useful for dynamic registration or when you prefer explicit control.
+Register elements programmatically using the `ServerBuilder` before calling `build()`. Useful for dynamic registration, closures, or when you prefer explicit control.
 
 ```php
 use App\Handlers\{EmailHandler, ConfigHandler, UserHandler, PromptHandler};
@@ -354,10 +355,21 @@ $server = Server::make()
     // Register invokable class as tool
     ->withTool(UserHandler::class)             // Handler: Invokable class
     
-    // Register a resource
+    // Register a closure as tool
+    ->withTool(
+        function(int $a, int $b): int {         // Handler: Closure
+            return $a + $b;
+        },
+        name: 'add_numbers',
+        description: 'Add two numbers together'
+    )
+    
+    // Register a resource with closure
     ->withResource(
-        [ConfigHandler::class, 'getConfig'],
-        uri: 'config://app/settings',          // URI (required)
+        function(): array {                     // Handler: Closure
+            return ['timestamp' => time(), 'server' => 'php-mcp'];
+        },
+        uri: 'config://runtime/status',         // URI (required)
         mimeType: 'application/json'           // MIME type (optional)
     )
     
@@ -367,22 +379,26 @@ $server = Server::make()
         uriTemplate: 'user://{userId}/profile'  // URI template (required)
     )
     
-    // Register a prompt
+    // Register a prompt with closure
     ->withPrompt(
-        [PromptHandler::class, 'generateSummary'],
-        name: 'summarize_text'                  // Prompt name (optional)
+        function(string $topic, string $tone = 'professional'): array {
+            return [
+                ['role' => 'user', 'content' => "Write about {$topic} in a {$tone} tone"]
+            ];
+        },
+        name: 'writing_prompt'                  // Prompt name (optional)
     )
     
     ->build();
 ```
 
-**Key Features:**
+The server supports three flexible handler formats: `[ClassName::class, 'methodName']` for class method handlers, `InvokableClass::class` for invokable class handlers (classes with `__invoke` method), and any PHP callable including closures, static methods like `[SomeClass::class, 'staticMethod']`, or function names. Class-based handlers are resolved via the configured PSR-11 container for dependency injection. Manual registrations are never cached and take precedence over discovered elements with the same identifier.
 
-- **Handler Formats**: Use `[ClassName::class, 'methodName']` or `InvokableClass::class`
-- **Dependency Injection**: Handlers resolved via configured PSR-11 container
-- **Immediate Registration**: Elements registered when `build()` is called
-- **No Caching**: Manual elements are never cached (always fresh)
-- **Precedence**: Manual registrations override discovered elements with same identifier
+> [!IMPORTANT]
+> When using closures as handlers, the server generates minimal JSON schemas based only on PHP type hints since there are no docblocks or class context available. For more detailed schemas with validation constraints, descriptions, and formats, you have two options:
+> 
+> - Use the [`#[Schema]` attribute](#-schema-generation-and-validation) for enhanced schema generation
+> - Provide a custom `$inputSchema` parameter when registering tools with `->withTool()`
 
 ### 🏆 Element Precedence & Discovery
 
@@ -1289,8 +1305,3 @@ The MIT License (MIT). See [LICENSE](LICENSE) for details.
 - Built on the [Model Context Protocol](https://modelcontextprotocol.io/) specification
 - Powered by [ReactPHP](https://reactphp.org/) for async operations
 - Uses [PSR standards](https://www.php-fig.org/) for maximum interoperability
-
----
-
-**Ready to build powerful MCP servers with PHP?** Start with our [Quick Start](#-quick-start-stdio-server-with-discovery) guide! 🚀
-

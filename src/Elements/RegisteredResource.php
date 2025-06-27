@@ -16,16 +16,15 @@ class RegisteredResource extends RegisteredElement
 {
     public function __construct(
         public readonly Resource $schema,
-        string $handlerClass,
-        string $handlerMethod,
+        \Closure|array|string $handler,
         bool $isManual = false,
     ) {
-        parent::__construct($handlerClass, $handlerMethod, $isManual);
+        parent::__construct($handler, $isManual);
     }
 
-    public static function make(Resource $schema, string $handlerClass, string $handlerMethod, bool $isManual = false): self
+    public static function make(Resource $schema, \Closure|array|string $handler, bool $isManual = false): self
     {
-        return new self($schema, $handlerClass, $handlerMethod, $isManual);
+        return new self($schema, $handler, $isManual);
     }
 
     /**
@@ -99,7 +98,7 @@ class RegisteredResource extends RegisteredElement
             }
 
             if ($allAreEmbeddedResource && $hasEmbeddedResource) {
-                return array_map(fn ($item) => $item->resource, $readResult);
+                return array_map(fn($item) => $item->resource, $readResult);
             }
 
             if ($hasResourceContents || $hasEmbeddedResource) {
@@ -218,10 +217,13 @@ class RegisteredResource extends RegisteredElement
     public static function fromArray(array $data): self|false
     {
         try {
+            if (! isset($data['schema']) || ! isset($data['handler'])) {
+                return false;
+            }
+
             return new self(
                 Resource::fromArray($data['schema']),
-                $data['handlerClass'],
-                $data['handlerMethod'],
+                $data['handler'],
                 $data['isManual'] ?? false,
             );
         } catch (Throwable $e) {

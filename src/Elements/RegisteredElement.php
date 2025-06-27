@@ -9,6 +9,7 @@ use JsonSerializable;
 use PhpMcp\Server\Exception\McpServerException;
 use Psr\Container\ContainerInterface;
 use ReflectionException;
+use ReflectionFunctionAbstract;
 use ReflectionMethod;
 use ReflectionNamedType;
 use ReflectionParameter;
@@ -18,32 +19,43 @@ use TypeError;
 class RegisteredElement implements JsonSerializable
 {
     public function __construct(
-        public readonly string $handlerClass,
-        public readonly string $handlerMethod,
+        public readonly \Closure|array|string $handler,
         public readonly bool $isManual = false,
-    ) {
-    }
+    ) {}
 
     public function handle(ContainerInterface $container, array $arguments): mixed
     {
-        $instance = $container->get($this->handlerClass);
-        $arguments = $this->prepareArguments($instance, $arguments);
-        $method = $this->handlerMethod;
-
-        return $instance->$method(...$arguments);
-    }
-
-    protected function prepareArguments(object $instance, array $arguments): array
-    {
-        if (! method_exists($instance, $this->handlerMethod)) {
-            throw new ReflectionException("Method does not exist: {$this->handlerClass}::{$this->handlerMethod}");
+        if (is_string($this->handler)) {
+            $reflection = new \ReflectionFunction($this->handler);
+            $arguments = $this->prepareArguments($reflection, $arguments);
+            $instance = $container->get($this->handler);
+            return call_user_func($instance, ...$arguments);
         }
 
-        $reflectionMethod = new ReflectionMethod($instance, $this->handlerMethod);
+        if (is_callable($this->handler)) {
+            $reflection = $this->getReflectionForCallable($this->handler);
+            $arguments = $this->prepareArguments($reflection, $arguments);
+            return call_user_func($this->handler, ...$arguments);
+        }
 
+        if (is_array($this->handler)) {
+            [$className, $methodName] = $this->handler;
+            $reflection = new \ReflectionMethod($className, $methodName);
+            $arguments = $this->prepareArguments($reflection, $arguments);
+
+            $instance = $container->get($className);
+            return call_user_func([$instance, $methodName], ...$arguments);
+        }
+
+        throw new \InvalidArgumentException('Invalid handler type');
+    }
+
+
+    protected function prepareArguments(\ReflectionFunctionAbstract $reflection, array $arguments): array
+    {
         $finalArgs = [];
 
-        foreach ($reflectionMethod->getParameters() as $parameter) {
+        foreach ($reflection->getParameters() as $parameter) {
             // TODO: Handle variadic parameters.
             $paramName = $parameter->getName();
             $paramPosition = $parameter->getPosition();
@@ -67,13 +79,37 @@ class RegisteredElement implements JsonSerializable
             } elseif ($parameter->isOptional()) {
                 continue;
             } else {
+                $reflectionName = $reflection instanceof \ReflectionMethod
+                    ? $reflection->class . '::' . $reflection->name
+                    : 'Closure';
                 throw McpServerException::internalError(
-                    "Missing required argument `{$paramName}` for {$reflectionMethod->class}::{$this->handlerMethod}."
+                    "Missing required argument `{$paramName}` for {$reflectionName}."
                 );
             }
         }
 
         return array_values($finalArgs);
+    }
+
+    /**
+     * Gets a ReflectionMethod or ReflectionFunction for a callable.
+     */
+    private function getReflectionForCallable(callable $handler): \ReflectionMethod|\ReflectionFunction
+    {
+        if (is_string($handler)) {
+            return new \ReflectionFunction($handler);
+        }
+
+        if ($handler instanceof \Closure) {
+            return new \ReflectionFunction($handler);
+        }
+
+        if (is_array($handler) && count($handler) === 2) {
+            [$class, $method] = $handler;
+            return new \ReflectionMethod($class, $method);
+        }
+
+        throw new \InvalidArgumentException('Cannot create reflection for this callable type');
     }
 
     /**
@@ -118,7 +154,7 @@ class RegisteredElement implements JsonSerializable
                             return $case;
                         }
                     }
-                    $validNames = array_map(fn ($c) => $c->name, $typeName::cases());
+                    $validNames = array_map(fn($c) => $c->name, $typeName::cases());
                     throw new InvalidArgumentException(
                         "Invalid value '{$argument}' for unit enum {$typeName}. Expected one of: " . implode(', ', $validNames) . "."
                     );
@@ -205,8 +241,7 @@ class RegisteredElement implements JsonSerializable
     public function toArray(): array
     {
         return [
-            'handlerClass' => $this->handlerClass,
-            'handlerMethod' => $this->handlerMethod,
+            'handler' => $this->handler,
             'isManual' => $this->isManual,
         ];
     }

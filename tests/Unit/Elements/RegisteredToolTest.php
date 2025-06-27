@@ -29,28 +29,25 @@ beforeEach(function () {
 
     $this->registeredTool = RegisteredTool::make(
         $this->toolSchema,
-        ToolHandlerFixture::class,
-        'greet'
+        [ToolHandlerFixture::class, 'greet']
     );
 });
 
 it('constructs correctly and exposes schema', function () {
     expect($this->registeredTool->schema)->toBe($this->toolSchema);
-    expect($this->registeredTool->handlerClass)->toBe(ToolHandlerFixture::class);
-    expect($this->registeredTool->handlerMethod)->toBe('greet');
+    expect($this->registeredTool->handler)->toBe([ToolHandlerFixture::class, 'greet']);
     expect($this->registeredTool->isManual)->toBeFalse();
 });
 
 it('can be made as a manual registration', function () {
-    $manualTool = RegisteredTool::make($this->toolSchema, ToolHandlerFixture::class, 'greet', true);
+    $manualTool = RegisteredTool::make($this->toolSchema, [ToolHandlerFixture::class, 'greet'], true);
     expect($manualTool->isManual)->toBeTrue();
 });
 
 it('calls the handler with prepared arguments', function () {
     $tool = RegisteredTool::make(
         Tool::make('sum-tool', ['type' => 'object', 'properties' => ['a' => ['type' => 'integer'], 'b' => ['type' => 'integer']]]),
-        ToolHandlerFixture::class,
-        'sum'
+        [ToolHandlerFixture::class, 'sum']
     );
     $mockHandler = Mockery::mock(ToolHandlerFixture::class);
     $mockHandler->shouldReceive('sum')->with(5, 10)->once()->andReturn(15);
@@ -65,8 +62,7 @@ it('calls the handler with prepared arguments', function () {
 it('calls handler with no arguments if tool takes none and none provided', function () {
     $tool = RegisteredTool::make(
         Tool::make('no-args-tool', ['type' => 'object', 'properties' => []]),
-        ToolHandlerFixture::class,
-        'noParamsTool'
+        [ToolHandlerFixture::class, 'noParamsTool']
     );
     $mockHandler = Mockery::mock(ToolHandlerFixture::class);
     $mockHandler->shouldReceive('noParamsTool')->withNoArgs()->once()->andReturn(['status' => 'done']);
@@ -91,8 +87,7 @@ dataset('tool_handler_return_values', [
 it('formats various scalar and simple object/array handler results into TextContent', function (string $handlerMethod, string $expectedText) {
     $tool = RegisteredTool::make(
         Tool::make('format-test-tool', ['type' => 'object', 'properties' => []]),
-        ToolHandlerFixture::class,
-        $handlerMethod
+        [ToolHandlerFixture::class, $handlerMethod]
     );
 
     $resultContents = $tool->call($this->container, []);
@@ -104,8 +99,7 @@ it('formats various scalar and simple object/array handler results into TextCont
 it('returns single Content object from handler as array with one Content object', function () {
     $tool = RegisteredTool::make(
         Tool::make('content-test-tool', ['type' => 'object', 'properties' => []]),
-        ToolHandlerFixture::class,
-        'returnTextContent'
+        [ToolHandlerFixture::class, 'returnTextContent']
     );
     $resultContents = $tool->call($this->container, []);
 
@@ -116,8 +110,7 @@ it('returns single Content object from handler as array with one Content object'
 it('returns array of Content objects from handler as is', function () {
     $tool = RegisteredTool::make(
         Tool::make('content-array-tool', ['type' => 'object', 'properties' => []]),
-        ToolHandlerFixture::class,
-        'returnArrayOfContent'
+        [ToolHandlerFixture::class, 'returnArrayOfContent']
     );
     $resultContents = $tool->call($this->container, []);
 
@@ -129,8 +122,7 @@ it('returns array of Content objects from handler as is', function () {
 it('formats mixed array from handler into array of Content objects', function () {
     $tool = RegisteredTool::make(
         Tool::make('mixed-array-tool', ['type' => 'object', 'properties' => []]),
-        ToolHandlerFixture::class,
-        'returnMixedArray'
+        [ToolHandlerFixture::class, 'returnMixedArray']
     );
     $resultContents = $tool->call($this->container, []);
 
@@ -149,8 +141,7 @@ it('formats mixed array from handler into array of Content objects', function ()
 it('formats empty array from handler into TextContent with "[]"', function () {
     $tool = RegisteredTool::make(
         Tool::make('empty-array-tool', ['type' => 'object', 'properties' => []]),
-        ToolHandlerFixture::class,
-        'returnEmptyArray'
+        [ToolHandlerFixture::class, 'returnEmptyArray']
     );
     $resultContents = $tool->call($this->container, []);
 
@@ -161,8 +152,7 @@ it('formats empty array from handler into TextContent with "[]"', function () {
 it('throws JsonException during formatResult if handler returns unencodable value', function () {
     $tool = RegisteredTool::make(
         Tool::make('unencodable-tool', ['type' => 'object', 'properties' => []]),
-        ToolHandlerFixture::class,
-        'toolUnencodableResult'
+        [ToolHandlerFixture::class, 'toolUnencodableResult']
     );
     $tool->call($this->container, []);
 })->throws(JsonException::class);
@@ -170,8 +160,7 @@ it('throws JsonException during formatResult if handler returns unencodable valu
 it('re-throws exceptions from handler execution wrapped in McpServerException from handle()', function () {
     $tool = RegisteredTool::make(
         Tool::make('exception-tool', ['type' => 'object', 'properties' => []]),
-        ToolHandlerFixture::class,
-        'toolThatThrows'
+        [ToolHandlerFixture::class, 'toolThatThrows']
     );
 
     $this->container->shouldReceive('get')->with(ToolHandlerFixture::class)->once()->andReturn(new ToolHandlerFixture());

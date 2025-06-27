@@ -318,8 +318,7 @@ it('registers manual tool successfully during build', function () {
     expect($tool->schema->name)->toBe('test-manual-tool');
     expect($tool->schema->description)->toBe('A test tool');
     expect($tool->schema->inputSchema)->toEqual(['type' => 'object', 'properties' => ['arg' => ['type' => 'string']], 'required' => ['arg']]);
-    expect($tool->handlerClass)->toBe(SB_DummyHandlerClass::class);
-    expect($tool->handlerMethod)->toBe('handle');
+    expect($tool->handler)->toBe($handler);
 });
 
 it('infers tool name from invokable class if not provided', function () {
@@ -333,6 +332,126 @@ it('infers tool name from invokable class if not provided', function () {
     $tool = $server->getRegistry()->getTool('SB_DummyInvokableClass');
     expect($tool)->not->toBeNull();
     expect($tool->schema->name)->toBe('SB_DummyInvokableClass');
+});
+
+it('registers tool with closure handler', function () {
+    $closure = function (string $message): string {
+        return "Hello, $message!";
+    };
+
+    $server = $this->builder
+        ->withServerInfo('ClosureTest', '1.0')
+        ->withTool($closure, 'greet-tool', 'A greeting tool')
+        ->build();
+
+    $tool = $server->getRegistry()->getTool('greet-tool');
+    expect($tool)->toBeInstanceOf(RegisteredTool::class);
+    expect($tool->isManual)->toBeTrue();
+    expect($tool->schema->name)->toBe('greet-tool');
+    expect($tool->schema->description)->toBe('A greeting tool');
+    expect($tool->handler)->toBe($closure);
+    expect($tool->schema->inputSchema)->toEqual([
+        'type' => 'object',
+        'properties' => ['message' => ['type' => 'string']],
+        'required' => ['message']
+    ]);
+});
+
+it('registers tool with static method handler', function () {
+    $handler = [SB_DummyHandlerClass::class, 'handle'];
+
+    $server = $this->builder
+        ->withServerInfo('StaticTest', '1.0')
+        ->withTool($handler, 'static-tool', 'A static method tool')
+        ->build();
+
+    $tool = $server->getRegistry()->getTool('static-tool');
+    expect($tool)->toBeInstanceOf(RegisteredTool::class);
+    expect($tool->isManual)->toBeTrue();
+    expect($tool->schema->name)->toBe('static-tool');
+    expect($tool->handler)->toBe($handler);
+});
+
+it('registers resource with closure handler', function () {
+    $closure = function (string $id): array {
+        return [
+            'uri' => "res://item/$id",
+            'name' => "Item $id",
+            'mimeType' => 'application/json'
+        ];
+    };
+
+    $server = $this->builder
+        ->withServerInfo('ResourceTest', '1.0')
+        ->withResource($closure, 'res://items/{id}', 'dynamic_resource')
+        ->build();
+
+    $resource = $server->getRegistry()->getResource('res://items/{id}');
+    expect($resource)->not->toBeNull();
+    expect($resource->handler)->toBe($closure);
+    expect($resource->isManual)->toBeTrue();
+});
+
+it('registers prompt with closure handler', function () {
+    $closure = function (string $topic): array {
+        return [
+            'role' => 'user',
+            'content' => ['type' => 'text', 'text' => "Tell me about $topic"]
+        ];
+    };
+
+    $server = $this->builder
+        ->withServerInfo('PromptTest', '1.0')
+        ->withPrompt($closure, 'topic-prompt', 'A topic-based prompt')
+        ->build();
+
+    $prompt = $server->getRegistry()->getPrompt('topic-prompt');
+    expect($prompt)->not->toBeNull();
+    expect($prompt->handler)->toBe($closure);
+    expect($prompt->isManual)->toBeTrue();
+});
+
+it('infers closure tool name automatically', function () {
+    $closure = function (int $count): array {
+        return ['count' => $count];
+    };
+
+    $server = $this->builder
+        ->withServerInfo('AutoNameTest', '1.0')
+        ->withTool($closure)
+        ->build();
+
+    $tools = $server->getRegistry()->getTools();
+    expect($tools)->toHaveCount(1);
+
+    $toolName = array_keys($tools)[0];
+    expect($toolName)->toStartWith('closure_tool_');
+
+    $tool = $server->getRegistry()->getTool($toolName);
+    expect($tool->handler)->toBe($closure);
+});
+
+it('generates unique names for multiple closures', function () {
+    $closure1 = function (string $a): string {
+        return $a;
+    };
+    $closure2 = function (int $b): int {
+        return $b;
+    };
+
+    $server = $this->builder
+        ->withServerInfo('MultiClosureTest', '1.0')
+        ->withTool($closure1)
+        ->withTool($closure2)
+        ->build();
+
+    $tools = $server->getRegistry()->getTools();
+    expect($tools)->toHaveCount(2);
+
+    $toolNames = array_keys($tools);
+    expect($toolNames[0])->toStartWith('closure_tool_');
+    expect($toolNames[1])->toStartWith('closure_tool_');
+    expect($toolNames[0])->not->toBe($toolNames[1]);
 });
 
 it('infers prompt arguments and completion providers for manual prompt', function () {

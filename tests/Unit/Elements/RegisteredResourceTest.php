@@ -27,8 +27,7 @@ beforeEach(function () {
     $this->resourceSchema = ResourceSchema::make($this->testUri, 'test-resource', mimeType: 'text/plain');
     $this->registeredResource = RegisteredResource::make(
         $this->resourceSchema,
-        ResourceHandlerFixture::class,
-        'returnStringText'
+        [ResourceHandlerFixture::class, 'returnStringText']
     );
 });
 
@@ -41,21 +40,19 @@ afterEach(function () {
 
 it('constructs correctly and exposes schema', function () {
     expect($this->registeredResource->schema)->toBe($this->resourceSchema);
-    expect($this->registeredResource->handlerClass)->toBe(ResourceHandlerFixture::class);
-    expect($this->registeredResource->handlerMethod)->toBe('returnStringText');
+    expect($this->registeredResource->handler)->toBe([ResourceHandlerFixture::class, 'returnStringText']);
     expect($this->registeredResource->isManual)->toBeFalse();
 });
 
 it('can be made as a manual registration', function () {
-    $manualResource = RegisteredResource::make($this->resourceSchema, ResourceHandlerFixture::class, 'returnStringText', true);
+    $manualResource = RegisteredResource::make($this->resourceSchema, [ResourceHandlerFixture::class, 'returnStringText'], true);
     expect($manualResource->isManual)->toBeTrue();
 });
 
 it('passes URI to handler if handler method expects it', function () {
     $resource = RegisteredResource::make(
         ResourceSchema::make($this->testUri, 'needs-uri'),
-        ResourceHandlerFixture::class,
-        'resourceHandlerNeedsUri'
+        [ResourceHandlerFixture::class, 'resourceHandlerNeedsUri']
     );
 
     $handlerMock = Mockery::mock(ResourceHandlerFixture::class);
@@ -72,8 +69,7 @@ it('passes URI to handler if handler method expects it', function () {
 it('does not require handler method to accept URI', function () {
     $resource = RegisteredResource::make(
         ResourceSchema::make($this->testUri, 'no-uri-param'),
-        ResourceHandlerFixture::class,
-        'resourceHandlerDoesNotNeedUri'
+        [ResourceHandlerFixture::class, 'resourceHandlerDoesNotNeedUri']
     );
     $handlerMock = Mockery::mock(ResourceHandlerFixture::class);
     $handlerMock->shouldReceive('resourceHandlerDoesNotNeedUri')->once()->andReturn("Success no URI");
@@ -85,22 +81,22 @@ it('does not require handler method to accept URI', function () {
 
 
 dataset('resource_handler_return_types', [
-    'string_text'        => ['returnStringText', 'text/plain', fn ($text, $uri) => expect($text)->toBe("Plain string content for {$uri}"), null],
-    'string_json_guess'  => ['returnStringJson', 'application/json', fn ($text, $uri) => expect(json_decode($text, true)['uri_in_json'])->toBe($uri), null],
-    'string_html_guess'  => ['returnStringHtml', 'text/html', fn ($text, $uri) => expect($text)->toContain("<title>{$uri}</title>"), null],
-    'array_json_schema_mime' => ['returnArrayJson', 'application/json', fn ($text, $uri) => expect(json_decode($text, true)['uri_in_array'])->toBe($uri), null], // schema has text/plain, overridden by array + JSON content
-    'empty_array'        => ['returnEmptyArray', 'application/json', fn ($text) => expect($text)->toBe('[]'), null],
-    'stream_octet'       => ['returnStream', 'application/octet-stream', null, fn ($blob, $uri) => expect(base64_decode($blob ?? ''))->toBe("Streamed content for {$uri}")],
-    'array_for_blob'     => ['returnArrayForBlobSchema', 'application/x-custom-blob-array', null, fn ($blob, $uri) => expect(base64_decode($blob ?? ''))->toBe("Blob for {$uri} via array")],
-    'array_for_text'     => ['returnArrayForTextSchema', 'text/vnd.custom-array-text', fn ($text, $uri) => expect($text)->toBe("Text from array for {$uri} via array"), null],
-    'direct_TextResourceContents' => ['returnTextResourceContents', 'text/special-contents', fn ($text) => expect($text)->toBe('Direct TextResourceContents'), null],
-    'direct_BlobResourceContents' => ['returnBlobResourceContents', 'application/custom-blob-contents', null, fn ($blob) => expect(base64_decode($blob ?? ''))->toBe('blobbycontents')],
-    'direct_EmbeddedResource' => ['returnEmbeddedResource', 'application/vnd.custom-embedded', fn ($text) => expect($text)->toBe('Direct EmbeddedResource content'), null],
+    'string_text'        => ['returnStringText', 'text/plain', fn($text, $uri) => expect($text)->toBe("Plain string content for {$uri}"), null],
+    'string_json_guess'  => ['returnStringJson', 'application/json', fn($text, $uri) => expect(json_decode($text, true)['uri_in_json'])->toBe($uri), null],
+    'string_html_guess'  => ['returnStringHtml', 'text/html', fn($text, $uri) => expect($text)->toContain("<title>{$uri}</title>"), null],
+    'array_json_schema_mime' => ['returnArrayJson', 'application/json', fn($text, $uri) => expect(json_decode($text, true)['uri_in_array'])->toBe($uri), null], // schema has text/plain, overridden by array + JSON content
+    'empty_array'        => ['returnEmptyArray', 'application/json', fn($text) => expect($text)->toBe('[]'), null],
+    'stream_octet'       => ['returnStream', 'application/octet-stream', null, fn($blob, $uri) => expect(base64_decode($blob ?? ''))->toBe("Streamed content for {$uri}")],
+    'array_for_blob'     => ['returnArrayForBlobSchema', 'application/x-custom-blob-array', null, fn($blob, $uri) => expect(base64_decode($blob ?? ''))->toBe("Blob for {$uri} via array")],
+    'array_for_text'     => ['returnArrayForTextSchema', 'text/vnd.custom-array-text', fn($text, $uri) => expect($text)->toBe("Text from array for {$uri} via array"), null],
+    'direct_TextResourceContents' => ['returnTextResourceContents', 'text/special-contents', fn($text) => expect($text)->toBe('Direct TextResourceContents'), null],
+    'direct_BlobResourceContents' => ['returnBlobResourceContents', 'application/custom-blob-contents', null, fn($blob) => expect(base64_decode($blob ?? ''))->toBe('blobbycontents')],
+    'direct_EmbeddedResource' => ['returnEmbeddedResource', 'application/vnd.custom-embedded', fn($text) => expect($text)->toBe('Direct EmbeddedResource content'), null],
 ]);
 
 it('formats various handler return types correctly', function (string $handlerMethod, string $expectedMime, ?callable $textAssertion, ?callable $blobAssertion) {
     $schema = ResourceSchema::make($this->testUri, 'format-test');
-    $resource = RegisteredResource::make($schema, ResourceHandlerFixture::class, $handlerMethod);
+    $resource = RegisteredResource::make($schema, [ResourceHandlerFixture::class, $handlerMethod]);
 
     $resultContents = $resource->read($this->container, $this->testUri);
 
@@ -122,7 +118,7 @@ it('formats various handler return types correctly', function (string $handlerMe
 
 it('formats SplFileInfo based on schema MIME type (text)', function () {
     $schema = ResourceSchema::make($this->testUri, 'spl-text', mimeType: 'text/markdown');
-    $resource = RegisteredResource::make($schema, ResourceHandlerFixture::class, 'returnSplFileInfo');
+    $resource = RegisteredResource::make($schema, [ResourceHandlerFixture::class, 'returnSplFileInfo']);
     $result = $resource->read($this->container, $this->testUri);
 
     expect($result[0])->toBeInstanceOf(TextResourceContents::class);
@@ -132,7 +128,7 @@ it('formats SplFileInfo based on schema MIME type (text)', function () {
 
 it('formats SplFileInfo based on schema MIME type (blob if not text like)', function () {
     $schema = ResourceSchema::make($this->testUri, 'spl-blob', mimeType: 'image/png');
-    $resource = RegisteredResource::make($schema, ResourceHandlerFixture::class, 'returnSplFileInfo');
+    $resource = RegisteredResource::make($schema, [ResourceHandlerFixture::class, 'returnSplFileInfo']);
     $result = $resource->read($this->container, $this->testUri);
 
     expect($result[0])->toBeInstanceOf(BlobResourceContents::class);
@@ -141,7 +137,7 @@ it('formats SplFileInfo based on schema MIME type (blob if not text like)', func
 });
 
 it('formats array of ResourceContents as is', function () {
-    $resource = RegisteredResource::make($this->resourceSchema, ResourceHandlerFixture::class, 'returnArrayOfResourceContents');
+    $resource = RegisteredResource::make($this->resourceSchema, [ResourceHandlerFixture::class, 'returnArrayOfResourceContents']);
     $results = $resource->read($this->container, $this->testUri);
     expect($results)->toHaveCount(2);
     expect($results[0])->toBeInstanceOf(TextResourceContents::class)->text->toBe('Part 1 of many RC');
@@ -149,7 +145,7 @@ it('formats array of ResourceContents as is', function () {
 });
 
 it('formats array of EmbeddedResources by extracting their inner resource', function () {
-    $resource = RegisteredResource::make($this->resourceSchema, ResourceHandlerFixture::class, 'returnArrayOfEmbeddedResources');
+    $resource = RegisteredResource::make($this->resourceSchema, [ResourceHandlerFixture::class, 'returnArrayOfEmbeddedResources']);
     $results = $resource->read($this->container, $this->testUri);
     expect($results)->toHaveCount(2);
     expect($results[0])->toBeInstanceOf(TextResourceContents::class)->text->toBe('<doc1/>');
@@ -157,7 +153,7 @@ it('formats array of EmbeddedResources by extracting their inner resource', func
 });
 
 it('formats mixed array with ResourceContent/EmbeddedResource by processing each item', function () {
-    $resource = RegisteredResource::make($this->resourceSchema, ResourceHandlerFixture::class, 'returnMixedArrayWithResourceTypes');
+    $resource = RegisteredResource::make($this->resourceSchema, [ResourceHandlerFixture::class, 'returnMixedArrayWithResourceTypes']);
     $results = $resource->read($this->container, $this->testUri);
 
     expect($results)->toBeArray()->toHaveCount(4);
@@ -172,8 +168,7 @@ it('formats mixed array with ResourceContent/EmbeddedResource by processing each
 it('propagates McpServerException from handler during read', function () {
     $resource = RegisteredResource::make(
         $this->resourceSchema,
-        ResourceHandlerFixture::class,
-        'resourceHandlerNeedsUri'
+        [ResourceHandlerFixture::class, 'resourceHandlerNeedsUri']
     );
     $this->container->shouldReceive('get')->with(ResourceHandlerFixture::class)->andReturn(
         Mockery::mock(ResourceHandlerFixture::class, function (Mockery\MockInterface $mock) {
@@ -184,12 +179,12 @@ it('propagates McpServerException from handler during read', function () {
 })->throws(McpServerException::class, "Test error");
 
 it('propagates other exceptions from handler during read', function () {
-    $resource = RegisteredResource::make($this->resourceSchema, ResourceHandlerFixture::class, 'handlerThrowsException');
+    $resource = RegisteredResource::make($this->resourceSchema, [ResourceHandlerFixture::class, 'handlerThrowsException']);
     $resource->read($this->container, $this->testUri);
 })->throws(\DomainException::class, "Cannot read resource");
 
 it('throws RuntimeException for unformattable handler result', function () {
-    $resource = RegisteredResource::make($this->resourceSchema, ResourceHandlerFixture::class, 'returnUnformattableType');
+    $resource = RegisteredResource::make($this->resourceSchema, [ResourceHandlerFixture::class, 'returnUnformattableType']);
     $resource->read($this->container, $this->testUri);
 })->throws(\RuntimeException::class, "Cannot format resource read result for URI");
 
@@ -202,8 +197,7 @@ it('can be serialized to array and deserialized', function () {
             'desc',
             'app/foo',
         ),
-        ResourceHandlerFixture::class,
-        'getStaticText',
+        [ResourceHandlerFixture::class, 'getStaticText'],
         true
     );
 
@@ -213,8 +207,7 @@ it('can be serialized to array and deserialized', function () {
     expect($array['schema']['name'])->toBe('my-resource');
     expect($array['schema']['description'])->toBe('desc');
     expect($array['schema']['mimeType'])->toBe('app/foo');
-    expect($array['handlerClass'])->toBe(ResourceHandlerFixture::class);
-    expect($array['handlerMethod'])->toBe('getStaticText');
+    expect($array['handler'])->toBe([ResourceHandlerFixture::class, 'getStaticText']);
     expect($array['isManual'])->toBeTrue();
 
     $rehydrated = RegisteredResource::fromArray($array);
@@ -225,6 +218,6 @@ it('can be serialized to array and deserialized', function () {
 });
 
 it('fromArray returns false on failure', function () {
-    $badData = ['schema' => ['uri' => 'fail'], 'handlerClass' => null];
+    $badData = ['schema' => ['uri' => 'fail']];
     expect(RegisteredResource::fromArray($badData))->toBeFalse();
 });

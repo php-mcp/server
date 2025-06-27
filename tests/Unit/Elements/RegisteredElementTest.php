@@ -18,16 +18,16 @@ beforeEach(function () {
 });
 
 it('can be constructed as manual or discovered', function () {
-    $elManual = new RegisteredElement(VariousTypesHandler::class, 'noArgsMethod', true);
-    $elDiscovered = new RegisteredElement(VariousTypesHandler::class, 'noArgsMethod', false);
+    $handler = [VariousTypesHandler::class, 'noArgsMethod'];
+    $elManual = new RegisteredElement($handler, true);
+    $elDiscovered = new RegisteredElement($handler, false);
     expect($elManual->isManual)->toBeTrue();
     expect($elDiscovered->isManual)->toBeFalse();
-    expect($elDiscovered->handlerClass)->toBe(VariousTypesHandler::class);
-    expect($elDiscovered->handlerMethod)->toBe('noArgsMethod');
+    expect($elDiscovered->handler)->toBe($handler);
 });
 
 it('prepares arguments in correct order for simple required types', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'simpleRequiredArgs');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'simpleRequiredArgs']);
     $args = ['pString' => 'hello', 'pBool' => true, 'pInt' => 123];
     $result = $element->handle($this->container, $args);
 
@@ -37,7 +37,7 @@ it('prepares arguments in correct order for simple required types', function () 
 });
 
 it('uses default values for missing optional arguments', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'optionalArgsWithDefaults');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'optionalArgsWithDefaults']);
 
     $result1 = $element->handle($this->container, ['pString' => 'override']);
     expect($result1['pString'])->toBe('override');
@@ -53,7 +53,7 @@ it('uses default values for missing optional arguments', function () {
 });
 
 it('passes null for nullable arguments if not provided', function () {
-    $elementNoDefaults = new RegisteredElement(VariousTypesHandler::class, 'nullableArgsWithoutDefaults');
+    $elementNoDefaults = new RegisteredElement([VariousTypesHandler::class, 'nullableArgsWithoutDefaults']);
     $result2 = $elementNoDefaults->handle($this->container, []);
     expect($result2['pString'])->toBeNull();
     expect($result2['pInt'])->toBeNull();
@@ -61,7 +61,7 @@ it('passes null for nullable arguments if not provided', function () {
 });
 
 it('passes null explicitly for nullable arguments', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'nullableArgsWithoutDefaults');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'nullableArgsWithoutDefaults']);
     $result = $element->handle($this->container, ['pString' => null, 'pInt' => null, 'pArray' => null]);
     expect($result['pString'])->toBeNull();
     expect($result['pInt'])->toBeNull();
@@ -69,7 +69,7 @@ it('passes null explicitly for nullable arguments', function () {
 });
 
 it('handles mixed type arguments', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'mixedTypeArg');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'mixedTypeArg']);
     $obj = new stdClass();
     $testValues = [
         'a string',
@@ -86,7 +86,7 @@ it('handles mixed type arguments', function () {
 });
 
 it('throws McpServerException for missing required argument', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'simpleRequiredArgs');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'simpleRequiredArgs']);
     $element->handle($this->container, ['pString' => 'hello', 'pInt' => 123]);
 })->throws(McpServerException::class, 'Missing required argument `pBool`');
 
@@ -118,7 +118,7 @@ dataset('valid_type_casts', [
 ]);
 
 it('casts argument types correctly for valid inputs (comprehensive)', function (string $paramName, mixed $inputValue, mixed $expectedValue) {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'comprehensiveArgumentTest');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'comprehensiveArgumentTest']);
 
     $allArgs = [
         'strParam' => 'default string',
@@ -162,7 +162,7 @@ dataset('invalid_type_casts', [
 ]);
 
 it('throws McpServerException for invalid type casting', function (string $paramName, mixed $invalidValue, string $expectedMsgRegex) {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'comprehensiveArgumentTest');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'comprehensiveArgumentTest']);
     $allArgs = [ /* fill with defaults as in valid_type_casts */
         'strParam' => 's',
         'intParam' => 1,
@@ -195,40 +195,40 @@ it('throws McpServerException for invalid type casting', function (string $param
 })->with('invalid_type_casts');
 
 it('casts to BackedStringEnum correctly', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'backedEnumArgs');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'backedEnumArgs']);
     $result = $element->handle($this->container, ['pBackedString' => 'A', 'pBackedInt' => 1]);
     expect($result['pBackedString'])->toBe(BackedStringEnum::OptionA);
 });
 
 it('throws for invalid BackedStringEnum value', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'backedEnumArgs');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'backedEnumArgs']);
     $element->handle($this->container, ['pBackedString' => 'Invalid', 'pBackedInt' => 1]);
 })->throws(McpServerException::class, "Invalid value 'Invalid' for backed enum");
 
 it('casts to BackedIntEnum correctly', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'backedEnumArgs');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'backedEnumArgs']);
     $result = $element->handle($this->container, ['pBackedString' => 'A', 'pBackedInt' => 2]);
     expect($result['pBackedInt'])->toBe(BackedIntEnum::Second);
 });
 
 it('throws for invalid BackedIntEnum value', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'backedEnumArgs');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'backedEnumArgs']);
     $element->handle($this->container, ['pBackedString' => 'A', 'pBackedInt' => 999]);
 })->throws(McpServerException::class, "Invalid value '999' for backed enum");
 
 it('casts to UnitEnum correctly', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'unitEnumArg');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'unitEnumArg']);
     $result = $element->handle($this->container, ['pUnitEnum' => 'Yes']);
     expect($result['pUnitEnum'])->toBe(UnitEnum::Yes);
 });
 
 it('throws for invalid UnitEnum value', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'unitEnumArg');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'unitEnumArg']);
     $element->handle($this->container, ['pUnitEnum' => 'Invalid']);
 })->throws(McpServerException::class, "Invalid value 'Invalid' for unit enum");
 
 
 it('throws ReflectionException if handler method does not exist', function () {
-    $element = new RegisteredElement(VariousTypesHandler::class, 'nonExistentMethod');
+    $element = new RegisteredElement([VariousTypesHandler::class, 'nonExistentMethod']);
     $element->handle($this->container, []);
-})->throws(\ReflectionException::class, "Method does not exist");
+})->throws(\ReflectionException::class, "VariousTypesHandler::nonExistentMethod() does not exist");

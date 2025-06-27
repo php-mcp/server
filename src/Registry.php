@@ -181,7 +181,7 @@ class Registry implements EventEmitterInterface
         }
     }
 
-    public function registerTool(Tool $tool, string $handlerClass, string $handlerMethod, bool $isManual = false): void
+    public function registerTool(Tool $tool, \Closure|array|string $handler, bool $isManual = false): void
     {
         $toolName = $tool->name;
         $existing = $this->tools[$toolName] ?? null;
@@ -192,12 +192,12 @@ class Registry implements EventEmitterInterface
             return;
         }
 
-        $this->tools[$toolName] = RegisteredTool::make($tool, $handlerClass, $handlerMethod, $isManual);
+        $this->tools[$toolName] = RegisteredTool::make($tool, $handler, $isManual);
 
         $this->checkAndEmitChange('tools', $this->tools);
     }
 
-    public function registerResource(Resource $resource, string $handlerClass, string $handlerMethod, bool $isManual = false): void
+    public function registerResource(Resource $resource, \Closure|array|string $handler, bool $isManual = false): void
     {
         $uri = $resource->uri;
         $existing = $this->resources[$uri] ?? null;
@@ -208,15 +208,14 @@ class Registry implements EventEmitterInterface
             return;
         }
 
-        $this->resources[$uri] = RegisteredResource::make($resource, $handlerClass, $handlerMethod, $isManual);
+        $this->resources[$uri] = RegisteredResource::make($resource, $handler, $isManual);
 
         $this->checkAndEmitChange('resources', $this->resources);
     }
 
     public function registerResourceTemplate(
         ResourceTemplate $template,
-        string $handlerClass,
-        string $handlerMethod,
+        \Closure|array|string $handler,
         array $completionProviders = [],
         bool $isManual = false,
     ): void {
@@ -229,15 +228,14 @@ class Registry implements EventEmitterInterface
             return;
         }
 
-        $this->resourceTemplates[$uriTemplate] = RegisteredResourceTemplate::make($template, $handlerClass, $handlerMethod, $isManual, $completionProviders);
+        $this->resourceTemplates[$uriTemplate] = RegisteredResourceTemplate::make($template, $handler, $isManual, $completionProviders);
 
         $this->checkAndEmitChange('resource_templates', $this->resourceTemplates);
     }
 
     public function registerPrompt(
         Prompt $prompt,
-        string $handlerClass,
-        string $handlerMethod,
+        \Closure|array|string $handler,
         array $completionProviders = [],
         bool $isManual = false,
     ): void {
@@ -250,7 +248,7 @@ class Registry implements EventEmitterInterface
             return;
         }
 
-        $this->prompts[$promptName] = RegisteredPrompt::make($prompt, $handlerClass, $handlerMethod, $isManual, $completionProviders);
+        $this->prompts[$promptName] = RegisteredPrompt::make($prompt, $handler, $isManual, $completionProviders);
 
         $this->checkAndEmitChange('prompts', $this->prompts);
     }
@@ -297,24 +295,40 @@ class Registry implements EventEmitterInterface
 
         foreach ($this->tools as $name => $tool) {
             if (! $tool->isManual) {
+                if ($tool->handler instanceof \Closure) {
+                    $this->logger->warning("Skipping closure tool from cache: {$name}");
+                    continue;
+                }
                 $discoveredData['tools'][$name] = json_encode($tool);
             }
         }
 
         foreach ($this->resources as $uri => $resource) {
             if (! $resource->isManual) {
+                if ($resource->handler instanceof \Closure) {
+                    $this->logger->warning("Skipping closure resource from cache: {$uri}");
+                    continue;
+                }
                 $discoveredData['resources'][$uri] = json_encode($resource);
             }
         }
 
         foreach ($this->prompts as $name => $prompt) {
             if (! $prompt->isManual) {
+                if ($prompt->handler instanceof \Closure) {
+                    $this->logger->warning("Skipping closure prompt from cache: {$name}");
+                    continue;
+                }
                 $discoveredData['prompts'][$name] = json_encode($prompt);
             }
         }
 
         foreach ($this->resourceTemplates as $uriTemplate => $template) {
             if (! $template->isManual) {
+                if ($template->handler instanceof \Closure) {
+                    $this->logger->warning("Skipping closure template from cache: {$uriTemplate}");
+                    continue;
+                }
                 $discoveredData['resourceTemplates'][$uriTemplate] = json_encode($template);
             }
         }
