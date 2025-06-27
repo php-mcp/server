@@ -36,8 +36,7 @@ it('discovers all element types correctly from fixture files', function () {
         ->and($greetUserTool->isManual)->toBeFalse()
         ->and($greetUserTool->schema->name)->toBe('greet_user')
         ->and($greetUserTool->schema->description)->toBe('Greets a user by name.')
-        ->and($greetUserTool->handlerClass)->toBe(\PhpMcp\Server\Tests\Fixtures\Discovery\DiscoverableToolHandler::class)
-        ->and($greetUserTool->handlerMethod)->toBe('greet');
+        ->and($greetUserTool->handler)->toBe([\PhpMcp\Server\Tests\Fixtures\Discovery\DiscoverableToolHandler::class, 'greet']);
     expect($greetUserTool->schema->inputSchema['properties'] ?? [])->toHaveKey('name');
 
     $repeatActionTool = $this->registry->getTool('repeatAction');
@@ -50,8 +49,7 @@ it('discovers all element types correctly from fixture files', function () {
     $invokableCalcTool = $this->registry->getTool('InvokableCalculator');
     expect($invokableCalcTool)->toBeInstanceOf(RegisteredTool::class)
         ->and($invokableCalcTool->isManual)->toBeFalse()
-        ->and($invokableCalcTool->handlerClass)->toBe(\PhpMcp\Server\Tests\Fixtures\Discovery\InvocableToolFixture::class)
-        ->and($invokableCalcTool->handlerMethod)->toBe('__invoke');
+        ->and($invokableCalcTool->handler)->toBe([\PhpMcp\Server\Tests\Fixtures\Discovery\InvocableToolFixture::class, '__invoke']);
 
     expect($this->registry->getTool('private_tool_should_be_ignored'))->toBeNull();
     expect($this->registry->getTool('protected_tool_should_be_ignored'))->toBeNull();
@@ -71,8 +69,7 @@ it('discovers all element types correctly from fixture files', function () {
     $invokableStatusRes = $this->registry->getResource('invokable://config/status');
     expect($invokableStatusRes)->toBeInstanceOf(RegisteredResource::class)
         ->and($invokableStatusRes->isManual)->toBeFalse()
-        ->and($invokableStatusRes->handlerClass)->toBe(\PhpMcp\Server\Tests\Fixtures\Discovery\InvocableResourceFixture::class)
-        ->and($invokableStatusRes->handlerMethod)->toBe('__invoke');
+        ->and($invokableStatusRes->handler)->toBe([\PhpMcp\Server\Tests\Fixtures\Discovery\InvocableResourceFixture::class, '__invoke']);
 
 
     // --- Assert Prompts ---
@@ -92,7 +89,7 @@ it('discovers all element types correctly from fixture files', function () {
     $invokableGreeter = $this->registry->getPrompt('InvokableGreeterPrompt');
     expect($invokableGreeter)->toBeInstanceOf(RegisteredPrompt::class)
         ->and($invokableGreeter->isManual)->toBeFalse()
-        ->and($invokableGreeter->handlerClass)->toBe(\PhpMcp\Server\Tests\Fixtures\Discovery\InvocablePromptFixture::class);
+        ->and($invokableGreeter->handler)->toBe([\PhpMcp\Server\Tests\Fixtures\Discovery\InvocablePromptFixture::class, '__invoke']);
 
 
     // --- Assert Resource Templates ---
@@ -109,7 +106,7 @@ it('discovers all element types correctly from fixture files', function () {
     $invokableUserTemplate = $this->registry->getResourceTemplate('invokable://user-profile/{userId}');
     expect($invokableUserTemplate)->toBeInstanceOf(RegisteredResourceTemplate::class)
         ->and($invokableUserTemplate->isManual)->toBeFalse()
-        ->and($invokableUserTemplate->handlerClass)->toBe(\PhpMcp\Server\Tests\Fixtures\Discovery\InvocableResourceTemplateFixture::class);
+        ->and($invokableUserTemplate->handler)->toBe([\PhpMcp\Server\Tests\Fixtures\Discovery\InvocableResourceTemplateFixture::class, '__invoke']);
 });
 
 it('does not discover elements from excluded directories', function () {

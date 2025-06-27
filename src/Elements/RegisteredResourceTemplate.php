@@ -20,19 +20,18 @@ class RegisteredResourceTemplate extends RegisteredElement
 
     public function __construct(
         public readonly ResourceTemplate $schema,
-        string $handlerClass,
-        string $handlerMethod,
+        \Closure|array|string $handler,
         bool $isManual = false,
         public readonly array $completionProviders = []
     ) {
-        parent::__construct($handlerClass, $handlerMethod, $isManual);
+        parent::__construct($handler, $isManual);
 
         $this->compileTemplate();
     }
 
-    public static function make(ResourceTemplate $schema, string $handlerClass, string $handlerMethod, bool $isManual = false, array $completionProviders = []): self
+    public static function make(ResourceTemplate $schema, \Closure|array|string $handler, bool $isManual = false, array $completionProviders = []): self
     {
-        return new self($schema, $handlerClass, $handlerMethod, $isManual, $completionProviders);
+        return new self($schema, $handler, $isManual, $completionProviders);
     }
 
     /**
@@ -156,7 +155,7 @@ class RegisteredResourceTemplate extends RegisteredElement
             }
 
             if ($allAreEmbeddedResource && $hasEmbeddedResource) {
-                return array_map(fn ($item) => $item->resource, $readResult);
+                return array_map(fn($item) => $item->resource, $readResult);
             }
 
             if ($hasResourceContents || $hasEmbeddedResource) {
@@ -276,10 +275,13 @@ class RegisteredResourceTemplate extends RegisteredElement
     public static function fromArray(array $data): self|false
     {
         try {
+            if (! isset($data['schema']) || ! isset($data['handler'])) {
+                return false;
+            }
+
             return new self(
                 ResourceTemplate::fromArray($data['schema']),
-                $data['handlerClass'],
-                $data['handlerMethod'],
+                $data['handler'],
                 $data['isManual'] ?? false,
                 $data['completionProviders'] ?? [],
             );

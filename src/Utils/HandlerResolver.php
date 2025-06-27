@@ -14,20 +14,27 @@ use ReflectionException;
 class HandlerResolver
 {
     /**
-     * Validates and resolves a handler to its class name, method name, and ReflectionMethod instance.
+     * Validates and resolves a handler to a ReflectionMethod or ReflectionFunction instance.
      *
      * A handler can be:
-     * - An array: [ClassName::class, 'methodName']
+     * - A Closure: function() { ... }
+     * - An array: [ClassName::class, 'methodName'] (instance method)
+     * - An array: [ClassName::class, 'staticMethod'] (static method, if callable)
      * - A string: InvokableClassName::class (which will resolve to its '__invoke' method)
      *
-     * @param array|string $handler The handler to resolve.
-     * @return ReflectionMethod
+     * @param \Closure|array|string $handler The handler to resolve.
+     * @return \ReflectionMethod|\ReflectionFunction
      *
      * @throws InvalidArgumentException If the handler format is invalid, the class/method doesn't exist,
-     *                                  or the method is unsuitable (e.g., static, private, abstract).
+     *                                  or the method is unsuitable (e.g., private, abstract).
      */
-    public static function resolve(array|string $handler): ReflectionMethod
+    public static function resolve(\Closure|array|string $handler): \ReflectionMethod|\ReflectionFunction
     {
+        // Handle Closures
+        if ($handler instanceof \Closure) {
+            return new \ReflectionFunction($handler);
+        }
+
         $className = null;
         $methodName = null;
 
@@ -49,15 +56,14 @@ class HandlerResolver
                 throw new InvalidArgumentException("Invokable handler class '{$className}' must have a public '__invoke' method.");
             }
         } else {
-            throw new InvalidArgumentException('Invalid handler format. Expected [ClassName::class, \'methodName\'] or InvokableClassName::class string.');
+            throw new InvalidArgumentException('Invalid handler format. Expected Closure, [ClassName::class, \'methodName\'] or InvokableClassName::class string.');
         }
 
         try {
             $reflectionMethod = new ReflectionMethod($className, $methodName);
 
-            if ($reflectionMethod->isStatic()) {
-                throw new InvalidArgumentException("Handler method '{$className}::{$methodName}' cannot be static.");
-            }
+            // For discovered elements (non-manual), still reject static methods
+            // For manual elements, we'll allow static methods since they're callable
             if (!$reflectionMethod->isPublic()) {
                 throw new InvalidArgumentException("Handler method '{$className}::{$methodName}' must be public.");
             }

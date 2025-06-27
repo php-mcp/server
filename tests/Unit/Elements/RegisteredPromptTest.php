@@ -37,15 +37,13 @@ it('constructs correctly with schema, handler, and completion providers', functi
     $providers = ['name' => CompletionProviderFixture::class];
     $prompt = RegisteredPrompt::make(
         $this->promptSchema,
-        PromptHandlerFixture::class,
-        'promptWithArgumentCompletion',
+        [PromptHandlerFixture::class, 'promptWithArgumentCompletion'],
         false,
         $providers
     );
 
     expect($prompt->schema)->toBe($this->promptSchema);
-    expect($prompt->handlerClass)->toBe(PromptHandlerFixture::class);
-    expect($prompt->handlerMethod)->toBe('promptWithArgumentCompletion');
+    expect($prompt->handler)->toBe([PromptHandlerFixture::class, 'promptWithArgumentCompletion']);
     expect($prompt->isManual)->toBeFalse();
     expect($prompt->completionProviders)->toEqual($providers);
     expect($prompt->getCompletionProvider('name'))->toBe(CompletionProviderFixture::class);
@@ -53,7 +51,7 @@ it('constructs correctly with schema, handler, and completion providers', functi
 });
 
 it('can be made as a manual registration', function () {
-    $manualPrompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'generateSimpleGreeting', true);
+    $manualPrompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'generateSimpleGreeting'], true);
     expect($manualPrompt->isManual)->toBeTrue();
 });
 
@@ -65,14 +63,14 @@ it('calls handler with prepared arguments via get()', function () {
         ->andReturn([['role' => 'user', 'content' => 'Warm greeting for Alice.']]);
     $this->container->shouldReceive('get')->with(PromptHandlerFixture::class)->andReturn($handlerMock);
 
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'generateSimpleGreeting');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'generateSimpleGreeting']);
     $messages = $prompt->get($this->container, ['name' => 'Alice', 'style' => 'warm']);
 
     expect($messages[0]->content->text)->toBe('Warm greeting for Alice.');
 });
 
 it('formats single PromptMessage object from handler', function () {
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'returnSinglePromptMessageObject');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnSinglePromptMessageObject']);
     $messages = $prompt->get($this->container, []);
     expect($messages)->toBeArray()->toHaveCount(1);
     expect($messages[0])->toBeInstanceOf(PromptMessage::class);
@@ -80,7 +78,7 @@ it('formats single PromptMessage object from handler', function () {
 });
 
 it('formats array of PromptMessage objects from handler as is', function () {
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'returnArrayOfPromptMessageObjects');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnArrayOfPromptMessageObjects']);
     $messages = $prompt->get($this->container, []);
     expect($messages)->toBeArray()->toHaveCount(2);
     expect($messages[0]->content->text)->toBe("First message object.");
@@ -88,13 +86,13 @@ it('formats array of PromptMessage objects from handler as is', function () {
 });
 
 it('formats empty array from handler as empty array', function () {
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'returnEmptyArrayForPrompt');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnEmptyArrayForPrompt']);
     $messages = $prompt->get($this->container, []);
     expect($messages)->toBeArray()->toBeEmpty();
 });
 
 it('formats simple user/assistant map from handler', function () {
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'returnSimpleUserAssistantMap');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnSimpleUserAssistantMap']);
     $messages = $prompt->get($this->container, []);
     expect($messages)->toHaveCount(2);
     expect($messages[0]->role)->toBe(Role::User);
@@ -104,7 +102,7 @@ it('formats simple user/assistant map from handler', function () {
 });
 
 it('formats user/assistant map with Content objects', function () {
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'returnUserAssistantMapWithContentObjects');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnUserAssistantMapWithContentObjects']);
     $messages = $prompt->get($this->container, []);
     expect($messages[0]->role)->toBe(Role::User);
     expect($messages[0]->content)->toBeInstanceOf(TextContent::class)->text->toBe("User text content object.");
@@ -113,7 +111,7 @@ it('formats user/assistant map with Content objects', function () {
 });
 
 it('formats user/assistant map with mixed content (string and Content object)', function () {
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'returnUserAssistantMapWithMixedContent');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnUserAssistantMapWithMixedContent']);
     $messages = $prompt->get($this->container, []);
     expect($messages[0]->role)->toBe(Role::User);
     expect($messages[0]->content)->toBeInstanceOf(TextContent::class)->text->toBe("Plain user string.");
@@ -122,7 +120,7 @@ it('formats user/assistant map with mixed content (string and Content object)', 
 });
 
 it('formats user/assistant map with array content', function () {
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'returnUserAssistantMapWithArrayContent');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnUserAssistantMapWithArrayContent']);
     $messages = $prompt->get($this->container, []);
     expect($messages[0]->role)->toBe(Role::User);
     expect($messages[0]->content)->toBeInstanceOf(TextContent::class)->text->toBe("User array content");
@@ -131,7 +129,7 @@ it('formats user/assistant map with array content', function () {
 });
 
 it('formats list of raw message arrays with various content types', function () {
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'returnListOfRawMessageArrays');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnListOfRawMessageArrays']);
     $messages = $prompt->get($this->container, []);
     expect($messages)->toHaveCount(6);
     expect($messages[0]->content->text)->toBe("First raw message string.");
@@ -145,7 +143,7 @@ it('formats list of raw message arrays with various content types', function () 
 });
 
 it('formats list of raw message arrays with scalar or array content (becoming JSON TextContent)', function () {
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'returnListOfRawMessageArraysWithScalars');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnListOfRawMessageArraysWithScalars']);
     $messages = $prompt->get($this->container, []);
     expect($messages)->toHaveCount(5);
     expect($messages[0]->content->text)->toBe("123");
@@ -156,7 +154,7 @@ it('formats list of raw message arrays with scalar or array content (becoming JS
 });
 
 it('formats mixed array of PromptMessage objects and raw message arrays', function () {
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'returnMixedArrayOfPromptMessagesAndRaw');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnMixedArrayOfPromptMessagesAndRaw']);
     $messages = $prompt->get($this->container, []);
     expect($messages)->toHaveCount(4);
     expect($messages[0]->content)->toBeInstanceOf(TextContent::class)->text->toBe("This is a PromptMessage object.");
@@ -176,7 +174,7 @@ dataset('prompt_format_errors', [
 
 it('throws RuntimeException for invalid prompt result formats', function (string|callable $handlerMethodOrCallable, string $expectedErrorPattern) {
     $methodName = is_string($handlerMethodOrCallable) ? $handlerMethodOrCallable : 'customReturn';
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, $methodName);
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, $methodName]);
 
     if (is_callable($handlerMethodOrCallable)) {
         $this->container->shouldReceive('get')->with(PromptHandlerFixture::class)->andReturn(
@@ -195,7 +193,7 @@ it('throws RuntimeException for invalid prompt result formats', function (string
 
 
 it('propagates exceptions from handler during get()', function () {
-    $prompt = RegisteredPrompt::make($this->promptSchema, PromptHandlerFixture::class, 'promptHandlerThrows');
+    $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'promptHandlerThrows']);
     $prompt->get($this->container, []);
 })->throws(\LogicException::class, "Prompt generation failed inside handler.");
 
@@ -209,8 +207,7 @@ it('can be serialized to array and deserialized with completion providers', func
     $providers = ['arg1' => CompletionProviderFixture::class];
     $original = RegisteredPrompt::make(
         $schema,
-        PromptHandlerFixture::class,
-        'generateSimpleGreeting',
+        [PromptHandlerFixture::class, 'generateSimpleGreeting'],
         true,
         $providers
     );
@@ -219,8 +216,7 @@ it('can be serialized to array and deserialized with completion providers', func
 
     expect($array['schema']['name'])->toBe('serialize-prompt');
     expect($array['schema']['arguments'])->toHaveCount(2);
-    expect($array['handlerClass'])->toBe(PromptHandlerFixture::class);
-    expect($array['handlerMethod'])->toBe('generateSimpleGreeting');
+    expect($array['handler'])->toBe([PromptHandlerFixture::class, 'generateSimpleGreeting']);
     expect($array['isManual'])->toBeTrue();
     expect($array['completionProviders'])->toEqual($providers);
 
@@ -232,6 +228,6 @@ it('can be serialized to array and deserialized with completion providers', func
 });
 
 it('fromArray returns false on failure for prompt', function () {
-    $badData = ['schema' => ['name' => 'fail'], 'handlerClass' => null, 'handlerMethod' => null];
+    $badData = ['schema' => ['name' => 'fail']];
     expect(RegisteredPrompt::fromArray($badData))->toBeFalse();
 });

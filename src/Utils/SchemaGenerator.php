@@ -31,27 +31,27 @@ class SchemaGenerator
     }
 
     /**
-     * Generates a JSON Schema object (as a PHP array) for a method's parameters.
+     * Generates a JSON Schema object (as a PHP array) for a method's or function's parameters.
      */
-    public function generate(ReflectionMethod $method): array
+    public function generate(\ReflectionMethod|\ReflectionFunction $reflection): array
     {
-        $methodSchema = $this->extractMethodLevelSchema($method);
+        $methodSchema = $this->extractMethodLevelSchema($reflection);
 
         if ($methodSchema && isset($methodSchema['definition'])) {
             return $methodSchema['definition'];
         }
 
-        $parametersInfo = $this->parseParametersInfo($method);
+        $parametersInfo = $this->parseParametersInfo($reflection);
 
         return $this->buildSchemaFromParameters($parametersInfo, $methodSchema);
     }
 
     /**
-     * Extracts method-level Schema attribute.
+     * Extracts method-level or function-level Schema attribute.
      */
-    private function extractMethodLevelSchema(ReflectionMethod $method): ?array
+    private function extractMethodLevelSchema(\ReflectionMethod|\ReflectionFunction $reflection): ?array
     {
-        $schemaAttrs = $method->getAttributes(Schema::class, \ReflectionAttribute::IS_INSTANCEOF);
+        $schemaAttrs = $reflection->getAttributes(Schema::class, \ReflectionAttribute::IS_INSTANCEOF);
         if (empty($schemaAttrs)) {
             return null;
         }
@@ -263,7 +263,7 @@ class SchemaGenerator
         // If no items specified by Schema attribute, infer from type
         if (!isset($paramSchema['items'])) {
             $itemJsonTypes = $this->mapPhpTypeToJsonSchemaType($paramInfo['type_string']);
-            $nonNullItemTypes = array_filter($itemJsonTypes, fn ($t) => $t !== 'null');
+            $nonNullItemTypes = array_filter($itemJsonTypes, fn($t) => $t !== 'null');
 
             if (count($nonNullItemTypes) === 1) {
                 $paramSchema['items'] = ['type' => $nonNullItemTypes[0]];
@@ -405,14 +405,14 @@ class SchemaGenerator
      *     parameter_schema: array<string, mixed>
      * }>
      */
-    private function parseParametersInfo(ReflectionMethod $method): array
+    private function parseParametersInfo(\ReflectionMethod|\ReflectionFunction $reflection): array
     {
-        $docComment = $method->getDocComment() ?: null;
+        $docComment = $reflection->getDocComment() ?: null;
         $docBlock = $this->docBlockParser->parseDocBlock($docComment);
         $paramTags = $this->docBlockParser->getParamTags($docBlock);
         $parametersInfo = [];
 
-        foreach ($method->getParameters() as $rp) {
+        foreach ($reflection->getParameters() as $rp) {
             $paramName = $rp->getName();
             $paramTag = $paramTags['$' . $paramName] ?? null;
 
@@ -525,7 +525,7 @@ class SchemaGenerator
                 $types[] = $this->getTypeStringFromReflection($innerType, $innerType->allowsNull());
             }
             if ($nativeAllowsNull) {
-                $types = array_filter($types, fn ($t) => strtolower($t) !== 'null');
+                $types = array_filter($types, fn($t) => strtolower($t) !== 'null');
             }
             $typeString = implode('|', array_unique(array_filter($types)));
         } elseif ($type instanceof ReflectionIntersectionType) {
@@ -570,7 +570,7 @@ class SchemaGenerator
         // Remove leading backslash from class names, but handle built-ins like 'int' or unions like 'int|string'
         if (str_contains($typeString, '\\')) {
             $parts = preg_split('/([|&])/', $typeString, -1, PREG_SPLIT_DELIM_CAPTURE);
-            $processedParts = array_map(fn ($part) => str_starts_with($part, '\\') ? ltrim($part, '\\') : $part, $parts);
+            $processedParts = array_map(fn($part) => str_starts_with($part, '\\') ? ltrim($part, '\\') : $part, $parts);
             $typeString = implode('', $processedParts);
         }
 

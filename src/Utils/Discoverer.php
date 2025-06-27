@@ -196,7 +196,7 @@ class Discoverer
                     $description = $instance->description ?? $this->docBlockParser->getSummary($docBlock) ?? null;
                     $inputSchema = $this->schemaGenerator->generate($method);
                     $tool = Tool::make($name, $inputSchema, $description, $instance->annotations);
-                    $this->registry->registerTool($tool, $className, $methodName);
+                    $this->registry->registerTool($tool, [$className, $methodName]);
                     $discoveredCount['tools']++;
                     break;
 
@@ -208,7 +208,7 @@ class Discoverer
                     $size = $instance->size;
                     $annotations = $instance->annotations;
                     $resource = Resource::make($instance->uri, $name, $description, $mimeType, $annotations, $size);
-                    $this->registry->registerResource($resource, $className, $methodName);
+                    $this->registry->registerResource($resource, [$className, $methodName]);
                     $discoveredCount['resources']++;
                     break;
 
@@ -228,7 +228,7 @@ class Discoverer
                     }
                     $prompt = Prompt::make($name, $description, $arguments);
                     $completionProviders = $this->getCompletionProviders($method);
-                    $this->registry->registerPrompt($prompt, $className, $methodName, $completionProviders);
+                    $this->registry->registerPrompt($prompt, [$className, $methodName], $completionProviders);
                     $discoveredCount['prompts']++;
                     break;
 
@@ -240,7 +240,7 @@ class Discoverer
                     $annotations = $instance->annotations;
                     $resourceTemplate = ResourceTemplate::make($instance->uriTemplate, $name, $description, $mimeType, $annotations);
                     $completionProviders = $this->getCompletionProviders($method);
-                    $this->registry->registerResourceTemplate($resourceTemplate, $className, $methodName, $completionProviders);
+                    $this->registry->registerResourceTemplate($resourceTemplate, [$className, $methodName], $completionProviders);
                     $discoveredCount['resourceTemplates']++;
                     break;
             }

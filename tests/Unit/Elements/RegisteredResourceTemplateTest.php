@@ -51,14 +51,12 @@ it('constructs correctly with schema, handler, and completion providers', functi
 
     $template = RegisteredResourceTemplate::make(
         schema: $schema,
-        handlerClass: ResourceHandlerFixture::class,
-        handlerMethod: 'getUserDocument',
+        handler: [ResourceHandlerFixture::class, 'getUserDocument'],
         completionProviders: $completionProviders
     );
 
     expect($template->schema)->toBe($schema);
-    expect($template->handlerClass)->toBe(ResourceHandlerFixture::class);
-    expect($template->handlerMethod)->toBe('getUserDocument');
+    expect($template->handler)->toBe([ResourceHandlerFixture::class, 'getUserDocument']);
     expect($template->isManual)->toBeFalse();
     expect($template->completionProviders)->toEqual($completionProviders);
     expect($template->getCompletionProvider('userId'))->toBe(CompletionProviderFixture::class);
@@ -75,8 +73,7 @@ it('can be made as a manual registration', function () {
 
     $manualTemplate = RegisteredResourceTemplate::make(
         schema: $schema,
-        handlerClass: ResourceHandlerFixture::class,
-        handlerMethod: 'getUserDocument',
+        handler: [ResourceHandlerFixture::class, 'getUserDocument'],
         isManual: true
     );
 
@@ -101,7 +98,7 @@ dataset('uri_template_matching_cases', [
 
 it('matches URIs against template and extracts variables correctly', function (string $templateString, string $uriToTest, ?array $expectedVariables) {
     $schema = ResourceTemplate::make($templateString, 'test-match');
-    $template = RegisteredResourceTemplate::make($schema, ResourceHandlerFixture::class, 'getUserDocument');
+    $template = RegisteredResourceTemplate::make($schema, [ResourceHandlerFixture::class, 'getUserDocument']);
 
     if ($expectedVariables !== null) {
         expect($template->matches($uriToTest))->toBeTrue();
@@ -116,7 +113,7 @@ it('matches URIs against template and extracts variables correctly', function (s
 
 it('gets variable names from compiled template', function () {
     $schema = ResourceTemplate::make('foo://{varA}/bar/{varB_ext}.{format}', 'vars-test');
-    $template = RegisteredResourceTemplate::make($schema, ResourceHandlerFixture::class, 'getUserDocument');
+    $template = RegisteredResourceTemplate::make($schema, [ResourceHandlerFixture::class, 'getUserDocument']);
     expect($template->getVariableNames())->toEqualCanonicalizing(['varA', 'varB_ext', 'format']);
 });
 
@@ -124,7 +121,7 @@ it('reads resource using handler with extracted URI variables', function () {
     $uriTemplate = 'item://{category}/{itemId}?format={format}';
     $uri = 'item://electronics/tv-123?format=json_pretty';
     $schema = ResourceTemplate::make($uriTemplate, 'item-details-template');
-    $template = RegisteredResourceTemplate::make($schema, ResourceHandlerFixture::class, 'getTemplatedContent');
+    $template = RegisteredResourceTemplate::make($schema, [ResourceHandlerFixture::class, 'getTemplatedContent']);
 
     expect($template->matches($uri))->toBeTrue();
 
@@ -148,7 +145,7 @@ it('uses mimeType from schema if handler result does not specify one', function 
     $uriTemplate = 'item://{category}/{itemId}?format={format}';
     $uri = 'item://books/bestseller?format=json_pretty';
     $schema = ResourceTemplate::make($uriTemplate, 'test-mime', mimeType: 'application/vnd.custom-template-xml');
-    $template = RegisteredResourceTemplate::make($schema, ResourceHandlerFixture::class, 'getTemplatedContent');
+    $template = RegisteredResourceTemplate::make($schema, [ResourceHandlerFixture::class, 'getTemplatedContent']);
     expect($template->matches($uri))->toBeTrue();
 
     $resultContents = $template->read($this->container, $uri);
@@ -158,7 +155,7 @@ it('uses mimeType from schema if handler result does not specify one', function 
 it('formats a simple string result from handler correctly for template', function () {
     $uri = 'item://tools/hammer';
     $schema = ResourceTemplate::make('item://{type}/{name}', 'test-simple-string', mimeType: 'text/x-custom');
-    $template = RegisteredResourceTemplate::make($schema, ResourceHandlerFixture::class, 'returnStringText');
+    $template = RegisteredResourceTemplate::make($schema, [ResourceHandlerFixture::class, 'returnStringText']);
     expect($template->matches($uri))->toBeTrue();
 
     $mockHandler = Mockery::mock(ResourceHandlerFixture::class);
@@ -174,7 +171,7 @@ it('formats a simple string result from handler correctly for template', functio
 it('propagates exceptions from handler during read', function () {
     $uri = 'item://tools/hammer';
     $schema = ResourceTemplate::make('item://{type}/{name}', 'test-simple-string', mimeType: 'text/x-custom');
-    $template = RegisteredResourceTemplate::make($schema, ResourceHandlerFixture::class, 'handlerThrowsException');
+    $template = RegisteredResourceTemplate::make($schema, [ResourceHandlerFixture::class, 'handlerThrowsException']);
     expect($template->matches($uri))->toBeTrue();
     $template->read($this->container, $uri);
 })->throws(\DomainException::class, "Cannot read resource");
@@ -191,8 +188,7 @@ it('can be serialized to array and deserialized', function () {
 
     $original = RegisteredResourceTemplate::make(
         $schema,
-        ResourceHandlerFixture::class,
-        'getUserDocument',
+        [ResourceHandlerFixture::class, 'getUserDocument'],
         true,
         $providers
     );
@@ -203,8 +199,7 @@ it('can be serialized to array and deserialized', function () {
     expect($array['schema']['name'])->toBe('my-template');
     expect($array['schema']['mimeType'])->toBe('application/template+json');
     expect($array['schema']['annotations']['priority'])->toBe(0.7);
-    expect($array['handlerClass'])->toBe(ResourceHandlerFixture::class);
-    expect($array['handlerMethod'])->toBe('getUserDocument');
+    expect($array['handler'])->toBe([ResourceHandlerFixture::class, 'getUserDocument']);
     expect($array['isManual'])->toBeTrue();
     expect($array['completionProviders'])->toEqual($providers);
 
@@ -217,6 +212,6 @@ it('can be serialized to array and deserialized', function () {
 });
 
 it('fromArray returns false on failure', function () {
-    $badData = ['schema' => ['uriTemplate' => 'fail'], 'handlerMethod' => null];
+    $badData = ['schema' => ['uriTemplate' => 'fail']];
     expect(RegisteredResourceTemplate::fromArray($badData))->toBeFalse();
 });
