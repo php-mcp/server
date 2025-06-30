@@ -52,8 +52,8 @@ use PhpMcp\Schema\Request\ListResourcesRequest;
 use PhpMcp\Schema\Request\ListResourceTemplatesRequest;
 use PhpMcp\Schema\ResourceReference;
 use PhpMcp\Server\Protocol;
+use PhpMcp\Server\Tests\Fixtures\Enums\StatusEnum;
 use React\EventLoop\Loop;
-use PhpMcp\Server\Tests\Unit\Attributes\TestEnum;
 
 const DISPATCHER_SESSION_ID = 'dispatcher-session-xyz';
 const DISPATCHER_PAGINATION_LIMIT = 3;
@@ -528,7 +528,7 @@ it('can handle completion complete request with EnumCompletionProvider instance'
     $currentValue = 'a';
     $expectedCompletions = ['archived'];
 
-    $enumProvider = new \PhpMcp\Server\Defaults\EnumCompletionProvider(TestEnum::class);
+    $enumProvider = new \PhpMcp\Server\Defaults\EnumCompletionProvider(StatusEnum::class);
 
     $promptSchema = PromptSchema::make($promptName, '', [PromptArgument::make($argName)]);
     $registeredPrompt = new RegisteredPrompt(
