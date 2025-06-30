@@ -757,7 +757,11 @@ Completion providers enable MCP clients to offer auto-completion suggestions in 
 
 > **Note**: Tools and resources can be discovered via standard MCP commands (`tools/list`, `resources/list`), so completion providers are not needed for them. Completion providers are used only for resource templates (URI variables) and prompt arguments.
 
-Completion providers must implement the `CompletionProviderInterface`:
+The `#[CompletionProvider]` attribute supports three types of completion sources:
+
+#### 1. Custom Provider Classes
+
+For complex completion logic, implement the `CompletionProviderInterface`:
 
 ```php
 use PhpMcp\Server\Contracts\CompletionProviderInterface;
@@ -766,13 +770,12 @@ use PhpMcp\Server\Attributes\{McpResourceTemplate, CompletionProvider};
 
 class UserIdCompletionProvider implements CompletionProviderInterface
 {
+    public function __construct(private DatabaseService $db) {}
+
     public function getCompletions(string $currentValue, SessionInterface $session): array
     {
-        // Return completion suggestions based on current input
-        $allUsers = ['user_1', 'user_2', 'user_3', 'admin_user'];
-        
-        // Filter based on what user has typed so far
-        return array_filter($allUsers, fn($user) => str_starts_with($user, $currentValue));
+        // Dynamic completion from database
+        return $this->db->searchUsers($currentValue);
     }
 }
 
@@ -780,19 +783,129 @@ class UserService
 {
     #[McpResourceTemplate(uriTemplate: 'user://{userId}/profile')]
     public function getUserProfile(
-        #[CompletionProvider(UserIdCompletionProvider::class)]
+        #[CompletionProvider(provider: UserIdCompletionProvider::class)]  // Class string - resolved from container
         string $userId
     ): array {
-        // Always validate input even with completion providers
-        // Users can still pass any value regardless of completion suggestions
-        if (!$this->isValidUserId($userId)) {
-            throw new \InvalidArgumentException('Invalid user ID provided');
-        }
-        
         return ['id' => $userId, 'name' => 'John Doe'];
     }
 }
 ```
+
+You can also pass pre-configured provider instances:
+
+```php
+class DocumentService  
+{
+    #[McpPrompt(name: 'document_prompt')]
+    public function generatePrompt(
+        #[CompletionProvider(provider: new UserIdCompletionProvider($database))]  // Pre-configured instance
+        string $userId,
+        
+        #[CompletionProvider(provider: $this->categoryProvider)]  // Instance from property
+        string $category
+    ): array {
+        return [['role' => 'user', 'content' => "Generate document for user {$userId} in {$category}"]];
+    }
+}
+```
+
+#### 2. Simple List Completions
+
+For static completion lists, use the `values` parameter:
+
+```php
+use PhpMcp\Server\Attributes\{McpPrompt, CompletionProvider};
+
+class ContentService
+{
+    #[McpPrompt(name: 'content_generator')]
+    public function generateContent(
+        #[CompletionProvider(values: ['blog', 'article', 'tutorial', 'guide', 'documentation'])]
+        string $contentType,
+        
+        #[CompletionProvider(values: ['beginner', 'intermediate', 'advanced', 'expert'])]
+        string $difficulty
+    ): array {
+        return [['role' => 'user', 'content' => "Create a {$difficulty} level {$contentType}"]];
+    }
+}
+```
+
+#### 3. Enum-Based Completions
+
+For enum classes, use the `enum` parameter:
+
+```php
+enum Priority: string
+{
+    case LOW = 'low';
+    case MEDIUM = 'medium';
+    case HIGH = 'high';
+    case CRITICAL = 'critical';
+}
+
+enum Status  // Unit enum (no backing values)
+{
+    case DRAFT;
+    case PUBLISHED;
+    case ARCHIVED;
+}
+
+class TaskService
+{
+    #[McpTool(name: 'create_task')]
+    public function createTask(
+        string $title,
+        
+        #[CompletionProvider(enum: Priority::class)]  // String-backed enum uses values
+        string $priority,
+        
+        #[CompletionProvider(enum: Status::class)]    // Unit enum uses case names
+        string $status
+    ): array {
+        return ['id' => 123, 'title' => $title, 'priority' => $priority, 'status' => $status];
+    }
+}
+```
+
+#### Manual Registration with Completion Providers
+
+```php
+$server = Server::make()
+    ->withServerInfo('Completion Demo', '1.0.0')
+    
+    // Using provider class (resolved from container)
+    ->withPrompt(
+        [DocumentHandler::class, 'generateReport'],
+        name: 'document_report'
+        // Completion providers are auto-discovered from method attributes
+    )
+    
+    // Using closure with inline completion providers
+    ->withPrompt(
+        function(
+            #[CompletionProvider(values: ['json', 'xml', 'csv', 'yaml'])]
+            string $format,
+            
+            #[CompletionProvider(enum: Priority::class)]
+            string $priority
+        ): array {
+            return [['role' => 'user', 'content' => "Export data in {$format} format with {$priority} priority"]];
+        },
+        name: 'export_data'
+    )
+    
+    ->build();
+```
+
+#### Completion Provider Resolution
+
+The server automatically handles provider resolution:
+
+- **Class strings** (`MyProvider::class`) → Resolved from PSR-11 container with dependency injection
+- **Instances** (`new MyProvider()`) → Used directly as-is
+- **Values arrays** (`['a', 'b', 'c']`) → Automatically wrapped in `ListCompletionProvider`
+- **Enum classes** (`MyEnum::class`) → Automatically wrapped in `EnumCompletionProvider`
 
 > **Important**: Completion providers only offer suggestions to users in the MCP client interface. Users can still input any value, so always validate parameters in your handlers regardless of completion provider constraints.
 
