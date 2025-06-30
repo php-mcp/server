@@ -22,6 +22,7 @@ This SDK enables you to expose your PHP application's functionality as standardi
 - **🧪 Completion Providers**: Built-in support for argument completion in tools and prompts
 - **🔌 Dependency Injection**: Full PSR-11 container support with auto-wiring
 - **📋 Comprehensive Testing**: Extensive test suite with integration tests for all transports
+- **🔌 Symfony integration**: This SDK can be easily integrated into Symfony applications using the bridge included.
 
 This package supports the **2025-03-26** version of the Model Context Protocol with backward compatibility.
 
@@ -1211,6 +1212,61 @@ sudo apt install certbot python3-certbot-nginx
 
 # Generate SSL certificate
 sudo certbot --nginx -d mcp.yourdomain.com
+```
+
+## Symfony integration
+
+This SDK provides a Symfony bundle for easy integration into Symfony applications. The bundle automatically registers MCP elements and provides a convenient way to configure the server.
+
+### Step 1: Installation
+
+```php
+// config/bundles.php
+
+return [
+    // ...
+    PhpMcp\Server\Bridge\Symfony\McpServerBundle::class => ['all' => true],
+    // ...
+];
+```
+
+### Step 2: Configuration
+
+```yaml
+# config/packages/mcp_server.yaml
+mcp_server:
+    logger: logger # default value, must be a service ID
+    server_info:
+        name: MCP Server
+        version: 1.0.0
+```
+
+### Step 3: Registering MCP Elements
+
+In order to register MCP elements, you must implement the `McpElementInterface` in your services. The bundle will automatically discovers these services and registers them with the MCP server.
+
+```php
+namespace App\Mcp;
+
+use PhpMcp\Server\Attributes\McpTool;
+use PhpMcp\Server\Contracts\McpElementInterface;
+
+class MyMcpService implements McpElementInterface
+{
+    #[McpTool(name: 'my_tool')]
+    public function process(): string
+    {
+        // Your tool logic here
+    }
+}
+```
+
+### Step 4: Running the server
+
+The bundle provides a command to run the MCP server:
+
+```bash
+bin/console mcp-server:start
 ```
 
 ## 📚 Examples & Use Cases
