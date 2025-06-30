@@ -22,7 +22,7 @@ class RegisteredResourceTemplate extends RegisteredElement
 
     public function __construct(
         public readonly ResourceTemplate $schema,
-        \Closure|array|string $handler,
+        callable|array|string $handler,
         bool $isManual = false,
         public readonly array $completionProviders = []
     ) {
@@ -31,7 +31,7 @@ class RegisteredResourceTemplate extends RegisteredElement
         $this->compileTemplate();
     }
 
-    public static function make(ResourceTemplate $schema, \Closure|array|string $handler, bool $isManual = false, array $completionProviders = []): self
+    public static function make(ResourceTemplate $schema, callable|array|string $handler, bool $isManual = false, array $completionProviders = []): self
     {
         return new self($schema, $handler, $isManual, $completionProviders);
     }

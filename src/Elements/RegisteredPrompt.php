@@ -24,14 +24,14 @@ class RegisteredPrompt extends RegisteredElement
 {
     public function __construct(
         public readonly Prompt $schema,
-        \Closure|array|string $handler,
+        callable|array|string $handler,
         bool $isManual = false,
         public readonly array $completionProviders = []
     ) {
         parent::__construct($handler, $isManual);
     }
 
-    public static function make(Prompt $schema, \Closure|array|string $handler, bool $isManual = false, array $completionProviders = []): self
+    public static function make(Prompt $schema, callable|array|string $handler, bool $isManual = false, array $completionProviders = []): self
     {
         return new self($schema, $handler, $isManual, $completionProviders);
     }

@@ -181,7 +181,7 @@ class Registry implements EventEmitterInterface
         }
     }
 
-    public function registerTool(Tool $tool, \Closure|array|string $handler, bool $isManual = false): void
+    public function registerTool(Tool $tool, callable|array|string $handler, bool $isManual = false): void
     {
         $toolName = $tool->name;
         $existing = $this->tools[$toolName] ?? null;
@@ -197,7 +197,7 @@ class Registry implements EventEmitterInterface
         $this->checkAndEmitChange('tools', $this->tools);
     }
 
-    public function registerResource(Resource $resource, \Closure|array|string $handler, bool $isManual = false): void
+    public function registerResource(Resource $resource, callable|array|string $handler, bool $isManual = false): void
     {
         $uri = $resource->uri;
         $existing = $this->resources[$uri] ?? null;
@@ -215,7 +215,7 @@ class Registry implements EventEmitterInterface
 
     public function registerResourceTemplate(
         ResourceTemplate $template,
-        \Closure|array|string $handler,
+        callable|array|string $handler,
         array $completionProviders = [],
         bool $isManual = false,
     ): void {
@@ -235,7 +235,7 @@ class Registry implements EventEmitterInterface
 
     public function registerPrompt(
         Prompt $prompt,
-        \Closure|array|string $handler,
+        callable|array|string $handler,
         array $completionProviders = [],
         bool $isManual = false,
     ): void {
