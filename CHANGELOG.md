@@ -2,6 +2,14 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v3.2.1 - 2025-06-30
+
+### What's Changed
+
+* feat:  use callable instead of Closure|array|string for handler type by @CodeWithKyrian in https://github.com/php-mcp/server/pull/41
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/3.2.0...3.2.1
+
 ## v3.2.0 - 2025-06-30
 
 ### What's Changed
@@ -20,6 +28,7 @@ If you're using the `CompletionProvider` attribute with the named `providerClass
 
 // After (recommended)
 #[CompletionProvider(provider: UserProvider::class)]
+
 
 ```
 The old `providerClass` parameter continues to work for backward compatibility, but may be dropped in a future major version release.
@@ -113,6 +122,7 @@ This release brings support for the latest MCP protocol version along with enhan
 
 
 
+
 ```
 **After:**
 
@@ -123,6 +133,7 @@ This release brings support for the latest MCP protocol version along with enhan
     tools: true,
     resourcesSubscribe: true
 ))
+
 
 
 
@@ -144,11 +155,13 @@ $transport = new HttpServerTransport(host: '127.0.0.1', port: 8080);
 
 
 
+
 ```
 **After:**
 
 ```php
 $transport = new StreamableHttpServerTransport(host: '127.0.0.1',  port: 8080);
+
 
 
 
@@ -325,6 +338,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
    
