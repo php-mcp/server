@@ -11,9 +11,15 @@ use PhpMcp\Server\Contracts\CompletionProviderInterface;
 class CompletionProvider
 {
     /**
-     * @param class-string<CompletionProviderInterface> $providerClass FQCN of the completion provider class.
+     * @param class-string<CompletionProviderInterface>|CompletionProviderInterface|null $provider If a class-string, it will be resolved from the container at the point of use.
      */
-    public function __construct(public string $providerClass)
-    {
+    public function __construct(
+        public string|CompletionProviderInterface|null $provider = null,
+        public ?array $values = null,
+        public ?string $enum = null,
+    ) {
+        if (count(array_filter([$provider, $values, $enum])) !== 1) {
+            throw new \InvalidArgumentException('Only one of provider, values, or enum can be set');
+        }
     }
 }

@@ -340,7 +340,7 @@ class Dispatcher
                 throw McpServerException::invalidParams("Argument '{$argumentName}' not found in prompt '{$identifier}'.");
             }
 
-            $providerClass = $registeredPrompt->getCompletionProvider($argumentName);
+            return $registeredPrompt->complete($this->container, $argumentName, $currentValue, $session);
         } elseif ($ref->type === 'ref/resource') {
             $identifier = $ref->uri;
             $registeredResourceTemplate = $this->registry->getResourceTemplate($identifier);
@@ -360,26 +360,10 @@ class Dispatcher
                 throw McpServerException::invalidParams("URI variable '{$argumentName}' not found in resource template '{$identifier}'.");
             }
 
-            $providerClass = $registeredResourceTemplate->getCompletionProvider($argumentName);
+            return $registeredResourceTemplate->complete($this->container, $argumentName, $currentValue, $session);
         } else {
             throw McpServerException::invalidParams("Invalid ref type '{$ref->type}' for completion complete request.");
         }
-
-        if (! $providerClass) {
-            $this->logger->warning("No completion provider found for argument '{$argumentName}' in '{$ref->type}' '{$identifier}'.");
-            return new CompletionCompleteResult([]);
-        }
-
-        $provider = $this->container->get($providerClass);
-
-        $completions = $provider->getCompletions($currentValue, $session);
-
-        $total = count($completions);
-        $hasMore = $total > 100;
-
-        $pagedCompletions = array_slice($completions, 0, 100);
-
-        return new CompletionCompleteResult($pagedCompletions, $total, $hasMore);
     }
 
     public function handleNotificationInitialized(InitializedNotification $notification, SessionInterface $session): EmptyResult

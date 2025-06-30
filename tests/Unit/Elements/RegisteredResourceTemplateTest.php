@@ -3,7 +3,6 @@
 namespace PhpMcp\Server\Tests\Unit\Elements;
 
 use Mockery;
-use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PhpMcp\Schema\ResourceTemplate;
 use PhpMcp\Server\Elements\RegisteredResourceTemplate;
 use PhpMcp\Schema\Content\TextResourceContents;
@@ -11,8 +10,6 @@ use PhpMcp\Server\Tests\Fixtures\General\ResourceHandlerFixture;
 use PhpMcp\Server\Tests\Fixtures\General\CompletionProviderFixture;
 use Psr\Container\ContainerInterface;
 use PhpMcp\Schema\Annotations;
-
-uses(MockeryPHPUnitIntegration::class);
 
 beforeEach(function () {
     $this->container = Mockery::mock(ContainerInterface::class);
@@ -59,9 +56,9 @@ it('constructs correctly with schema, handler, and completion providers', functi
     expect($template->handler)->toBe([ResourceHandlerFixture::class, 'getUserDocument']);
     expect($template->isManual)->toBeFalse();
     expect($template->completionProviders)->toEqual($completionProviders);
-    expect($template->getCompletionProvider('userId'))->toBe(CompletionProviderFixture::class);
-    expect($template->getCompletionProvider('documentId'))->toBe('Another\ProviderClass');
-    expect($template->getCompletionProvider('nonExistentVar'))->toBeNull();
+    expect($template->completionProviders['userId'])->toBe(CompletionProviderFixture::class);
+    expect($template->completionProviders['documentId'])->toBe('Another\ProviderClass');
+    expect($template->completionProviders)->not->toHaveKey('nonExistentVar');
 });
 
 it('can be made as a manual registration', function () {
@@ -185,6 +182,7 @@ it('can be serialized to array and deserialized', function () {
     );
 
     $providers = ['type' => CompletionProviderFixture::class];
+    $serializedProviders = ['type' => serialize(CompletionProviderFixture::class)];
 
     $original = RegisteredResourceTemplate::make(
         $schema,
@@ -201,7 +199,7 @@ it('can be serialized to array and deserialized', function () {
     expect($array['schema']['annotations']['priority'])->toBe(0.7);
     expect($array['handler'])->toBe([ResourceHandlerFixture::class, 'getUserDocument']);
     expect($array['isManual'])->toBeTrue();
-    expect($array['completionProviders'])->toEqual($providers);
+    expect($array['completionProviders'])->toEqual($serializedProviders);
 
     $rehydrated = RegisteredResourceTemplate::fromArray($array);
     expect($rehydrated)->toBeInstanceOf(RegisteredResourceTemplate::class);

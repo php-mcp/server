@@ -23,7 +23,7 @@ class DiscoverableTemplateHandler
     )]
     public function getProductDetails(
         string $productId,
-        #[CompletionProvider(providerClass: CompletionProviderFixture::class)]
+        #[CompletionProvider(provider: CompletionProviderFixture::class)]
         string $region
     ): array {
         return [

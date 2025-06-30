@@ -14,6 +14,9 @@ use PhpMcp\Schema\Content\PromptMessage;
 use PhpMcp\Schema\Content\TextContent;
 use PhpMcp\Schema\Content\TextResourceContents;
 use PhpMcp\Schema\Enum\Role;
+use PhpMcp\Schema\Result\CompletionCompleteResult;
+use PhpMcp\Server\Contracts\CompletionProviderInterface;
+use PhpMcp\Server\Contracts\SessionInterface;
 use Psr\Container\ContainerInterface;
 use Throwable;
 
@@ -47,9 +50,31 @@ class RegisteredPrompt extends RegisteredElement
         return $this->formatResult($result);
     }
 
-    public function getCompletionProvider(string $argumentName): ?string
+    public function complete(ContainerInterface $container, string $argument, string $value, SessionInterface $session): CompletionCompleteResult
     {
-        return $this->completionProviders[$argumentName] ?? null;
+        $providerClassOrInstance = $this->completionProviders[$argument] ?? null;
+        if ($providerClassOrInstance === null) {
+            return new CompletionCompleteResult([]);
+        }
+
+        if (is_string($providerClassOrInstance)) {
+            if (! class_exists($providerClassOrInstance)) {
+                throw new \RuntimeException("Completion provider class '{$providerClassOrInstance}' does not exist.");
+            }
+
+            $provider = $container->get($providerClassOrInstance);
+        } else {
+            $provider = $providerClassOrInstance;
+        }
+
+        $completions = $provider->getCompletions($value, $session);
+
+        $total = count($completions);
+        $hasMore = $total > 100;
+
+        $pagedCompletions = array_slice($completions, 0, 100);
+
+        return new CompletionCompleteResult($pagedCompletions, $total, $hasMore);
     }
 
     /**
@@ -268,9 +293,14 @@ class RegisteredPrompt extends RegisteredElement
 
     public function toArray(): array
     {
+        $completionProviders = [];
+        foreach ($this->completionProviders as $argument => $provider) {
+            $completionProviders[$argument] = serialize($provider);
+        }
+
         return [
             'schema' => $this->schema->toArray(),
-            'completionProviders' => $this->completionProviders,
+            'completionProviders' => $completionProviders,
             ...parent::toArray(),
         ];
     }
@@ -282,11 +312,16 @@ class RegisteredPrompt extends RegisteredElement
                 return false;
             }
 
+            $completionProviders = [];
+            foreach ($data['completionProviders'] ?? [] as $argument => $provider) {
+                $completionProviders[$argument] = unserialize($provider);
+            }
+
             return new self(
                 Prompt::fromArray($data['schema']),
                 $data['handler'],
                 $data['isManual'] ?? false,
-                $data['completionProviders'] ?? [],
+                $completionProviders,
             );
         } catch (Throwable $e) {
             return false;

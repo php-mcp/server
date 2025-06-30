@@ -53,6 +53,7 @@ use PhpMcp\Schema\Request\ListResourceTemplatesRequest;
 use PhpMcp\Schema\ResourceReference;
 use PhpMcp\Server\Protocol;
 use React\EventLoop\Loop;
+use PhpMcp\Server\Tests\Unit\Attributes\TestEnum;
 
 const DISPATCHER_SESSION_ID = 'dispatcher-session-xyz';
 const DISPATCHER_PAGINATION_LIMIT = 3;
@@ -433,10 +434,14 @@ it('can handle completion complete request for prompt and delegate to provider',
     $providerClass = get_class($mockCompletionProvider);
 
     $promptSchema = PromptSchema::make($promptName, '', [PromptArgument::make($argName)]);
-    $registeredPromptMock = Mockery::mock(RegisteredPrompt::class, [$promptSchema, ['MyPromptHandler', 'get'], false]);
-    $registeredPromptMock->shouldReceive('getCompletionProvider')->with($argName)->andReturn($providerClass);
+    $registeredPrompt = new RegisteredPrompt(
+        schema: $promptSchema,
+        handler: ['MyPromptHandler', 'get'],
+        isManual: false,
+        completionProviders: [$argName => $providerClass]
+    );
 
-    $this->registry->shouldReceive('getPrompt')->with($promptName)->andReturn($registeredPromptMock);
+    $this->registry->shouldReceive('getPrompt')->with($promptName)->andReturn($registeredPrompt);
     $this->container->shouldReceive('get')->with($providerClass)->andReturn($mockCompletionProvider);
     $mockCompletionProvider->shouldReceive('getCompletions')->with($currentValue, $this->session)->andReturn($completions);
 
@@ -458,11 +463,14 @@ it('can handle completion complete request for resource template and delegate to
     $providerClass = get_class($mockCompletionProvider);
 
     $templateSchema = ResourceTemplateSchema::make($templateUri, 'item-template');
-    $registeredTemplateMock = Mockery::mock(RegisteredResourceTemplate::class, [$templateSchema, ['MyResourceTemplateHandler', 'get'], false]);
-    $registeredTemplateMock->shouldReceive('getVariableNames')->andReturn(['itemId', 'catName']);
-    $registeredTemplateMock->shouldReceive('getCompletionProvider')->with($uriVarName)->andReturn($providerClass);
+    $registeredTemplate = new RegisteredResourceTemplate(
+        schema: $templateSchema,
+        handler: ['MyResourceTemplateHandler', 'get'],
+        isManual: false,
+        completionProviders: [$uriVarName => $providerClass]
+    );
 
-    $this->registry->shouldReceive('getResourceTemplate')->with($templateUri)->andReturn($registeredTemplateMock);
+    $this->registry->shouldReceive('getResourceTemplate')->with($templateUri)->andReturn($registeredTemplate);
     $this->container->shouldReceive('get')->with($providerClass)->andReturn($mockCompletionProvider);
     $mockCompletionProvider->shouldReceive('getCompletions')->with($currentValue, $this->session)->andReturn($completions);
 
@@ -475,13 +483,69 @@ it('can handle completion complete request for resource template and delegate to
 it('can handle completion complete request and return empty if no provider', function () {
     $promptName = 'no-provider-prompt';
     $promptSchema = PromptSchema::make($promptName, '', [PromptArgument::make('arg')]);
-    $registeredPromptMock = Mockery::mock(RegisteredPrompt::class, [$promptSchema, ['MyPromptHandler', 'get'], false]);
-    $registeredPromptMock->shouldReceive('getCompletionProvider')->andReturn(null);
-    $this->registry->shouldReceive('getPrompt')->with($promptName)->andReturn($registeredPromptMock);
+    $registeredPrompt = new RegisteredPrompt(
+        schema: $promptSchema,
+        handler: ['MyPromptHandler', 'get'],
+        isManual: false,
+        completionProviders: []
+    );
+    $this->registry->shouldReceive('getPrompt')->with($promptName)->andReturn($registeredPrompt);
 
     $request = CompletionCompleteRequest::make(1, PromptReference::make($promptName), ['name' => 'arg', 'value' => '']);
     $result = $this->dispatcher->handleCompletionComplete($request, $this->session);
     expect($result->values)->toBeEmpty();
+});
+
+it('can handle completion complete request with ListCompletionProvider instance', function () {
+    $promptName = 'list-completion-prompt';
+    $argName = 'category';
+    $currentValue = 'bl';
+    $expectedCompletions = ['blog'];
+
+    $listProvider = new \PhpMcp\Server\Defaults\ListCompletionProvider(['blog', 'news', 'docs', 'api']);
+
+    $promptSchema = PromptSchema::make($promptName, '', [PromptArgument::make($argName)]);
+    $registeredPrompt = new RegisteredPrompt(
+        schema: $promptSchema,
+        handler: ['MyPromptHandler', 'get'],
+        isManual: false,
+        completionProviders: [$argName => $listProvider]
+    );
+
+    $this->registry->shouldReceive('getPrompt')->with($promptName)->andReturn($registeredPrompt);
+
+    $request = CompletionCompleteRequest::make(1, PromptReference::make($promptName), ['name' => $argName, 'value' => $currentValue]);
+    $result = $this->dispatcher->handleCompletionComplete($request, $this->session);
+
+    expect($result->values)->toEqual($expectedCompletions);
+    expect($result->total)->toBe(1);
+    expect($result->hasMore)->toBeFalse();
+});
+
+it('can handle completion complete request with EnumCompletionProvider instance', function () {
+    $promptName = 'enum-completion-prompt';
+    $argName = 'status';
+    $currentValue = 'a';
+    $expectedCompletions = ['archived'];
+
+    $enumProvider = new \PhpMcp\Server\Defaults\EnumCompletionProvider(TestEnum::class);
+
+    $promptSchema = PromptSchema::make($promptName, '', [PromptArgument::make($argName)]);
+    $registeredPrompt = new RegisteredPrompt(
+        schema: $promptSchema,
+        handler: ['MyPromptHandler', 'get'],
+        isManual: false,
+        completionProviders: [$argName => $enumProvider]
+    );
+
+    $this->registry->shouldReceive('getPrompt')->with($promptName)->andReturn($registeredPrompt);
+
+    $request = CompletionCompleteRequest::make(1, PromptReference::make($promptName), ['name' => $argName, 'value' => $currentValue]);
+    $result = $this->dispatcher->handleCompletionComplete($request, $this->session);
+
+    expect($result->values)->toEqual($expectedCompletions);
+    expect($result->total)->toBe(1);
+    expect($result->hasMore)->toBeFalse();
 });
 
 

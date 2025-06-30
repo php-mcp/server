@@ -9,6 +9,8 @@ use PhpMcp\Schema\Content\EmbeddedResource;
 use PhpMcp\Schema\Content\ResourceContents;
 use PhpMcp\Schema\Content\TextResourceContents;
 use PhpMcp\Schema\ResourceTemplate;
+use PhpMcp\Schema\Result\CompletionCompleteResult;
+use PhpMcp\Server\Contracts\SessionInterface;
 use Psr\Container\ContainerInterface;
 use Throwable;
 
@@ -48,10 +50,33 @@ class RegisteredResourceTemplate extends RegisteredElement
         return $this->formatResult($result, $uri, $this->schema->mimeType);
     }
 
-    public function getCompletionProvider(string $argumentName): ?string
+    public function complete(ContainerInterface $container, string $argument, string $value, SessionInterface $session): CompletionCompleteResult
     {
-        return $this->completionProviders[$argumentName] ?? null;
+        $providerClassOrInstance = $this->completionProviders[$argument] ?? null;
+        if ($providerClassOrInstance === null) {
+            return new CompletionCompleteResult([]);
+        }
+
+        if (is_string($providerClassOrInstance)) {
+            if (! class_exists($providerClassOrInstance)) {
+                throw new \RuntimeException("Completion provider class '{$providerClassOrInstance}' does not exist.");
+            }
+
+            $provider = $container->get($providerClassOrInstance);
+        } else {
+            $provider = $providerClassOrInstance;
+        }
+
+        $completions = $provider->getCompletions($value, $session);
+
+        $total = count($completions);
+        $hasMore = $total > 100;
+
+        $pagedCompletions = array_slice($completions, 0, 100);
+
+        return new CompletionCompleteResult($pagedCompletions, $total, $hasMore);
     }
+
 
     public function getVariableNames(): array
     {
@@ -265,9 +290,14 @@ class RegisteredResourceTemplate extends RegisteredElement
 
     public function toArray(): array
     {
+        $completionProviders = [];
+        foreach ($this->completionProviders as $argument => $provider) {
+            $completionProviders[$argument] = serialize($provider);
+        }
+
         return [
             'schema' => $this->schema->toArray(),
-            'completionProviders' => $this->completionProviders,
+            'completionProviders' => $completionProviders,
             ...parent::toArray(),
         ];
     }
@@ -279,11 +309,16 @@ class RegisteredResourceTemplate extends RegisteredElement
                 return false;
             }
 
+            $completionProviders = [];
+            foreach ($data['completionProviders'] ?? [] as $argument => $provider) {
+                $completionProviders[$argument] = unserialize($provider);
+            }
+
             return new self(
                 ResourceTemplate::fromArray($data['schema']),
                 $data['handler'],
                 $data['isManual'] ?? false,
-                $data['completionProviders'] ?? [],
+                $completionProviders,
             );
         } catch (Throwable $e) {
             return false;

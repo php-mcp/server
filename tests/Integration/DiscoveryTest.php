@@ -1,10 +1,17 @@
 <?php
 
+use PhpMcp\Server\Defaults\EnumCompletionProvider;
+use PhpMcp\Server\Defaults\ListCompletionProvider;
 use PhpMcp\Server\Elements\RegisteredPrompt;
 use PhpMcp\Server\Elements\RegisteredResource;
 use PhpMcp\Server\Elements\RegisteredResourceTemplate;
 use PhpMcp\Server\Elements\RegisteredTool;
 use PhpMcp\Server\Registry;
+use PhpMcp\Server\Tests\Fixtures\Discovery\DiscoverableToolHandler;
+use PhpMcp\Server\Tests\Fixtures\Discovery\InvocablePromptFixture;
+use PhpMcp\Server\Tests\Fixtures\Discovery\InvocableResourceFixture;
+use PhpMcp\Server\Tests\Fixtures\Discovery\InvocableResourceTemplateFixture;
+use PhpMcp\Server\Tests\Fixtures\Discovery\InvocableToolFixture;
 use PhpMcp\Server\Utils\Discoverer;
 use PhpMcp\Server\Utils\DocBlockParser;
 use PhpMcp\Server\Utils\SchemaGenerator;
@@ -27,7 +34,6 @@ it('discovers all element types correctly from fixture files', function () {
 
     $this->discoverer->discover($this->fixtureBasePath, [$scanDir]);
 
-    // --- Assert Tools ---
     $tools = $this->registry->getTools();
     expect($tools)->toHaveCount(4); // greet_user, repeatAction, InvokableCalculator, hidden_subdir_tool
 
@@ -36,7 +42,7 @@ it('discovers all element types correctly from fixture files', function () {
         ->and($greetUserTool->isManual)->toBeFalse()
         ->and($greetUserTool->schema->name)->toBe('greet_user')
         ->and($greetUserTool->schema->description)->toBe('Greets a user by name.')
-        ->and($greetUserTool->handler)->toBe([\PhpMcp\Server\Tests\Fixtures\Discovery\DiscoverableToolHandler::class, 'greet']);
+        ->and($greetUserTool->handler)->toBe([DiscoverableToolHandler::class, 'greet']);
     expect($greetUserTool->schema->inputSchema['properties'] ?? [])->toHaveKey('name');
 
     $repeatActionTool = $this->registry->getTool('repeatAction');
@@ -49,14 +55,13 @@ it('discovers all element types correctly from fixture files', function () {
     $invokableCalcTool = $this->registry->getTool('InvokableCalculator');
     expect($invokableCalcTool)->toBeInstanceOf(RegisteredTool::class)
         ->and($invokableCalcTool->isManual)->toBeFalse()
-        ->and($invokableCalcTool->handler)->toBe([\PhpMcp\Server\Tests\Fixtures\Discovery\InvocableToolFixture::class, '__invoke']);
+        ->and($invokableCalcTool->handler)->toBe([InvocableToolFixture::class, '__invoke']);
 
     expect($this->registry->getTool('private_tool_should_be_ignored'))->toBeNull();
     expect($this->registry->getTool('protected_tool_should_be_ignored'))->toBeNull();
     expect($this->registry->getTool('static_tool_should_be_ignored'))->toBeNull();
 
 
-    // --- Assert Resources ---
     $resources = $this->registry->getResources();
     expect($resources)->toHaveCount(3); // app_version, ui_settings_discovered, InvocableResourceFixture
 
@@ -69,18 +74,17 @@ it('discovers all element types correctly from fixture files', function () {
     $invokableStatusRes = $this->registry->getResource('invokable://config/status');
     expect($invokableStatusRes)->toBeInstanceOf(RegisteredResource::class)
         ->and($invokableStatusRes->isManual)->toBeFalse()
-        ->and($invokableStatusRes->handler)->toBe([\PhpMcp\Server\Tests\Fixtures\Discovery\InvocableResourceFixture::class, '__invoke']);
+        ->and($invokableStatusRes->handler)->toBe([InvocableResourceFixture::class, '__invoke']);
 
 
-    // --- Assert Prompts ---
     $prompts = $this->registry->getPrompts();
-    expect($prompts)->toHaveCount(3); // creative_story_prompt, simpleQuestionPrompt, InvocablePromptFixture
+    expect($prompts)->toHaveCount(4); // creative_story_prompt, simpleQuestionPrompt, InvocablePromptFixture, content_creator
 
     $storyPrompt = $this->registry->getPrompt('creative_story_prompt');
     expect($storyPrompt)->toBeInstanceOf(RegisteredPrompt::class)
         ->and($storyPrompt->isManual)->toBeFalse()
         ->and($storyPrompt->schema->arguments)->toHaveCount(2) // genre, lengthWords
-        ->and($storyPrompt->getCompletionProvider('genre'))->toBe(CompletionProviderFixture::class);
+        ->and($storyPrompt->completionProviders['genre'])->toBe(CompletionProviderFixture::class);
 
     $simplePrompt = $this->registry->getPrompt('simpleQuestionPrompt'); // Inferred name
     expect($simplePrompt)->toBeInstanceOf(RegisteredPrompt::class)
@@ -89,24 +93,27 @@ it('discovers all element types correctly from fixture files', function () {
     $invokableGreeter = $this->registry->getPrompt('InvokableGreeterPrompt');
     expect($invokableGreeter)->toBeInstanceOf(RegisteredPrompt::class)
         ->and($invokableGreeter->isManual)->toBeFalse()
-        ->and($invokableGreeter->handler)->toBe([\PhpMcp\Server\Tests\Fixtures\Discovery\InvocablePromptFixture::class, '__invoke']);
+        ->and($invokableGreeter->handler)->toBe([InvocablePromptFixture::class, '__invoke']);
 
+    $contentCreatorPrompt = $this->registry->getPrompt('content_creator');
+    expect($contentCreatorPrompt)->toBeInstanceOf(RegisteredPrompt::class)
+        ->and($contentCreatorPrompt->isManual)->toBeFalse()
+        ->and($contentCreatorPrompt->completionProviders)->toHaveCount(3);
 
-    // --- Assert Resource Templates ---
     $templates = $this->registry->getResourceTemplates();
-    expect($templates)->toHaveCount(3); // product_details_template, getFileContent, InvocableResourceTemplateFixture
+    expect($templates)->toHaveCount(4); // product_details_template, getFileContent, InvocableResourceTemplateFixture, content_template
 
     $productTemplate = $this->registry->getResourceTemplate('product://{region}/details/{productId}');
     expect($productTemplate)->toBeInstanceOf(RegisteredResourceTemplate::class)
         ->and($productTemplate->isManual)->toBeFalse()
         ->and($productTemplate->schema->name)->toBe('product_details_template')
-        ->and($productTemplate->getCompletionProvider('region'))->toBe(CompletionProviderFixture::class);
+        ->and($productTemplate->completionProviders['region'])->toBe(CompletionProviderFixture::class);
     expect($productTemplate->getVariableNames())->toEqualCanonicalizing(['region', 'productId']);
 
     $invokableUserTemplate = $this->registry->getResourceTemplate('invokable://user-profile/{userId}');
     expect($invokableUserTemplate)->toBeInstanceOf(RegisteredResourceTemplate::class)
         ->and($invokableUserTemplate->isManual)->toBeFalse()
-        ->and($invokableUserTemplate->handler)->toBe([\PhpMcp\Server\Tests\Fixtures\Discovery\InvocableResourceTemplateFixture::class, '__invoke']);
+        ->and($invokableUserTemplate->handler)->toBe([InvocableResourceTemplateFixture::class, '__invoke']);
 });
 
 it('does not discover elements from excluded directories', function () {
@@ -139,4 +146,29 @@ it('correctly infers names and descriptions from methods/classes if not set in a
     $invokableCalc = $this->registry->getTool('InvokableCalculator'); // Name comes from Attr
     expect($invokableCalc->schema->name)->toBe('InvokableCalculator');
     expect($invokableCalc->schema->description)->toBe('An invokable calculator tool.');
+});
+
+it('discovers enhanced completion providers with values and enum attributes', function () {
+    $this->discoverer->discover($this->fixtureBasePath, ['Discovery']);
+
+    $contentPrompt = $this->registry->getPrompt('content_creator');
+    expect($contentPrompt)->toBeInstanceOf(RegisteredPrompt::class);
+
+    expect($contentPrompt->completionProviders)->toHaveCount(3);
+
+    $typeProvider = $contentPrompt->completionProviders['type'];
+    expect($typeProvider)->toBeInstanceOf(ListCompletionProvider::class);
+
+    $statusProvider = $contentPrompt->completionProviders['status'];
+    expect($statusProvider)->toBeInstanceOf(EnumCompletionProvider::class);
+
+    $priorityProvider = $contentPrompt->completionProviders['priority'];
+    expect($priorityProvider)->toBeInstanceOf(EnumCompletionProvider::class);
+
+    $contentTemplate = $this->registry->getResourceTemplate('content://{category}/{slug}');
+    expect($contentTemplate)->toBeInstanceOf(RegisteredResourceTemplate::class);
+    expect($contentTemplate->completionProviders)->toHaveCount(1);
+
+    $categoryProvider = $contentTemplate->completionProviders['category'];
+    expect($categoryProvider)->toBeInstanceOf(ListCompletionProvider::class);
 });

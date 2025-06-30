@@ -42,7 +42,7 @@ class SB_DummyHandlerClass
 
     public function handlerWithCompletion(
         string $name,
-        #[CompletionProvider(providerClass: SB_DummyCompletionProvider::class)]
+        #[CompletionProvider(provider: SB_DummyCompletionProvider::class)]
         string $uriParam
     ): array {
         return [];
@@ -467,7 +467,56 @@ it('infers prompt arguments and completion providers for manual prompt', functio
     expect($prompt->schema->arguments)->toHaveCount(2);
     expect($prompt->schema->arguments[0]->name)->toBe('name');
     expect($prompt->schema->arguments[1]->name)->toBe('uriParam');
-    expect($prompt->getCompletionProvider('uriParam'))->toBe(SB_DummyCompletionProvider::class);
+    expect($prompt->completionProviders['uriParam'])->toBe(SB_DummyCompletionProvider::class);
+});
+
+// Add test fixtures for enhanced completion providers
+class SB_DummyHandlerWithEnhancedCompletion
+{
+    public function handleWithListCompletion(
+        #[CompletionProvider(values: ['option1', 'option2', 'option3'])]
+        string $choice
+    ): array {
+        return [['role' => 'user', 'content' => "Selected: {$choice}"]];
+    }
+
+    public function handleWithEnumCompletion(
+        #[CompletionProvider(enum: SB_TestEnum::class)]
+        string $status
+    ): array {
+        return [['role' => 'user', 'content' => "Status: {$status}"]];
+    }
+}
+
+enum SB_TestEnum: string
+{
+    case PENDING = 'pending';
+    case ACTIVE = 'active';
+    case INACTIVE = 'inactive';
+}
+
+it('creates ListCompletionProvider for values attribute in manual registration', function () {
+    $handler = [SB_DummyHandlerWithEnhancedCompletion::class, 'handleWithListCompletion'];
+
+    $server = $this->builder
+        ->withServerInfo('Test', '1.0')
+        ->withPrompt($handler, 'listPrompt')
+        ->build();
+
+    $prompt = $server->getRegistry()->getPrompt('listPrompt');
+    expect($prompt->completionProviders['choice'])->toBeInstanceOf(\PhpMcp\Server\Defaults\ListCompletionProvider::class);
+});
+
+it('creates EnumCompletionProvider for enum attribute in manual registration', function () {
+    $handler = [SB_DummyHandlerWithEnhancedCompletion::class, 'handleWithEnumCompletion'];
+
+    $server = $this->builder
+        ->withServerInfo('Test', '1.0')
+        ->withPrompt($handler, 'enumPrompt')
+        ->build();
+
+    $prompt = $server->getRegistry()->getPrompt('enumPrompt');
+    expect($prompt->completionProviders['status'])->toBeInstanceOf(\PhpMcp\Server\Defaults\EnumCompletionProvider::class);
 });
 
 // it('throws DefinitionException if HandlerResolver fails for a manual element', function () {
