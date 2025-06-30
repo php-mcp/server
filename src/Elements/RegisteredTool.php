@@ -14,13 +14,13 @@ class RegisteredTool extends RegisteredElement
 {
     public function __construct(
         public readonly Tool $schema,
-        \Closure|array|string $handler,
+        callable|array|string $handler,
         bool $isManual = false,
     ) {
         parent::__construct($handler, $isManual);
     }
 
-    public static function make(Tool $schema, \Closure|array|string $handler, bool $isManual = false): self
+    public static function make(Tool $schema, callable|array|string $handler, bool $isManual = false): self
     {
         return new self($schema, $handler, $isManual);
     }

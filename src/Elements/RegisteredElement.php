@@ -18,10 +18,17 @@ use TypeError;
 
 class RegisteredElement implements JsonSerializable
 {
+    /** @var callable|array|string */
+    public readonly mixed $handler;
+    public readonly bool $isManual;
+
     public function __construct(
-        public readonly \Closure|array|string $handler,
-        public readonly bool $isManual = false,
-    ) {}
+        callable|array|string $handler,
+        bool $isManual = false,
+    ) {
+        $this->handler = $handler;
+        $this->isManual = $isManual;
+    }
 
     public function handle(ContainerInterface $container, array $arguments): mixed
     {

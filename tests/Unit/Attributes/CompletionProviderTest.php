@@ -8,13 +8,7 @@ use PhpMcp\Server\Attributes\CompletionProvider;
 use PhpMcp\Server\Tests\Fixtures\General\CompletionProviderFixture;
 use PhpMcp\Server\Defaults\ListCompletionProvider;
 use PhpMcp\Server\Defaults\EnumCompletionProvider;
-
-enum TestEnum: string
-{
-    case DRAFT = 'draft';
-    case PUBLISHED = 'published';
-    case ARCHIVED = 'archived';
-}
+use PhpMcp\Server\Tests\Fixtures\Enums\StatusEnum;
 
 it('can be constructed with provider class', function () {
     $attribute = new CompletionProvider(provider: CompletionProviderFixture::class);
@@ -43,11 +37,11 @@ it('can be constructed with values array', function () {
 });
 
 it('can be constructed with enum class', function () {
-    $attribute = new CompletionProvider(enum: TestEnum::class);
+    $attribute = new CompletionProvider(enum: StatusEnum::class);
 
     expect($attribute->provider)->toBeNull();
     expect($attribute->values)->toBeNull();
-    expect($attribute->enum)->toBe(TestEnum::class);
+    expect($attribute->enum)->toBe(StatusEnum::class);
 });
 
 it('throws exception when no parameters provided', function () {
@@ -65,6 +59,6 @@ it('throws exception when all parameters provided', function () {
     new CompletionProvider(
         provider: CompletionProviderFixture::class,
         values: ['test'],
-        enum: TestEnum::class
+        enum: StatusEnum::class
     );
 })->throws(\InvalidArgumentException::class, 'Only one of provider, values, or enum can be set');

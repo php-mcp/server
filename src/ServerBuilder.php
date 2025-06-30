@@ -215,7 +215,7 @@ final class ServerBuilder
     /**
      * Manually registers a tool handler.
      */
-    public function withTool(\Closure|array|string $handler, ?string $name = null, ?string $description = null, ?ToolAnnotations $annotations = null, ?array $inputSchema = null): self
+    public function withTool(callable|array|string $handler, ?string $name = null, ?string $description = null, ?ToolAnnotations $annotations = null, ?array $inputSchema = null): self
     {
         $this->manualTools[] = compact('handler', 'name', 'description', 'annotations', 'inputSchema');
 
@@ -225,7 +225,7 @@ final class ServerBuilder
     /**
      * Manually registers a resource handler.
      */
-    public function withResource(\Closure|array|string $handler, string $uri, ?string $name = null, ?string $description = null, ?string $mimeType = null, ?int $size = null, ?Annotations $annotations = null): self
+    public function withResource(callable|array|string $handler, string $uri, ?string $name = null, ?string $description = null, ?string $mimeType = null, ?int $size = null, ?Annotations $annotations = null): self
     {
         $this->manualResources[] = compact('handler', 'uri', 'name', 'description', 'mimeType', 'size', 'annotations');
 
@@ -235,7 +235,7 @@ final class ServerBuilder
     /**
      * Manually registers a resource template handler.
      */
-    public function withResourceTemplate(\Closure|array|string $handler, string $uriTemplate, ?string $name = null, ?string $description = null, ?string $mimeType = null, ?Annotations $annotations = null): self
+    public function withResourceTemplate(callable|array|string $handler, string $uriTemplate, ?string $name = null, ?string $description = null, ?string $mimeType = null, ?Annotations $annotations = null): self
     {
         $this->manualResourceTemplates[] = compact('handler', 'uriTemplate', 'name', 'description', 'mimeType', 'annotations');
 
@@ -245,7 +245,7 @@ final class ServerBuilder
     /**
      * Manually registers a prompt handler.
      */
-    public function withPrompt(\Closure|array|string $handler, ?string $name = null, ?string $description = null): self
+    public function withPrompt(callable|array|string $handler, ?string $name = null, ?string $description = null): self
     {
         $this->manualPrompts[] = compact('handler', 'name', 'description');
 

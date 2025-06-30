@@ -12,6 +12,7 @@ use PhpMcp\Schema\Content\TextContent;
 use PhpMcp\Schema\Content\ImageContent;
 use PhpMcp\Schema\Content\AudioContent;
 use PhpMcp\Schema\Content\EmbeddedResource;
+use PhpMcp\Server\Tests\Fixtures\Enums\StatusEnum;
 use PhpMcp\Server\Tests\Fixtures\General\PromptHandlerFixture;
 use PhpMcp\Server\Tests\Fixtures\General\CompletionProviderFixture;
 use PhpMcp\Server\Tests\Unit\Attributes\TestEnum;
@@ -261,7 +262,7 @@ it('can be serialized with EnumCompletionProvider instances', function () {
         [PromptArgument::make('priority')]
     );
 
-    $enumProvider = new \PhpMcp\Server\Defaults\EnumCompletionProvider(TestEnum::class);
+    $enumProvider = new \PhpMcp\Server\Defaults\EnumCompletionProvider(StatusEnum::class);
     $providers = ['priority' => $enumProvider];
 
     $original = RegisteredPrompt::make(
