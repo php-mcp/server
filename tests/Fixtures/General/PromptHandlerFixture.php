@@ -103,7 +103,7 @@ class PromptHandlerFixture
     }
 
     public function promptWithArgumentCompletion(
-        #[CompletionProvider(providerClass: CompletionProviderFixture::class)]
+        #[CompletionProvider(provider: CompletionProviderFixture::class)]
         string $entityName,
         string $action = "describe"
     ): array {

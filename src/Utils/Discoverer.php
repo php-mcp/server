@@ -14,6 +14,8 @@ use PhpMcp\Server\Attributes\McpPrompt;
 use PhpMcp\Server\Attributes\McpResource;
 use PhpMcp\Server\Attributes\McpResourceTemplate;
 use PhpMcp\Server\Attributes\McpTool;
+use PhpMcp\Server\Defaults\EnumCompletionProvider;
+use PhpMcp\Server\Defaults\ListCompletionProvider;
 use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\Registry;
 use Psr\Log\LoggerInterface;
@@ -263,7 +265,14 @@ class Discoverer
             $completionAttributes = $param->getAttributes(CompletionProvider::class, \ReflectionAttribute::IS_INSTANCEOF);
             if (!empty($completionAttributes)) {
                 $attributeInstance = $completionAttributes[0]->newInstance();
-                $completionProviders[$param->getName()] = $attributeInstance->providerClass;
+
+                if ($attributeInstance->provider) {
+                    $completionProviders[$param->getName()] = $attributeInstance->provider;
+                } elseif ($attributeInstance->values) {
+                    $completionProviders[$param->getName()] = new ListCompletionProvider($attributeInstance->values);
+                } elseif ($attributeInstance->enum) {
+                    $completionProviders[$param->getName()] = new EnumCompletionProvider($attributeInstance->enum);
+                }
             }
         }
 

@@ -18,7 +18,7 @@ class DiscoverablePromptHandler
      */
     #[McpPrompt(name: "creative_story_prompt")]
     public function generateStoryPrompt(
-        #[CompletionProvider(providerClass: CompletionProviderFixture::class)]
+        #[CompletionProvider(provider: CompletionProviderFixture::class)]
         string $genre,
         int $lengthWords = 200
     ): array {

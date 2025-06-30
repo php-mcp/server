@@ -3,8 +3,7 @@
 namespace PhpMcp\Server\Tests\Unit\Elements;
 
 use Mockery;
-use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
-use PhpMcp\Schema\Prompt as PromptSchema; // Alias
+use PhpMcp\Schema\Prompt as PromptSchema;
 use PhpMcp\Schema\PromptArgument;
 use PhpMcp\Server\Elements\RegisteredPrompt;
 use PhpMcp\Schema\Content\PromptMessage;
@@ -15,9 +14,8 @@ use PhpMcp\Schema\Content\AudioContent;
 use PhpMcp\Schema\Content\EmbeddedResource;
 use PhpMcp\Server\Tests\Fixtures\General\PromptHandlerFixture;
 use PhpMcp\Server\Tests\Fixtures\General\CompletionProviderFixture;
+use PhpMcp\Server\Tests\Unit\Attributes\TestEnum;
 use Psr\Container\ContainerInterface;
-
-uses(MockeryPHPUnitIntegration::class);
 
 beforeEach(function () {
     $this->container = Mockery::mock(ContainerInterface::class);
@@ -46,8 +44,8 @@ it('constructs correctly with schema, handler, and completion providers', functi
     expect($prompt->handler)->toBe([PromptHandlerFixture::class, 'promptWithArgumentCompletion']);
     expect($prompt->isManual)->toBeFalse();
     expect($prompt->completionProviders)->toEqual($providers);
-    expect($prompt->getCompletionProvider('name'))->toBe(CompletionProviderFixture::class);
-    expect($prompt->getCompletionProvider('nonExistentArg'))->toBeNull();
+    expect($prompt->completionProviders['name'])->toBe(CompletionProviderFixture::class);
+    expect($prompt->completionProviders)->not->toHaveKey('nonExistentArg');
 });
 
 it('can be made as a manual registration', function () {
@@ -205,6 +203,7 @@ it('can be serialized to array and deserialized with completion providers', func
         [PromptArgument::make('arg1', required: true), PromptArgument::make('arg2', 'description for arg2')]
     );
     $providers = ['arg1' => CompletionProviderFixture::class];
+    $serializedProviders = ['arg1' => serialize(CompletionProviderFixture::class)];
     $original = RegisteredPrompt::make(
         $schema,
         [PromptHandlerFixture::class, 'generateSimpleGreeting'],
@@ -218,7 +217,7 @@ it('can be serialized to array and deserialized with completion providers', func
     expect($array['schema']['arguments'])->toHaveCount(2);
     expect($array['handler'])->toBe([PromptHandlerFixture::class, 'generateSimpleGreeting']);
     expect($array['isManual'])->toBeTrue();
-    expect($array['completionProviders'])->toEqual($providers);
+    expect($array['completionProviders'])->toEqual($serializedProviders);
 
     $rehydrated = RegisteredPrompt::fromArray($array);
     expect($rehydrated)->toBeInstanceOf(RegisteredPrompt::class);
@@ -230,4 +229,51 @@ it('can be serialized to array and deserialized with completion providers', func
 it('fromArray returns false on failure for prompt', function () {
     $badData = ['schema' => ['name' => 'fail']];
     expect(RegisteredPrompt::fromArray($badData))->toBeFalse();
+});
+
+it('can be serialized with ListCompletionProvider instances', function () {
+    $schema = PromptSchema::make(
+        'list-prompt',
+        'Test list completion',
+        [PromptArgument::make('status')]
+    );
+    $listProvider = new \PhpMcp\Server\Defaults\ListCompletionProvider(['draft', 'published', 'archived']);
+    $providers = ['status' => $listProvider];
+
+    $original = RegisteredPrompt::make(
+        $schema,
+        [PromptHandlerFixture::class, 'generateSimpleGreeting'],
+        true,
+        $providers
+    );
+
+    $array = $original->toArray();
+    expect($array['completionProviders']['status'])->toBeString(); // Serialized instance
+
+    $rehydrated = RegisteredPrompt::fromArray($array);
+    expect($rehydrated->completionProviders['status'])->toBeInstanceOf(\PhpMcp\Server\Defaults\ListCompletionProvider::class);
+});
+
+it('can be serialized with EnumCompletionProvider instances', function () {
+    $schema = PromptSchema::make(
+        'enum-prompt',
+        'Test enum completion',
+        [PromptArgument::make('priority')]
+    );
+
+    $enumProvider = new \PhpMcp\Server\Defaults\EnumCompletionProvider(TestEnum::class);
+    $providers = ['priority' => $enumProvider];
+
+    $original = RegisteredPrompt::make(
+        $schema,
+        [PromptHandlerFixture::class, 'generateSimpleGreeting'],
+        true,
+        $providers
+    );
+
+    $array = $original->toArray();
+    expect($array['completionProviders']['priority'])->toBeString(); // Serialized instance
+
+    $rehydrated = RegisteredPrompt::fromArray($array);
+    expect($rehydrated->completionProviders['priority'])->toBeInstanceOf(\PhpMcp\Server\Defaults\EnumCompletionProvider::class);
 });

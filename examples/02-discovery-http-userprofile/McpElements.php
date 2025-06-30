@@ -43,7 +43,7 @@ class McpElements
     )]
 
     public function getUserProfile(
-        #[CompletionProvider(providerClass: UserIdCompletionProvider::class)]
+        #[CompletionProvider(values: ['101', '102', '103'])]
         string $userId
     ): array {
         $this->logger->info('Reading resource: user profile', ['userId' => $userId]);
@@ -116,7 +116,7 @@ class McpElements
      */
     #[McpPrompt(name: 'generate_bio_prompt')]
     public function generateBio(
-        #[CompletionProvider(providerClass: UserIdCompletionProvider::class)]
+        #[CompletionProvider(provider: UserIdCompletionProvider::class)]
         string $userId,
         string $tone = 'professional'
     ): array {
