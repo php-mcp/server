@@ -2,6 +2,30 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v3.2.0 - 2025-06-30
+
+### What's Changed
+
+* fix: resolve cache session handler index inconsistencies by @CodeWithKyrian in https://github.com/php-mcp/server/pull/36
+* feat: Add comprehensive callable handler support for closures, static methods, and invokable classes by @CodeWithKyrian in https://github.com/php-mcp/server/pull/38
+* feat: Enhanced Completion Providers with Values and Enum Support by @CodeWithKyrian in https://github.com/php-mcp/server/pull/40
+
+### Upgrade Guide
+
+If you're using the `CompletionProvider` attribute with the named `providerClass` parameter, consider updating to the new `provider` parameter for consistency:
+
+```php
+// Before (still works)
+#[CompletionProvider(providerClass: UserProvider::class)]
+
+// After (recommended)
+#[CompletionProvider(provider: UserProvider::class)]
+
+```
+The old `providerClass` parameter continues to work for backward compatibility, but may be dropped in a future major version release.
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/3.1.1...3.2.0
+
 ## v3.1.1 - 2025-06-26
 
 ### What's Changed
@@ -88,6 +112,7 @@ This release brings support for the latest MCP protocol version along with enhan
 
 
 
+
 ```
 **After:**
 
@@ -98,6 +123,7 @@ This release brings support for the latest MCP protocol version along with enhan
     tools: true,
     resourcesSubscribe: true
 ))
+
 
 
 
@@ -117,11 +143,13 @@ $transport = new HttpServerTransport(host: '127.0.0.1', port: 8080);
 
 
 
+
 ```
 **After:**
 
 ```php
 $transport = new StreamableHttpServerTransport(host: '127.0.0.1',  port: 8080);
+
 
 
 
@@ -297,6 +325,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
    
