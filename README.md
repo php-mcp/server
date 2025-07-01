@@ -156,10 +156,10 @@ The PHP MCP Server uses a modern, decoupled architecture:
 │  (Claude, etc.) │    │ (Stdio/HTTP/SSE) │    │   (JSON-RPC)    │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                                          │
-                       ┌─────────────────┐              │
-                       │ Session Manager │◄─────────────┤
-                       │ (Multi-backend) │              │
-                       └─────────────────┘              │
+                       ┌─────────────────┐               │
+                       │ Session Manager │◄──────────────┤
+                       │ (Multi-backend) │               │
+                       └─────────────────┘               │
                                                          │
 ┌─────────────────┐    ┌──────────────────┐              │
 │   Dispatcher    │◄───│   Server Core    │◄─────────────┤
