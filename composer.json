@@ -43,10 +43,17 @@
         "pestphp/pest": "^2.36.0|^3.5.0",
         "react/async": "^4.0",
         "react/child-process": "^0.6.6",
+        "symfony/config": "^6.4|^7.1",
+        "symfony/dependency-injection": "^6.4|^7.1",
+        "symfony/http-kernel": "^6.4|^7.1",
         "symfony/var-dumper": "^6.4.11|^7.1.5"
     },
     "suggest": {
-        "react/http": "Required for using the ReactPHP HTTP transport handler (^1.11 recommended)."
+        "react/http": "Required for using the ReactPHP HTTP transport handler (^1.11 recommended).",
+        "symfony/config": "To use the Symfony bundle shipped with this package",
+        "symfony/console": "To use the Symfony bundle shipped with this package",
+        "symfony/dependency-injection": "To use the Symfony bundle shipped with this package",
+        "symfony/http-kernel": "To use the Symfony bundle shipped with this package"
     },
     "autoload": {
         "psr-4": {
