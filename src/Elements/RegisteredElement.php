@@ -33,10 +33,18 @@ class RegisteredElement implements JsonSerializable
     public function handle(ContainerInterface $container, array $arguments): mixed
     {
         if (is_string($this->handler)) {
-            $reflection = new \ReflectionFunction($this->handler);
-            $arguments = $this->prepareArguments($reflection, $arguments);
-            $instance = $container->get($this->handler);
-            return call_user_func($instance, ...$arguments);
+            if (class_exists($this->handler) && method_exists($this->handler, '__invoke')) {
+                $reflection = new \ReflectionMethod($this->handler, '__invoke');
+                $arguments = $this->prepareArguments($reflection, $arguments);
+                $instance = $container->get($this->handler);
+                return call_user_func($instance, ...$arguments);
+            }
+
+            if (function_exists($this->handler)) {
+                $reflection = new \ReflectionFunction($this->handler);
+                $arguments = $this->prepareArguments($reflection, $arguments);
+                return call_user_func($this->handler, ...$arguments);
+            }
         }
 
         if (is_callable($this->handler)) {
