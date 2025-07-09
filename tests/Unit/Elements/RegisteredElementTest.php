@@ -12,6 +12,30 @@ use PhpMcp\Server\Tests\Fixtures\General\VariousTypesHandler;
 use Psr\Container\ContainerInterface;
 use stdClass;
 
+// --- Test Fixtures for Handler Types ---
+
+class MyInvokableTestHandler
+{
+    public function __invoke(string $name): string
+    {
+        return "Hello, {$name}!";
+    }
+}
+
+class MyStaticMethodTestHandler
+{
+    public static function myStaticMethod(int $a, int $b): int
+    {
+        return $a + $b;
+    }
+}
+
+function my_global_test_function(bool $flag): string
+{
+    return $flag ? 'on' : 'off';
+}
+
+
 beforeEach(function () {
     $this->container = Mockery::mock(ContainerInterface::class);
     $this->container->shouldReceive('get')->with(VariousTypesHandler::class)->andReturn(new VariousTypesHandler());
@@ -232,3 +256,40 @@ it('throws ReflectionException if handler method does not exist', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'nonExistentMethod']);
     $element->handle($this->container, []);
 })->throws(\ReflectionException::class, "VariousTypesHandler::nonExistentMethod() does not exist");
+
+
+describe('Handler Types', function () {
+    it('handles invokable class handler', function () {
+        $this->container->shouldReceive('get')
+            ->with(MyInvokableTestHandler::class)
+            ->andReturn(new MyInvokableTestHandler());
+
+        $element = new RegisteredElement(MyInvokableTestHandler::class);
+        $result = $element->handle($this->container, ['name' => 'World']);
+
+        expect($result)->toBe('Hello, World!');
+    });
+
+    it('handles closure handler', function () {
+        $closure = function (string $a, string $b) {
+            return $a . $b;
+        };
+        $element = new RegisteredElement($closure);
+        $result = $element->handle($this->container, ['a' => 'foo', 'b' => 'bar']);
+        expect($result)->toBe('foobar');
+    });
+
+    it('handles static method handler', function () {
+        $handler = [MyStaticMethodTestHandler::class, 'myStaticMethod'];
+        $element = new RegisteredElement($handler);
+        $result = $element->handle($this->container, ['a' => 5, 'b' => 10]);
+        expect($result)->toBe(15);
+    });
+
+    it('handles global function name handler', function () {
+        $handler = 'PhpMcp\Server\Tests\Unit\Elements\my_global_test_function';
+        $element = new RegisteredElement($handler);
+        $result = $element->handle($this->container, ['flag' => true]);
+        expect($result)->toBe('on');
+    });
+});
