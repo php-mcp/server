@@ -75,6 +75,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         private string $mcpPath = '/mcp',
         private ?array $sslContext = null,
         private readonly bool $enableJsonResponse = true,
+        private readonly bool $stateless = false,
         ?EventStoreInterface $eventStore = null
     ) {
         $this->logger = new NullLogger();
@@ -171,9 +172,9 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
             try {
                 return match ($method) {
-                    'GET' => $this->handleGetRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
-                    'POST' => $this->handlePostRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
-                    'DELETE' => $this->handleDeleteRequest($request)->then($addCors, fn ($e) => $addCors($this->handleRequestError($e, $request))),
+                    'GET' => $this->handleGetRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
+                    'POST' => $this->handlePostRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
+                    'DELETE' => $this->handleDeleteRequest($request)->then($addCors, fn($e) => $addCors($this->handleRequestError($e, $request))),
                     default => $addCors($this->handleUnsupportedRequest($request)),
                 };
             } catch (Throwable $e) {
@@ -184,6 +185,11 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
     private function handleGetRequest(ServerRequestInterface $request): PromiseInterface
     {
+        if ($this->stateless) {
+            $error = Error::forInvalidRequest("GET requests (SSE streaming) are not supported in stateless mode.");
+            return resolve(new HttpResponse(405, ['Content-Type' => 'application/json'], json_encode($error)));
+        }
+
         $acceptHeader = $request->getHeaderLine('Accept');
         if (!str_contains($acceptHeader, 'text/event-stream')) {
             $error = Error::forInvalidRequest("Not Acceptable: Client must accept text/event-stream for GET requests.");
@@ -264,24 +270,29 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         $isInitializeRequest = ($message instanceof Request && $message->method === 'initialize');
         $sessionId = null;
 
-        if ($isInitializeRequest) {
-            if ($request->hasHeader('Mcp-Session-Id')) {
-                $this->logger->warning("Client sent Mcp-Session-Id with InitializeRequest. Ignoring.", ['clientSentId' => $request->getHeaderLine('Mcp-Session-Id')]);
-                $error = Error::forInvalidRequest("Invalid request: Session already initialized. Mcp-Session-Id header not allowed with InitializeRequest.", $message->getId());
-                $deferred->resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
-                return $deferred->promise();
-            }
-
+        if ($this->stateless) {
             $sessionId = $this->generateId();
             $this->emit('client_connected', [$sessionId]);
         } else {
-            $sessionId = $request->getHeaderLine('Mcp-Session-Id');
+            if ($isInitializeRequest) {
+                if ($request->hasHeader('Mcp-Session-Id')) {
+                    $this->logger->warning("Client sent Mcp-Session-Id with InitializeRequest. Ignoring.", ['clientSentId' => $request->getHeaderLine('Mcp-Session-Id')]);
+                    $error = Error::forInvalidRequest("Invalid request: Session already initialized. Mcp-Session-Id header not allowed with InitializeRequest.", $message->getId());
+                    $deferred->resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
+                    return $deferred->promise();
+                }
 
-            if (empty($sessionId)) {
-                $this->logger->warning("POST request without Mcp-Session-Id.");
-                $error = Error::forInvalidRequest("Mcp-Session-Id header required for POST requests.", $message->getId());
-                $deferred->resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
-                return $deferred->promise();
+                $sessionId = $this->generateId();
+                $this->emit('client_connected', [$sessionId]);
+            } else {
+                $sessionId = $request->getHeaderLine('Mcp-Session-Id');
+
+                if (empty($sessionId)) {
+                    $this->logger->warning("POST request without Mcp-Session-Id.");
+                    $error = Error::forInvalidRequest("Mcp-Session-Id header required for POST requests.", $message->getId());
+                    $deferred->resolve(new HttpResponse(400, ['Content-Type' => 'application/json'], json_encode($error)));
+                    return $deferred->promise();
+                }
             }
         }
 
@@ -344,7 +355,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
                     'X-Accel-Buffering' => 'no',
                 ];
 
-                if (!empty($sessionId)) {
+                if (!empty($sessionId) && !$this->stateless) {
                     $headers['Mcp-Session-Id'] = $sessionId;
                 }
 
@@ -355,6 +366,8 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
             }
         }
 
+        $context['stateless'] = $this->stateless;
+
         $this->loop->futureTick(function () use ($message, $sessionId, $context) {
             $this->emit('message', [$message, $sessionId, $context]);
         });
@@ -364,6 +377,10 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
     private function handleDeleteRequest(ServerRequestInterface $request): PromiseInterface
     {
+        if ($this->stateless) {
+            return resolve(new HttpResponse(204));
+        }
+
         $sessionId = $request->getHeaderLine('Mcp-Session-Id');
         if (empty($sessionId)) {
             $this->logger->warning("DELETE request without Mcp-Session-Id.");
@@ -466,6 +483,12 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
                     if ($this->activeSseStreams[$streamId]['context']['nResponses'] >= $this->activeSseStreams[$streamId]['context']['nRequests']) {
                         $this->logger->info("All expected responses sent for POST SSE stream. Closing.", ['streamId' => $streamId, 'sessionId' => $sessionId]);
                         $stream->end(); // Will trigger 'close' event.
+
+                        if ($context['stateless'] ?? false) {
+                            $this->loop->futureTick(function () use ($sessionId) {
+                                $this->emit('client_disconnected', [$sessionId, 'Stateless request completed']);
+                            });
+                        }
                     }
                 }
 
@@ -483,12 +506,19 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
                 $responseBody = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                 $headers = ['Content-Type' => 'application/json'];
-                if ($isInitializeResponse) {
+                if ($isInitializeResponse && !$this->stateless) {
                     $headers['Mcp-Session-Id'] = $sessionId;
                 }
 
                 $statusCode = $context['status_code'] ?? 200;
                 $deferred->resolve(new HttpResponse($statusCode, $headers, $responseBody . "\n"));
+
+                if ($context['stateless'] ?? false) {
+                    $this->loop->futureTick(function () use ($sessionId) {
+                        $this->emit('client_disconnected', [$sessionId, 'Stateless request completed']);
+                    });
+                }
+
                 return resolve(null);
 
             default:

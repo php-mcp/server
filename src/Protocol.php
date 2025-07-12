@@ -134,6 +134,12 @@ class Protocol
             return;
         }
 
+        if ($context['stateless'] ?? false) {
+            $session->set('initialized', true);
+            $session->set('protocol_version', self::LATEST_PROTOCOL_VERSION);
+            $session->set('client_info', ['name' => 'stateless-client', 'version' => '1.0.0']);
+        }
+
         $response = null;
 
         if ($message instanceof BatchRequest) {
