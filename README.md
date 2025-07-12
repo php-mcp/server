@@ -524,7 +524,8 @@ $transport = new StreamableHttpServerTransport(
     host: '127.0.0.1',      // MCP protocol prohibits 0.0.0.0
     port: 8080,
     mcpPathPrefix: 'mcp',
-    enableJsonResponse: false  // Use SSE streaming (default)
+    enableJsonResponse: false,  // Use SSE streaming (default)
+    stateless: false            // Enable stateless mode for session-less clients
 );
 
 $server->listen($transport);
@@ -546,12 +547,27 @@ $transport = new StreamableHttpServerTransport(
 );
 ```
 
+**Stateless Mode:**
+
+For clients that have issues with session management, enable stateless mode:
+
+```php
+$transport = new StreamableHttpServerTransport(
+    host: '127.0.0.1',
+    port: 8080,
+    stateless: true  // Each request is independent
+);
+```
+
+In stateless mode, session IDs are generated internally but not exposed to clients, and each request is treated as independent without persistent session state.
+
 **Features:**
 - **Resumable connections** - clients can reconnect and replay missed events
 - **Event sourcing** - all events are stored for replay
 - **JSON mode** - optional JSON-only responses for fast tools
 - **Enhanced session management** - persistent session state
 - **Multiple client support** - designed for concurrent clients
+- **Stateless mode** - session-less operation for simple clients
 
 ## 📋 Schema Generation and Validation
 
