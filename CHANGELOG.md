@@ -2,6 +2,15 @@
 
 All notable changes to `php-mcp/server` will be documented in this file.
 
+## v3.3.0 - 2025-07-12
+
+### What's Changed
+
+* Feat: Add stateless mode for StreamableHttpServerTransport by @CodeWithKyrian in https://github.com/php-mcp/server/pull/48
+* Fix: Make PCNTL extension optional for StdioServerTransport by @CodeWithKyrian in https://github.com/php-mcp/server/pull/49
+
+**Full Changelog**: https://github.com/php-mcp/server/compare/3.2.2...3.3.0
+
 ## v3.2.2 - 2025-07-09
 
 ### What's Changed
@@ -41,6 +50,7 @@ If you're using the `CompletionProvider` attribute with the named `providerClass
 
 // After (recommended)
 #[CompletionProvider(provider: UserProvider::class)]
+
 
 
 
@@ -138,6 +148,7 @@ This release brings support for the latest MCP protocol version along with enhan
 
 
 
+
 ```
 **After:**
 
@@ -148,6 +159,7 @@ This release brings support for the latest MCP protocol version along with enhan
     tools: true,
     resourcesSubscribe: true
 ))
+
 
 
 
@@ -173,11 +185,13 @@ $transport = new HttpServerTransport(host: '127.0.0.1', port: 8080);
 
 
 
+
 ```
 **After:**
 
 ```php
 $transport = new StreamableHttpServerTransport(host: '127.0.0.1',  port: 8080);
+
 
 
 
@@ -356,6 +370,7 @@ This is a major refactoring with significant breaking changes:
     $transport = new StdioServerTransport();
    // Optionally call $server->discover(...) first
    $server->listen($transport);
+   
    
    
    
