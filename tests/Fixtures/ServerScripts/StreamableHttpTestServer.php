@@ -27,10 +27,11 @@ $port = (int)($argv[2] ?? 8992);
 $mcpPath = $argv[3] ?? 'mcp_streamable_test';
 $enableJsonResponse = filter_var($argv[4] ?? 'true', FILTER_VALIDATE_BOOLEAN);
 $useEventStore = filter_var($argv[5] ?? 'false', FILTER_VALIDATE_BOOLEAN);
+$stateless = filter_var($argv[6] ?? 'false', FILTER_VALIDATE_BOOLEAN);
 
 try {
     $logger = new NullLogger();
-    $logger->info("Starting StreamableHttpTestServer on {$host}:{$port}/{$mcpPath}, JSON Mode: " . ($enableJsonResponse ? 'ON' : 'OFF'));
+    $logger->info("Starting StreamableHttpTestServer on {$host}:{$port}/{$mcpPath}, JSON Mode: " . ($enableJsonResponse ? 'ON' : 'OFF') . ", Stateless: " . ($stateless ? 'ON' : 'OFF'));
 
     $eventStore = $useEventStore ? new InMemoryEventStore() : null;
 
@@ -48,6 +49,7 @@ try {
         port: $port,
         mcpPath: $mcpPath,
         enableJsonResponse: $enableJsonResponse,
+        stateless: $stateless,
         eventStore: $eventStore
     );
 
