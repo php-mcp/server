@@ -148,12 +148,16 @@ class StdioServerTransport implements ServerTransportInterface, LoggerAwareInter
             $this->close();
         });
 
-        $signalHandler = function (int $signal) {
-            $this->logger->info("Received signal {$signal}, shutting down.");
-            $this->close();
-        };
-        $this->loop->addSignal(SIGTERM, $signalHandler);
-        $this->loop->addSignal(SIGINT, $signalHandler);
+        try {
+            $signalHandler = function (int $signal) {
+                $this->logger->info("Received signal {$signal}, shutting down.");
+                $this->close();
+            };
+            $this->loop->addSignal(SIGTERM, $signalHandler);
+            $this->loop->addSignal(SIGINT, $signalHandler);
+        } catch (Throwable $e) {
+            $this->logger->debug('Signal handling not supported by current event loop.');
+        }
 
         $this->logger->info('Server is up and listening on STDIN 🚀');
 

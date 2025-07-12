@@ -46,7 +46,7 @@
         "symfony/var-dumper": "^6.4.11|^7.1.5"
     },
     "suggest": {
-        "react/http": "Required for using the ReactPHP HTTP transport handler (^1.11 recommended)."
+        "ext-pcntl": "For signal handling support when using StdioServerTransport with StreamSelectLoop"
     },
     "autoload": {
         "psr-4": {
