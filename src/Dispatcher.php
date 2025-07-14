@@ -61,7 +61,7 @@ class Dispatcher
         $this->schemaValidator ??= new SchemaValidator($this->logger);
     }
 
-    public function handleRequest(Request $request, SessionInterface $session): Result
+    public function handleRequest(Request $request, SessionInterface $session, CallContext $callContext): Result
     {
         switch ($request->method) {
             case 'initialize':
@@ -75,7 +75,7 @@ class Dispatcher
                 return $this->handleToolList($request);
             case 'tools/call':
                 $request = CallToolRequest::fromRequest($request);
-                return $this->handleToolCall($request);
+                return $this->handleToolCall($request, $callContext);
             case 'resources/list':
                 $request = ListResourcesRequest::fromRequest($request);
                 return $this->handleResourcesList($request);
@@ -151,7 +151,7 @@ class Dispatcher
         return new ListToolsResult(array_values($pagedItems), $nextCursor);
     }
 
-    public function handleToolCall(CallToolRequest $request): CallToolResult
+    public function handleToolCall(CallToolRequest $request, CallContext $callContext): CallToolResult
     {
         $toolName = $request->name;
         $arguments = $request->arguments;
@@ -184,7 +184,7 @@ class Dispatcher
         }
 
         try {
-            $result = $registeredTool->call($this->container, $arguments);
+            $result = $registeredTool->call($this->container, $arguments, $callContext);
 
             return new CallToolResult($result, false);
         } catch (JsonException $e) {

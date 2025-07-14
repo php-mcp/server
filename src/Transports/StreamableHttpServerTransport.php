@@ -367,6 +367,7 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         }
 
         $context['stateless'] = $this->stateless;
+        $context['request'] = $request;
 
         $this->loop->futureTick(function () use ($message, $sessionId, $context) {
             $this->emit('message', [$message, $sessionId, $context]);
