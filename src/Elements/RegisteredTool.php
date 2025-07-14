@@ -6,6 +6,7 @@ namespace PhpMcp\Server\Elements;
 
 use PhpMcp\Schema\Content\Content;
 use PhpMcp\Schema\Content\TextContent;
+use PhpMcp\Server\CallContext;
 use Psr\Container\ContainerInterface;
 use PhpMcp\Schema\Tool;
 use Throwable;
@@ -30,9 +31,9 @@ class RegisteredTool extends RegisteredElement
      *
      * @return Content[] The content items for CallToolResult.
      */
-    public function call(ContainerInterface $container, array $arguments): array
+    public function call(ContainerInterface $container, array $arguments, CallContext $callContext): array
     {
-        $result = $this->handle($container, $arguments);
+        $result = $this->handle($container, $arguments, $callContext);
 
         return $this->formatResult($result);
     }
