@@ -7,7 +7,6 @@
 
 # PHP CS Fixer
 /.php-cs-fixer.cache
-/.php-cs-fixer.php
 
 # Editor directories and files
 /.idea
@@ -39,7 +38,6 @@ Thumbs.db
 /.php_cs.cache
 /.php_cs.dist
 /_ide_helper.php
-/.php-cs-fixer.php
 
 # Build artifacts
 /build/
