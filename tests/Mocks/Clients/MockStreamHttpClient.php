@@ -103,11 +103,14 @@ class MockStreamHttpClient
             });
     }
 
-    public function sendRequest(string $method, array $params, string $id): PromiseInterface
+    public function sendRequest(string $method, array $params, string $id, array $additionalHeaders = []): PromiseInterface
     {
         $payload = ['jsonrpc' => '2.0', 'method' => $method, 'params' => $params, 'id' => $id];
         $headers = ['Content-Type' => 'application/json', 'Accept' => 'text/event-stream'];
-        if ($this->sessionId) $headers['Mcp-Session-Id'] = $this->sessionId;
+        if ($this->sessionId) {
+            $headers['Mcp-Session-Id'] = $this->sessionId;
+        }
+        $headers += $additionalHeaders;
 
         $body = json_encode($payload);
 

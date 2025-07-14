@@ -29,6 +29,7 @@ try {
         ->withServerInfo('StdioIntegrationTestServer', '0.1.0')
         ->withLogger($logger)
         ->withTool([ToolHandlerFixture::class, 'greet'], 'greet_stdio_tool')
+        ->withTool([ToolHandlerFixture::class, 'toolReadsCallContext'], 'tool_reads_call_context') // for CallContext testing
         ->withResource([ResourceHandlerFixture::class, 'getStaticText'], 'test://stdio/static', 'static_stdio_resource')
         ->withPrompt([PromptHandlerFixture::class, 'generateSimpleGreeting'], 'simple_stdio_prompt')
         ->build();

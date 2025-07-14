@@ -20,7 +20,7 @@ class MockJsonHttpClient
         $this->baseUrl = "http://{$host}:{$port}/{$mcpPath}";
     }
 
-    public function sendRequest(string $method, array $params = [], ?string $id = null): PromiseInterface
+    public function sendRequest(string $method, array $params = [], ?string $id = null, array $additionalHeaders = []): PromiseInterface
     {
         $payload = ['jsonrpc' => '2.0', 'method' => $method, 'params' => $params];
         if ($id !== null) {
@@ -31,6 +31,7 @@ class MockJsonHttpClient
         if ($this->sessionId && $method !== 'initialize') {
             $headers['Mcp-Session-Id'] = $this->sessionId;
         }
+        $headers += $additionalHeaders;
 
         $body = json_encode($payload);
 
