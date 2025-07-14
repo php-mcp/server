@@ -5,6 +5,7 @@ namespace PhpMcp\Server\Tests\Unit;
 use Mockery;
 use Mockery\MockInterface;
 use PhpMcp\Schema\Implementation;
+use PhpMcp\Server\CallContext;
 use PhpMcp\Server\Configuration;
 use PhpMcp\Server\Contracts\ServerTransportInterface;
 use PhpMcp\Server\Dispatcher;
@@ -171,7 +172,11 @@ it('processes a valid Request message', function () {
     $expectedResponse = Response::make($request->id, $result);
 
     $this->dispatcher->shouldReceive('handleRequest')->once()
-        ->with(Mockery::on(fn ($arg) => $arg instanceof Request && $arg->method === 'test/method'), $this->session)
+        ->with(
+            Mockery::on(fn ($arg) => $arg instanceof Request && $arg->method === 'test/method'),
+            $this->session,
+            Mockery::type(CallContext::class)
+        )
         ->andReturn($result);
 
     $this->transport->shouldReceive('sendMessage')->once()
@@ -204,9 +209,9 @@ it('processes a BatchRequest with mixed requests and notifications', function ()
     $result1 = new EmptyResult();
     $result2 = new EmptyResult();
 
-    $this->dispatcher->shouldReceive('handleRequest')->once()->with(Mockery::on(fn (Request $r) => $r->id === 'batch-id-1'), $this->session)->andReturn($result1);
+    $this->dispatcher->shouldReceive('handleRequest')->once()->with(Mockery::on(fn (Request $r) => $r->id === 'batch-id-1'), $this->session, Mockery::type(CallContext::class))->andReturn($result1);
     $this->dispatcher->shouldReceive('handleNotification')->once()->with(Mockery::on(fn (Notification $n) => $n->method === 'notif/1'), $this->session);
-    $this->dispatcher->shouldReceive('handleRequest')->once()->with(Mockery::on(fn (Request $r) => $r->id === 'batch-id-2'), $this->session)->andReturn($result2);
+    $this->dispatcher->shouldReceive('handleRequest')->once()->with(Mockery::on(fn (Request $r) => $r->id === 'batch-id-2'), $this->session, Mockery::type(CallContext::class))->andReturn($result2);
 
 
     $this->transport->shouldReceive('sendMessage')->once()
@@ -492,13 +497,12 @@ it('does not send list changed notification if capability is disabled', function
     $this->transport->shouldNotReceive('sendMessage');
 })->with(['tools', 'resources', 'prompts',]);
 
-
 it('allows initialize request when session not initialized', function () {
     $request = createRequest('initialize', ['protocolVersion' => SUPPORTED_VERSION_PROTO]);
     $this->session->shouldReceive('get')->with('initialized', false)->andReturn(false);
 
     $this->dispatcher->shouldReceive('handleRequest')->once()
-        ->with(Mockery::type(Request::class), $this->session)
+        ->with(Mockery::type(Request::class), $this->session, Mockery::type(CallContext::class))
         ->andReturn(new EmptyResult());
 
     $this->transport->shouldReceive('sendMessage')->once()
