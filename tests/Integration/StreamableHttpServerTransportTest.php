@@ -217,9 +217,29 @@ describe('JSON MODE', function () {
         expect($toolListResult['statusCode'])->toBe(200);
         expect($toolListResult['body']['id'])->toBe('tool-list-json-1');
         expect($toolListResult['body']['result']['tools'])->toBeArray();
-        expect(count($toolListResult['body']['result']['tools']))->toBe(2);
+        expect(count($toolListResult['body']['result']['tools']))->toBe(3);
         expect($toolListResult['body']['result']['tools'][0]['name'])->toBe('greet_streamable_tool');
         expect($toolListResult['body']['result']['tools'][1]['name'])->toBe('sum_streamable_tool');
+        expect($toolListResult['body']['result']['tools'][2]['name'])->toBe('tool_reads_call_context');
+    })->group('integration', 'streamable_http_json');
+
+    it('passes request in CallContext', function () {
+        await($this->jsonClient->sendRequest('initialize', [
+            'protocolVersion' => Protocol::LATEST_PROTOCOL_VERSION,
+            'clientInfo' => ['name' => 'JsonModeClient', 'version' => '1.0'],
+            'capabilities' => []
+        ], 'init-json-callcontext'));
+        await($this->jsonClient->sendNotification('notifications/initialized'));
+
+        $toolResult = await($this->jsonClient->sendRequest('tools/call', [
+            'name' => 'tool_reads_call_context',
+            'arguments' => []
+        ], 'tool-json-callcontext-1', ['X-Test-Header' => 'TestValue']));
+
+        expect($toolResult['statusCode'])->toBe(200);
+        expect($toolResult['body']['id'])->toBe('tool-json-callcontext-1');
+        expect($toolResult['body'])->not->toHaveKey('error');
+        expect($toolResult['body']['result']['content'][0]['text'])->toBe('TestValue');
     })->group('integration', 'streamable_http_json');
 
     it('can read a registered resource', function () {
@@ -412,6 +432,25 @@ describe('STREAM MODE', function () {
         expect($response3['error']['message'])->toContain("Method 'nonexistent/method' not found");
     })->group('integration', 'streamable_http_stream');
 
+    it('passes request in CallContext', function () {
+        await($this->streamClient->sendInitializeRequest([
+            'protocolVersion' => Protocol::LATEST_PROTOCOL_VERSION,
+            'clientInfo' => ['name' => 'StreamModeClient', 'version' => '1.0'],
+            'capabilities' => []
+        ], 'init-stream-callcontext'));
+        expect($this->streamClient->sessionId)->toBeString()->not->toBeEmpty();
+        await($this->streamClient->sendHttpNotification('notifications/initialized'));
+
+        $toolResult = await($this->streamClient->sendRequest('tools/call', [
+            'name' => 'tool_reads_call_context',
+            'arguments' => []
+        ], 'tool-stream-callcontext-1', ['X-Test-Header' => 'TestValue']));
+
+        expect($toolResult['id'])->toBe('tool-stream-callcontext-1');
+        expect($toolResult)->not->toHaveKey('error');
+        expect($toolResult['result']['content'][0]['text'])->toBe('TestValue');
+    })->group('integration', 'streamable_http_stream');
+
     it('can handle tool list request', function () {
         await($this->streamClient->sendInitializeRequest(['protocolVersion' => Protocol::LATEST_PROTOCOL_VERSION, 'clientInfo' => []], 'init-stream-tools'));
         await($this->streamClient->sendHttpNotification('notifications/initialized'));
@@ -421,9 +460,10 @@ describe('STREAM MODE', function () {
         expect($toolListResponse['id'])->toBe('tool-list-stream-1');
         expect($toolListResponse)->not->toHaveKey('error');
         expect($toolListResponse['result']['tools'])->toBeArray();
-        expect(count($toolListResponse['result']['tools']))->toBe(2);
+        expect(count($toolListResponse['result']['tools']))->toBe(3);
         expect($toolListResponse['result']['tools'][0]['name'])->toBe('greet_streamable_tool');
         expect($toolListResponse['result']['tools'][1]['name'])->toBe('sum_streamable_tool');
+        expect($toolListResponse['result']['tools'][2]['name'])->toBe('tool_reads_call_context');
     })->group('integration', 'streamable_http_stream');
 
     it('can read a registered resource', function () {
@@ -604,6 +644,18 @@ describe('STATELESS MODE', function () {
         expect($response3['error']['message'])->toContain("Method 'nonexistent/method' not found");
     })->group('integration', 'streamable_http_stateless');
 
+    it('passes request in CallContext', function () {
+        $toolResult = await($this->statelessClient->sendRequest('tools/call', [
+            'name' => 'tool_reads_call_context',
+            'arguments' => []
+        ], 'tool-stateless-callcontext-1', ['X-Test-Header' => 'TestValue']));
+
+        expect($toolResult['statusCode'])->toBe(200);
+        expect($toolResult['body']['id'])->toBe('tool-stateless-callcontext-1');
+        expect($toolResult['body'])->not->toHaveKey('error');
+        expect($toolResult['body']['result']['content'][0]['text'])->toBe('TestValue');
+    })->group('integration', 'streamable_http_stateless');
+
     it('can handle tool list request', function () {
         $toolListResult = await($this->statelessClient->sendRequest('tools/list', [], 'tool-list-stateless-1'));
 
@@ -611,9 +663,10 @@ describe('STATELESS MODE', function () {
         expect($toolListResult['body']['id'])->toBe('tool-list-stateless-1');
         expect($toolListResult['body'])->not->toHaveKey('error');
         expect($toolListResult['body']['result']['tools'])->toBeArray();
-        expect(count($toolListResult['body']['result']['tools']))->toBe(2);
+        expect(count($toolListResult['body']['result']['tools']))->toBe(3);
         expect($toolListResult['body']['result']['tools'][0]['name'])->toBe('greet_streamable_tool');
         expect($toolListResult['body']['result']['tools'][1]['name'])->toBe('sum_streamable_tool');
+        expect($toolListResult['body']['result']['tools'][2]['name'])->toBe('tool_reads_call_context');
     })->group('integration', 'streamable_http_stateless');
 
     it('can read a registered resource', function () {
