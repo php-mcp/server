@@ -140,17 +140,17 @@ class Protocol
             $session->set('client_info', ['name' => 'stateless-client', 'version' => '1.0.0']);
         }
 
-        $callContext = new CallContext();
-        if ($context['request'] ?? null) {
-            $callContext->request = $context['request'];
-        }
+        $requestContext = new Context(
+            $context['request'] ?? null,
+            $session,
+        );
 
         $response = null;
 
         if ($message instanceof BatchRequest) {
-            $response = $this->processBatchRequest($message, $session, $callContext);
+            $response = $this->processBatchRequest($message, $session, $requestContext);
         } elseif ($message instanceof Request) {
-            $response = $this->processRequest($message, $session, $callContext);
+            $response = $this->processRequest($message, $session, $requestContext);
         } elseif ($message instanceof Notification) {
             $this->processNotification($message, $session);
         }
@@ -173,7 +173,7 @@ class Protocol
     /**
      * Process a batch message
      */
-    private function processBatchRequest(BatchRequest $batch, SessionInterface $session, CallContext $callContext): ?BatchResponse
+    private function processBatchRequest(BatchRequest $batch, SessionInterface $session, Context $requestContext): ?BatchResponse
     {
         $items = [];
 
@@ -182,7 +182,7 @@ class Protocol
         }
 
         foreach ($batch->getRequests() as $request) {
-            $items[] = $this->processRequest($request, $session, $callContext);
+            $items[] = $this->processRequest($request, $session, $requestContext);
         }
 
         return empty($items) ? null : new BatchResponse($items);
@@ -191,7 +191,7 @@ class Protocol
     /**
      * Process a request message
      */
-    private function processRequest(Request $request, SessionInterface $session, CallContext $callContext): Response|Error
+    private function processRequest(Request $request, SessionInterface $session, Context $requestContext): Response|Error
     {
         try {
             if ($request->method !== 'initialize') {
@@ -200,7 +200,7 @@ class Protocol
 
             $this->assertRequestCapability($request->method);
 
-            $result = $this->dispatcher->handleRequest($request, $session, $callContext);
+            $result = $this->dispatcher->handleRequest($request, $session, $requestContext);
 
             return Response::make($request->id, $result);
         } catch (McpServerException $e) {

@@ -40,7 +40,7 @@ try {
         ->withLogger($logger)
         ->withTool([ToolHandlerFixture::class, 'greet'], 'greet_streamable_tool')
         ->withTool([ToolHandlerFixture::class, 'sum'], 'sum_streamable_tool') // For batch testing
-        ->withTool([ToolHandlerFixture::class, 'toolReadsCallContext'], 'tool_reads_call_context') // for CallContext testing
+        ->withTool([ToolHandlerFixture::class, 'toolReadsContext'], 'tool_reads_context') // for Context testing
         ->withResource([ResourceHandlerFixture::class, 'getStaticText'], "test://streamable/static", 'static_streamable_resource')
         ->withPrompt([PromptHandlerFixture::class, 'generateSimpleGreeting'], 'simple_streamable_prompt')
         ->build();

@@ -4,7 +4,7 @@ namespace PhpMcp\Server\Utils;
 
 use phpDocumentor\Reflection\DocBlock\Tags\Param;
 use PhpMcp\Server\Attributes\Schema;
-use PhpMcp\Server\CallContext;
+use PhpMcp\Server\Context;
 use ReflectionEnum;
 use ReflectionIntersectionType;
 use ReflectionMethod;
@@ -419,7 +419,7 @@ class SchemaGenerator
 
             $reflectionType = $rp->getType();
 
-            if ($reflectionType instanceof ReflectionNamedType && $reflectionType?->getName() === CallContext::class) {
+            if ($reflectionType instanceof ReflectionNamedType && $reflectionType?->getName() === Context::class) {
                 continue;
             }
 

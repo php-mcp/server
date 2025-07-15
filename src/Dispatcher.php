@@ -61,7 +61,7 @@ class Dispatcher
         $this->schemaValidator ??= new SchemaValidator($this->logger);
     }
 
-    public function handleRequest(Request $request, SessionInterface $session, CallContext $callContext): Result
+    public function handleRequest(Request $request, SessionInterface $session, Context $requestContext): Result
     {
         switch ($request->method) {
             case 'initialize':
@@ -75,7 +75,7 @@ class Dispatcher
                 return $this->handleToolList($request);
             case 'tools/call':
                 $request = CallToolRequest::fromRequest($request);
-                return $this->handleToolCall($request, $callContext);
+                return $this->handleToolCall($request, $requestContext);
             case 'resources/list':
                 $request = ListResourcesRequest::fromRequest($request);
                 return $this->handleResourcesList($request);
@@ -84,7 +84,7 @@ class Dispatcher
                 return $this->handleResourceTemplateList($request);
             case 'resources/read':
                 $request = ReadResourceRequest::fromRequest($request);
-                return $this->handleResourceRead($request);
+                return $this->handleResourceRead($request, $requestContext);
             case 'resources/subscribe':
                 $request = ResourceSubscribeRequest::fromRequest($request);
                 return $this->handleResourceSubscribe($request, $session);
@@ -96,7 +96,7 @@ class Dispatcher
                 return $this->handlePromptsList($request);
             case 'prompts/get':
                 $request = GetPromptRequest::fromRequest($request);
-                return $this->handlePromptGet($request);
+                return $this->handlePromptGet($request, $requestContext);
             case 'logging/setLevel':
                 $request = SetLogLevelRequest::fromRequest($request);
                 return $this->handleLoggingSetLevel($request, $session);
@@ -151,7 +151,7 @@ class Dispatcher
         return new ListToolsResult(array_values($pagedItems), $nextCursor);
     }
 
-    public function handleToolCall(CallToolRequest $request, CallContext $callContext): CallToolResult
+    public function handleToolCall(CallToolRequest $request, Context $requestContext): CallToolResult
     {
         $toolName = $request->name;
         $arguments = $request->arguments;
@@ -184,7 +184,7 @@ class Dispatcher
         }
 
         try {
-            $result = $registeredTool->call($this->container, $arguments, $callContext);
+            $result = $registeredTool->call($this->container, $arguments, $requestContext);
 
             return new CallToolResult($result, false);
         } catch (JsonException $e) {
@@ -222,7 +222,7 @@ class Dispatcher
         return new ListResourceTemplatesResult(array_values($pagedItems), $nextCursor);
     }
 
-    public function handleResourceRead(ReadResourceRequest $request): ReadResourceResult
+    public function handleResourceRead(ReadResourceRequest $request, Context $requestContext): ReadResourceResult
     {
         $uri = $request->uri;
 
@@ -233,7 +233,7 @@ class Dispatcher
         }
 
         try {
-            $result = $registeredResource->read($this->container, $uri);
+            $result = $registeredResource->read($this->container, $uri, $requestContext);
 
             return new ReadResourceResult($result);
         } catch (JsonException $e) {
@@ -270,7 +270,7 @@ class Dispatcher
         return new ListPromptsResult(array_values($pagedItems), $nextCursor);
     }
 
-    public function handlePromptGet(GetPromptRequest $request): GetPromptResult
+    public function handlePromptGet(GetPromptRequest $request, Context $requestContext): GetPromptResult
     {
         $promptName = $request->name;
         $arguments = $request->arguments;
@@ -289,7 +289,7 @@ class Dispatcher
         }
 
         try {
-            $result = $registeredPrompt->get($this->container, $arguments);
+            $result = $registeredPrompt->get($this->container, $arguments, $requestContext);
 
             return new GetPromptResult($result, $registeredPrompt->schema->description);
         } catch (JsonException $e) {

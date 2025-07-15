@@ -15,6 +15,7 @@ use PhpMcp\Schema\Content\TextContent;
 use PhpMcp\Schema\Content\TextResourceContents;
 use PhpMcp\Schema\Enum\Role;
 use PhpMcp\Schema\Result\CompletionCompleteResult;
+use PhpMcp\Server\Context;
 use PhpMcp\Server\Contracts\CompletionProviderInterface;
 use PhpMcp\Server\Contracts\SessionInterface;
 use Psr\Container\ContainerInterface;
@@ -43,9 +44,9 @@ class RegisteredPrompt extends RegisteredElement
      * @param  array  $arguments
      * @return PromptMessage[]
      */
-    public function get(ContainerInterface $container, array $arguments): array
+    public function get(ContainerInterface $container, array $arguments, Context $requestContext): array
     {
-        $result = $this->handle($container, $arguments);
+        $result = $this->handle($container, $arguments, $requestContext);
 
         return $this->formatResult($result);
     }

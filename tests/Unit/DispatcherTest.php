@@ -6,7 +6,7 @@ use Grpc\Call;
 use Mockery;
 use Mockery\MockInterface;
 use PhpMcp\Schema\ClientCapabilities;
-use PhpMcp\Server\CallContext;
+use PhpMcp\Server\Context;
 use PhpMcp\Server\Configuration;
 use PhpMcp\Server\Contracts\CompletionProviderInterface;
 use PhpMcp\Server\Contracts\SessionInterface;
@@ -106,7 +106,7 @@ it('routes to handleInitialize for initialize request', function () {
     $this->session->shouldReceive('set')->with('client_info', Mockery::on(fn($value) => $value['name'] === 'client' && $value['version'] === '1.0'))->once();
     $this->session->shouldReceive('set')->with('protocol_version', Protocol::LATEST_PROTOCOL_VERSION)->once();
 
-    $result = $this->dispatcher->handleRequest($request, $this->session, new CallContext());
+    $result = $this->dispatcher->handleRequest($request, $this->session, new Context(null, Mockery::mock(SessionInterface::class)));
     expect($result)->toBeInstanceOf(InitializeResult::class);
     expect($result->protocolVersion)->toBe(Protocol::LATEST_PROTOCOL_VERSION);
     expect($result->serverInfo->name)->toBe('DispatcherTestServer');
@@ -114,13 +114,13 @@ it('routes to handleInitialize for initialize request', function () {
 
 it('routes to handlePing for ping request', function () {
     $request = new JsonRpcRequest('2.0', 'id1', 'ping', []);
-    $result = $this->dispatcher->handleRequest($request, $this->session, new CallContext());
+    $result = $this->dispatcher->handleRequest($request, $this->session, new Context(null, Mockery::mock(SessionInterface::class)));
     expect($result)->toBeInstanceOf(EmptyResult::class);
 });
 
 it('throws MethodNotFound for unknown request method', function () {
     $rawRequest = new JsonRpcRequest('2.0', 'id1', 'unknown/method', []);
-    $this->dispatcher->handleRequest($rawRequest, $this->session, new CallContext());
+    $this->dispatcher->handleRequest($rawRequest, $this->session, new Context(null, Mockery::mock(SessionInterface::class)));
 })->throws(McpServerException::class, "Method 'unknown/method' not found.");
 
 it('routes to handleNotificationInitialized for initialized notification', function () {
@@ -202,14 +202,14 @@ it('can handle tool call request and return result', function () {
     $args = ['a' => 10, 'b' => 5];
     $toolSchema = ToolSchema::make($toolName, ['type' => 'object', 'properties' => ['a' => ['type' => 'integer'], 'b' => ['type' => 'integer']]]);
     $registeredToolMock = Mockery::mock(RegisteredTool::class, [$toolSchema, 'MyToolHandler', 'handleTool', false]);
-    $callContext = new CallContext();
+    $context = new Context(null, Mockery::mock(SessionInterface::class));
 
     $this->registry->shouldReceive('getTool')->with($toolName)->andReturn($registeredToolMock);
     $this->schemaValidator->shouldReceive('validateAgainstJsonSchema')->with($args, $toolSchema->inputSchema)->andReturn([]); // No validation errors
-    $registeredToolMock->shouldReceive('call')->with($this->container, $args, $callContext)->andReturn([TextContent::make("Result: 15")]);
+    $registeredToolMock->shouldReceive('call')->with($this->container, $args, $context)->andReturn([TextContent::make("Result: 15")]);
 
     $request = CallToolRequest::make(1, $toolName, $args);
-    $result = $this->dispatcher->handleToolCall($request, $callContext);
+    $result = $this->dispatcher->handleToolCall($request, $context);
 
     expect($result)->toBeInstanceOf(CallToolResult::class);
     expect($result->content[0]->text)->toBe("Result: 15");
@@ -219,7 +219,7 @@ it('can handle tool call request and return result', function () {
 it('can handle tool call request and throw exception if tool not found', function () {
     $this->registry->shouldReceive('getTool')->with('unknown-tool')->andReturn(null);
     $request = CallToolRequest::make(1, 'unknown-tool', []);
-    $this->dispatcher->handleToolCall($request, new CallContext());
+    $this->dispatcher->handleToolCall($request, new Context(null, Mockery::mock(SessionInterface::class)));
 })->throws(McpServerException::class, "Tool 'unknown-tool' not found.");
 
 it('can handle tool call request and throw exception if argument validation fails', function () {
@@ -234,7 +234,7 @@ it('can handle tool call request and throw exception if argument validation fail
 
     $request = CallToolRequest::make(1, $toolName, $args);
     try {
-        $this->dispatcher->handleToolCall($request, new CallContext());
+        $this->dispatcher->handleToolCall($request, new Context(null, Mockery::mock(SessionInterface::class)));
     } catch (McpServerException $e) {
         expect($e->getMessage())->toContain("Invalid parameters for tool 'strict-tool'");
         expect($e->getData()['validation_errors'])->toBeArray();
@@ -251,7 +251,7 @@ it('can handle tool call request and return error if tool execution throws excep
     $registeredToolMock->shouldReceive('call')->andThrow(new \RuntimeException("Tool crashed!"));
 
     $request = CallToolRequest::make(1, $toolName, []);
-    $result = $this->dispatcher->handleToolCall($request, new CallContext());
+    $result = $this->dispatcher->handleToolCall($request, new Context(null, Mockery::mock(SessionInterface::class)));
 
     expect($result->isError)->toBeTrue();
     expect($result->content[0]->text)->toBe("Tool execution failed: Tool crashed!");
@@ -268,7 +268,7 @@ it('can handle tool call request and return error if result formatting fails', f
 
 
     $request = CallToolRequest::make(1, $toolName, []);
-    $result = $this->dispatcher->handleToolCall($request, new CallContext());
+    $result = $this->dispatcher->handleToolCall($request, new Context(null, Mockery::mock(SessionInterface::class)));
 
     expect($result->isError)->toBeTrue();
     expect($result->content[0]->text)->toBe("Failed to serialize tool result: Unencodable.");

@@ -5,7 +5,7 @@ namespace PhpMcp\Server\Tests\Fixtures\General;
 use PhpMcp\Schema\Content\TextContent;
 use PhpMcp\Schema\Content\ImageContent;
 use PhpMcp\Schema\Content\AudioContent;
-use PhpMcp\Server\CallContext;
+use PhpMcp\Server\Context;
 use PhpMcp\Server\Tests\Fixtures\Enums\BackedStringEnum;
 use Psr\Log\LoggerInterface;
 
@@ -134,12 +134,12 @@ class ToolHandlerFixture
         return fopen('php://memory', 'r');
     }
 
-    public function toolReadsCallContext(CallContext $callContext): string
+    public function toolReadsContext(Context $context): string
     {
-        if (!$callContext->request) {
+        if (!$context->request) {
             return "No request instance present";
         }
 
-        return $callContext->request->getHeaderLine('X-Test-Header') ?: "No X-Test-Header";
+        return $context->request->getHeaderLine('X-Test-Header') ?: "No X-Test-Header";
     }
 }
