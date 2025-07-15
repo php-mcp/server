@@ -9,6 +9,7 @@ use PhpMcp\Schema\Content\EmbeddedResource;
 use PhpMcp\Schema\Content\ResourceContents;
 use PhpMcp\Schema\Content\TextResourceContents;
 use PhpMcp\Schema\Resource;
+use PhpMcp\Server\Context;
 use Psr\Container\ContainerInterface;
 use Throwable;
 
@@ -32,9 +33,9 @@ class RegisteredResource extends RegisteredElement
      *
      * @return array<TextResourceContents|BlobResourceContents> Array of ResourceContents objects.
      */
-    public function read(ContainerInterface $container, string $uri): array
+    public function read(ContainerInterface $container, string $uri, Context $requestContext): array
     {
-        $result = $this->handle($container, ['uri' => $uri]);
+        $result = $this->handle($container, ['uri' => $uri], $requestContext);
 
         return $this->formatResult($result, $uri, $this->schema->mimeType);
     }

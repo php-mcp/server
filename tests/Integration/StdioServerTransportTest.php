@@ -241,19 +241,19 @@ it('can handle batch requests correctly', function () {
     $this->process->stdin->end();
 })->group('integration', 'stdio_transport');
 
-it('can passes an empty callcontext', function () {
-    sendRequestToServer($this->process, 'init-callcontext', 'initialize', ['protocolVersion' => Protocol::LATEST_PROTOCOL_VERSION, 'clientInfo' => [], 'capabilities' => []]);
-    await(readResponseFromServer($this->process, 'init-callcontext', $this->loop));
+it('can passes an empty context', function () {
+    sendRequestToServer($this->process, 'init-context', 'initialize', ['protocolVersion' => Protocol::LATEST_PROTOCOL_VERSION, 'clientInfo' => [], 'capabilities' => []]);
+    await(readResponseFromServer($this->process, 'init-context', $this->loop));
     sendNotificationToServer($this->process, 'notifications/initialized');
     await(delay(0.05, $this->loop));
 
-    sendRequestToServer($this->process, 'tool-callcontext-1', 'tools/call', [
-        'name' => 'tool_reads_call_context',
+    sendRequestToServer($this->process, 'tool-context-1', 'tools/call', [
+        'name' => 'tool_reads_context',
         'arguments' => []
     ]);
-    $toolResponse = await(readResponseFromServer($this->process, 'tool-callcontext-1', $this->loop));
+    $toolResponse = await(readResponseFromServer($this->process, 'tool-context-1', $this->loop));
 
-    expect($toolResponse['id'])->toBe('tool-callcontext-1');
+    expect($toolResponse['id'])->toBe('tool-context-1');
     expect($toolResponse)->not->toHaveKey('error');
     expect($toolResponse['result']['content'][0]['text'])->toBe('No request instance present');
     expect($toolResponse['result']['isError'])->toBeFalse();
@@ -274,7 +274,7 @@ it('can handle tool list request', function () {
     expect($toolListResponse)->not->toHaveKey('error');
     expect($toolListResponse['result']['tools'])->toBeArray()->toHaveCount(2);
     expect($toolListResponse['result']['tools'][0]['name'])->toBe('greet_stdio_tool');
-    expect($toolListResponse['result']['tools'][1]['name'])->toBe('tool_reads_call_context');
+    expect($toolListResponse['result']['tools'][1]['name'])->toBe('tool_reads_context');
 
     $this->process->stdin->end();
 })->group('integration', 'stdio_transport');

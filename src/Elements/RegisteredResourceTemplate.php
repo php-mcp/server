@@ -10,6 +10,7 @@ use PhpMcp\Schema\Content\ResourceContents;
 use PhpMcp\Schema\Content\TextResourceContents;
 use PhpMcp\Schema\ResourceTemplate;
 use PhpMcp\Schema\Result\CompletionCompleteResult;
+use PhpMcp\Server\Context;
 use PhpMcp\Server\Contracts\SessionInterface;
 use Psr\Container\ContainerInterface;
 use Throwable;
@@ -41,11 +42,11 @@ class RegisteredResourceTemplate extends RegisteredElement
      *
      * @return array<TextResourceContents|BlobResourceContents> Array of ResourceContents objects.
      */
-    public function read(ContainerInterface $container, string $uri): array
+    public function read(ContainerInterface $container, string $uri, Context $requestContext): array
     {
         $arguments = array_merge($this->uriVariables, ['uri' => $uri]);
 
-        $result = $this->handle($container, $arguments);
+        $result = $this->handle($container, $arguments, $requestContext);
 
         return $this->formatResult($result, $uri, $this->schema->mimeType);
     }
