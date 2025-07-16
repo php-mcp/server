@@ -44,9 +44,9 @@ class RegisteredPrompt extends RegisteredElement
      * @param  array  $arguments
      * @return PromptMessage[]
      */
-    public function get(ContainerInterface $container, array $arguments, Context $requestContext): array
+    public function get(ContainerInterface $container, array $arguments, Context $context): array
     {
-        $result = $this->handle($container, $arguments, $requestContext);
+        $result = $this->handle($container, $arguments, $context);
 
         return $this->formatResult($result);
     }

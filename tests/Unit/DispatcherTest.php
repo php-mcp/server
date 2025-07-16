@@ -72,7 +72,7 @@ beforeEach(function () {
     $this->session = Mockery::mock(SessionInterface::class);
     /** @var MockInterface&ContainerInterface $container */
     $this->container = Mockery::mock(ContainerInterface::class);
-    $this->context = new Context(Mockery::mock(SessionInterface::class));
+    $this->context = new Context($this->session);
 
     $configuration = new Configuration(
         serverInfo: Implementation::make('DispatcherTestServer', '1.0'),
@@ -106,7 +106,7 @@ it('routes to handleInitialize for initialize request', function () {
     $this->session->shouldReceive('set')->with('client_info', Mockery::on(fn($value) => $value['name'] === 'client' && $value['version'] === '1.0'))->once();
     $this->session->shouldReceive('set')->with('protocol_version', Protocol::LATEST_PROTOCOL_VERSION)->once();
 
-    $result = $this->dispatcher->handleRequest($request, $this->session, $this->context);
+    $result = $this->dispatcher->handleRequest($request, $this->context);
     expect($result)->toBeInstanceOf(InitializeResult::class);
     expect($result->protocolVersion)->toBe(Protocol::LATEST_PROTOCOL_VERSION);
     expect($result->serverInfo->name)->toBe('DispatcherTestServer');
@@ -114,13 +114,13 @@ it('routes to handleInitialize for initialize request', function () {
 
 it('routes to handlePing for ping request', function () {
     $request = new JsonRpcRequest('2.0', 'id1', 'ping', []);
-    $result = $this->dispatcher->handleRequest($request, $this->session, $this->context);
+    $result = $this->dispatcher->handleRequest($request, $this->context);
     expect($result)->toBeInstanceOf(EmptyResult::class);
 });
 
 it('throws MethodNotFound for unknown request method', function () {
     $rawRequest = new JsonRpcRequest('2.0', 'id1', 'unknown/method', []);
-    $this->dispatcher->handleRequest($rawRequest, $this->session, $this->context);
+    $this->dispatcher->handleRequest($rawRequest, $this->context);
 })->throws(McpServerException::class, "Method 'unknown/method' not found.");
 
 it('routes to handleNotificationInitialized for initialized notification', function () {

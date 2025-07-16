@@ -113,7 +113,7 @@ class Protocol
      *
      * Processes via Processor, sends Response/Error.
      */
-    public function processMessage(Request|Notification|BatchRequest $message, string $sessionId, array $context = []): void
+    public function processMessage(Request|Notification|BatchRequest $message, string $sessionId, array $messageContext = []): void
     {
         $this->logger->debug('Message received.', ['sessionId' => $sessionId, 'message' => $message]);
 
@@ -121,36 +121,36 @@ class Protocol
 
         if ($session === null) {
             $error = Error::forInvalidRequest('Invalid or expired session. Please re-initialize the session.', $message->id);
-            $context['status_code'] = 404;
+            $messageContext['status_code'] = 404;
 
-            $this->transport->sendMessage($error, $sessionId, $context)
-                ->then(function () use ($sessionId, $error, $context) {
-                    $this->logger->debug('Response sent.', ['sessionId' => $sessionId, 'payload' => $error, 'context' => $context]);
+            $this->transport->sendMessage($error, $sessionId, $messageContext)
+                ->then(function () use ($sessionId, $error, $messageContext) {
+                    $this->logger->debug('Response sent.', ['sessionId' => $sessionId, 'payload' => $error, 'context' => $messageContext]);
                 })
-                ->catch(function (Throwable $e) use ($sessionId, $error, $context) {
+                ->catch(function (Throwable $e) use ($sessionId) {
                     $this->logger->error('Failed to send response.', ['sessionId' => $sessionId, 'error' => $e->getMessage()]);
                 });
 
             return;
         }
 
-        if ($context['stateless'] ?? false) {
+        if ($messageContext['stateless'] ?? false) {
             $session->set('initialized', true);
             $session->set('protocol_version', self::LATEST_PROTOCOL_VERSION);
             $session->set('client_info', ['name' => 'stateless-client', 'version' => '1.0.0']);
         }
 
-        $requestContext = new Context(
+        $context = new Context(
             $session,
-            $context['request'] ?? null,
+            $messageContext['request'] ?? null,
         );
 
         $response = null;
 
         if ($message instanceof BatchRequest) {
-            $response = $this->processBatchRequest($message, $session, $requestContext);
+            $response = $this->processBatchRequest($message, $session, $context);
         } elseif ($message instanceof Request) {
-            $response = $this->processRequest($message, $session, $requestContext);
+            $response = $this->processRequest($message, $session, $context);
         } elseif ($message instanceof Notification) {
             $this->processNotification($message, $session);
         }
@@ -161,7 +161,7 @@ class Protocol
             return;
         }
 
-        $this->transport->sendMessage($response, $sessionId, $context)
+        $this->transport->sendMessage($response, $sessionId, $messageContext)
             ->then(function () use ($sessionId, $response) {
                 $this->logger->debug('Response sent.', ['sessionId' => $sessionId, 'payload' => $response]);
             })
@@ -173,7 +173,7 @@ class Protocol
     /**
      * Process a batch message
      */
-    private function processBatchRequest(BatchRequest $batch, SessionInterface $session, Context $requestContext): ?BatchResponse
+    private function processBatchRequest(BatchRequest $batch, SessionInterface $session, Context $context): ?BatchResponse
     {
         $items = [];
 
@@ -182,7 +182,7 @@ class Protocol
         }
 
         foreach ($batch->getRequests() as $request) {
-            $items[] = $this->processRequest($request, $session, $requestContext);
+            $items[] = $this->processRequest($request, $session, $context);
         }
 
         return empty($items) ? null : new BatchResponse($items);
@@ -191,7 +191,7 @@ class Protocol
     /**
      * Process a request message
      */
-    private function processRequest(Request $request, SessionInterface $session, Context $requestContext): Response|Error
+    private function processRequest(Request $request, SessionInterface $session, Context $context): Response|Error
     {
         try {
             if ($request->method !== 'initialize') {
@@ -200,7 +200,7 @@ class Protocol
 
             $this->assertRequestCapability($request->method);
 
-            $result = $this->dispatcher->handleRequest($request, $session, $requestContext);
+            $result = $this->dispatcher->handleRequest($request, $context);
 
             return Response::make($request->id, $result);
         } catch (McpServerException $e) {
