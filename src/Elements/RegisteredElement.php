@@ -31,33 +31,33 @@ class RegisteredElement implements JsonSerializable
         $this->isManual = $isManual;
     }
 
-    public function handle(ContainerInterface $container, array $arguments, Context $requestContext): mixed
+    public function handle(ContainerInterface $container, array $arguments, Context $context): mixed
     {
         if (is_string($this->handler)) {
             if (class_exists($this->handler) && method_exists($this->handler, '__invoke')) {
                 $reflection = new \ReflectionMethod($this->handler, '__invoke');
-                $arguments = $this->prepareArguments($reflection, $arguments, $requestContext);
+                $arguments = $this->prepareArguments($reflection, $arguments, $context);
                 $instance = $container->get($this->handler);
                 return call_user_func($instance, ...$arguments);
             }
 
             if (function_exists($this->handler)) {
                 $reflection = new \ReflectionFunction($this->handler);
-                $arguments = $this->prepareArguments($reflection, $arguments, $requestContext);
+                $arguments = $this->prepareArguments($reflection, $arguments, $context);
                 return call_user_func($this->handler, ...$arguments);
             }
         }
 
         if (is_callable($this->handler)) {
             $reflection = $this->getReflectionForCallable($this->handler);
-            $arguments = $this->prepareArguments($reflection, $arguments, $requestContext);
+            $arguments = $this->prepareArguments($reflection, $arguments, $context);
             return call_user_func($this->handler, ...$arguments);
         }
 
         if (is_array($this->handler)) {
             [$className, $methodName] = $this->handler;
             $reflection = new \ReflectionMethod($className, $methodName);
-            $arguments = $this->prepareArguments($reflection, $arguments, $requestContext);
+            $arguments = $this->prepareArguments($reflection, $arguments, $context);
 
             $instance = $container->get($className);
             return call_user_func([$instance, $methodName], ...$arguments);
@@ -67,7 +67,7 @@ class RegisteredElement implements JsonSerializable
     }
 
 
-    protected function prepareArguments(\ReflectionFunctionAbstract $reflection, array $arguments, Context $requestContext): array
+    protected function prepareArguments(\ReflectionFunctionAbstract $reflection, array $arguments, Context $context): array
     {
         $finalArgs = [];
 
@@ -78,7 +78,7 @@ class RegisteredElement implements JsonSerializable
             $paramPosition = $parameter->getPosition();
 
             if ($paramType instanceof ReflectionNamedType && $paramType->getName() === Context::class) {
-                $finalArgs[$paramPosition] = $requestContext;
+                $finalArgs[$paramPosition] = $context;
 
                 continue;
             }

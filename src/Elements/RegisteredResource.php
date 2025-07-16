@@ -33,9 +33,9 @@ class RegisteredResource extends RegisteredElement
      *
      * @return array<TextResourceContents|BlobResourceContents> Array of ResourceContents objects.
      */
-    public function read(ContainerInterface $container, string $uri, Context $requestContext): array
+    public function read(ContainerInterface $container, string $uri, Context $context): array
     {
-        $result = $this->handle($container, ['uri' => $uri], $requestContext);
+        $result = $this->handle($container, ['uri' => $uri], $context);
 
         return $this->formatResult($result, $uri, $this->schema->mimeType);
     }

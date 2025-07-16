@@ -31,9 +31,9 @@ class RegisteredTool extends RegisteredElement
      *
      * @return Content[] The content items for CallToolResult.
      */
-    public function call(ContainerInterface $container, array $arguments, Context $requestContext): array
+    public function call(ContainerInterface $container, array $arguments, Context $context): array
     {
-        $result = $this->handle($container, $arguments, $requestContext);
+        $result = $this->handle($container, $arguments, $context);
 
         return $this->formatResult($result);
     }

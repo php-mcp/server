@@ -42,11 +42,11 @@ class RegisteredResourceTemplate extends RegisteredElement
      *
      * @return array<TextResourceContents|BlobResourceContents> Array of ResourceContents objects.
      */
-    public function read(ContainerInterface $container, string $uri, Context $requestContext): array
+    public function read(ContainerInterface $container, string $uri, Context $context): array
     {
         $arguments = array_merge($this->uriVariables, ['uri' => $uri]);
 
-        $result = $this->handle($container, $arguments, $requestContext);
+        $result = $this->handle($container, $arguments, $context);
 
         return $this->formatResult($result, $uri, $this->schema->mimeType);
     }

@@ -174,8 +174,7 @@ it('processes a valid Request message', function () {
     $this->dispatcher->shouldReceive('handleRequest')->once()
         ->with(
             Mockery::on(fn ($arg) => $arg instanceof Request && $arg->method === 'test/method'),
-            $this->session,
-            Mockery::type(Context::class)
+            Mockery::on(fn ($arg) => $arg instanceof Context && $arg->session === $this->session),
         )
         ->andReturn($result);
 
@@ -209,9 +208,23 @@ it('processes a BatchRequest with mixed requests and notifications', function ()
     $result1 = new EmptyResult();
     $result2 = new EmptyResult();
 
-    $this->dispatcher->shouldReceive('handleRequest')->once()->with(Mockery::on(fn (Request $r) => $r->id === 'batch-id-1'), $this->session, Mockery::type(Context::class))->andReturn($result1);
-    $this->dispatcher->shouldReceive('handleNotification')->once()->with(Mockery::on(fn (Notification $n) => $n->method === 'notif/1'), $this->session);
-    $this->dispatcher->shouldReceive('handleRequest')->once()->with(Mockery::on(fn (Request $r) => $r->id === 'batch-id-2'), $this->session, Mockery::type(Context::class))->andReturn($result2);
+    $this->dispatcher->shouldReceive('handleRequest')
+        ->once()
+        ->with(
+            Mockery::on(fn (Request $r) => $r->id === 'batch-id-1'),
+            Mockery::on(fn ($arg) => $arg instanceof Context && $arg->session === $this->session),
+        )
+        ->andReturn($result1);
+    $this->dispatcher->shouldReceive('handleNotification')
+        ->once()
+        ->with(Mockery::on(fn (Notification $n) => $n->method === 'notif/1'), $this->session);
+    $this->dispatcher->shouldReceive('handleRequest')
+        ->once()
+        ->with(
+            Mockery::on(fn (Request $r) => $r->id === 'batch-id-2'),
+            Mockery::on(fn ($arg) => $arg instanceof Context && $arg->session === $this->session)
+        )
+        ->andReturn($result2);
 
 
     $this->transport->shouldReceive('sendMessage')->once()
@@ -502,7 +515,10 @@ it('allows initialize request when session not initialized', function () {
     $this->session->shouldReceive('get')->with('initialized', false)->andReturn(false);
 
     $this->dispatcher->shouldReceive('handleRequest')->once()
-        ->with(Mockery::type(Request::class), $this->session, Mockery::type(Context::class))
+        ->with(
+            Mockery::type(Request::class),
+            Mockery::on(fn ($arg) => $arg instanceof Context && $arg->session === $this->session)
+        )
         ->andReturn(new EmptyResult());
 
     $this->transport->shouldReceive('sendMessage')->once()

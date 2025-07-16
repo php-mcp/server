@@ -61,12 +61,12 @@ class Dispatcher
         $this->schemaValidator ??= new SchemaValidator($this->logger);
     }
 
-    public function handleRequest(Request $request, SessionInterface $session, Context $requestContext): Result
+    public function handleRequest(Request $request, Context $context): Result
     {
         switch ($request->method) {
             case 'initialize':
                 $request = InitializeRequest::fromRequest($request);
-                return $this->handleInitialize($request, $session);
+                return $this->handleInitialize($request, $context->session);
             case 'ping':
                 $request = PingRequest::fromRequest($request);
                 return $this->handlePing($request);
@@ -75,7 +75,7 @@ class Dispatcher
                 return $this->handleToolList($request);
             case 'tools/call':
                 $request = CallToolRequest::fromRequest($request);
-                return $this->handleToolCall($request, $requestContext);
+                return $this->handleToolCall($request, $context);
             case 'resources/list':
                 $request = ListResourcesRequest::fromRequest($request);
                 return $this->handleResourcesList($request);
@@ -84,25 +84,25 @@ class Dispatcher
                 return $this->handleResourceTemplateList($request);
             case 'resources/read':
                 $request = ReadResourceRequest::fromRequest($request);
-                return $this->handleResourceRead($request, $requestContext);
+                return $this->handleResourceRead($request, $context);
             case 'resources/subscribe':
                 $request = ResourceSubscribeRequest::fromRequest($request);
-                return $this->handleResourceSubscribe($request, $session);
+                return $this->handleResourceSubscribe($request, $context->session);
             case 'resources/unsubscribe':
                 $request = ResourceUnsubscribeRequest::fromRequest($request);
-                return $this->handleResourceUnsubscribe($request, $session);
+                return $this->handleResourceUnsubscribe($request, $context->session);
             case 'prompts/list':
                 $request = ListPromptsRequest::fromRequest($request);
                 return $this->handlePromptsList($request);
             case 'prompts/get':
                 $request = GetPromptRequest::fromRequest($request);
-                return $this->handlePromptGet($request, $requestContext);
+                return $this->handlePromptGet($request, $context);
             case 'logging/setLevel':
                 $request = SetLogLevelRequest::fromRequest($request);
-                return $this->handleLoggingSetLevel($request, $session);
+                return $this->handleLoggingSetLevel($request, $context->session);
             case 'completion/complete':
                 $request = CompletionCompleteRequest::fromRequest($request);
-                return $this->handleCompletionComplete($request, $session);
+                return $this->handleCompletionComplete($request, $context->session);
             default:
                 throw McpServerException::methodNotFound("Method '{$request->method}' not found.");
         }
@@ -151,7 +151,7 @@ class Dispatcher
         return new ListToolsResult(array_values($pagedItems), $nextCursor);
     }
 
-    public function handleToolCall(CallToolRequest $request, Context $requestContext): CallToolResult
+    public function handleToolCall(CallToolRequest $request, Context $context): CallToolResult
     {
         $toolName = $request->name;
         $arguments = $request->arguments;
@@ -184,7 +184,7 @@ class Dispatcher
         }
 
         try {
-            $result = $registeredTool->call($this->container, $arguments, $requestContext);
+            $result = $registeredTool->call($this->container, $arguments, $context);
 
             return new CallToolResult($result, false);
         } catch (JsonException $e) {
@@ -222,7 +222,7 @@ class Dispatcher
         return new ListResourceTemplatesResult(array_values($pagedItems), $nextCursor);
     }
 
-    public function handleResourceRead(ReadResourceRequest $request, Context $requestContext): ReadResourceResult
+    public function handleResourceRead(ReadResourceRequest $request, Context $context): ReadResourceResult
     {
         $uri = $request->uri;
 
@@ -233,7 +233,7 @@ class Dispatcher
         }
 
         try {
-            $result = $registeredResource->read($this->container, $uri, $requestContext);
+            $result = $registeredResource->read($this->container, $uri, $context);
 
             return new ReadResourceResult($result);
         } catch (JsonException $e) {
@@ -270,7 +270,7 @@ class Dispatcher
         return new ListPromptsResult(array_values($pagedItems), $nextCursor);
     }
 
-    public function handlePromptGet(GetPromptRequest $request, Context $requestContext): GetPromptResult
+    public function handlePromptGet(GetPromptRequest $request, Context $context): GetPromptResult
     {
         $promptName = $request->name;
         $arguments = $request->arguments;
@@ -289,7 +289,7 @@ class Dispatcher
         }
 
         try {
-            $result = $registeredPrompt->get($this->container, $arguments, $requestContext);
+            $result = $registeredPrompt->get($this->container, $arguments, $context);
 
             return new GetPromptResult($result, $registeredPrompt->schema->description);
         } catch (JsonException $e) {
