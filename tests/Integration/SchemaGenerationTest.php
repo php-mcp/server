@@ -58,6 +58,16 @@ it('uses PHP type hints for type and DocBlock @param tags for descriptions when 
     expect($schema['required'])->toEqualCanonicalizing(['email', 'score', 'verified']);
 });
 
+it('ignores Context parameter for schema', function () {
+    $method = new ReflectionMethod(SchemaGeneratorFixture::class, 'contextParameter');
+    $schema = $this->schemaGenerator->generate($method);
+
+    expect($schema)->toEqual([
+        'type' => 'object',
+        'properties' => new stdClass()
+    ]);
+});
+
 it('uses the complete schema definition provided by a method-level #[Schema(definition: ...)] attribute', function () {
     $method = new ReflectionMethod(SchemaGeneratorFixture::class, 'methodLevelCompleteDefinition');
     $schema = $this->schemaGenerator->generate($method);

@@ -141,8 +141,8 @@ class Protocol
         }
 
         $requestContext = new Context(
-            $context['request'] ?? null,
             $session,
+            $context['request'] ?? null,
         );
 
         $response = null;

@@ -4,8 +4,9 @@ namespace PhpMcp\Server\Tests\Unit\Elements;
 
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
-use PhpMcp\Schema\Annotations;
 use PhpMcp\Schema\Resource as ResourceSchema;
+use PhpMcp\Server\Context;
+use PhpMcp\Server\Contracts\SessionInterface;
 use PhpMcp\Server\Elements\RegisteredResource;
 use PhpMcp\Schema\Content\TextResourceContents;
 use PhpMcp\Schema\Content\BlobResourceContents;
@@ -29,6 +30,7 @@ beforeEach(function () {
         $this->resourceSchema,
         [ResourceHandlerFixture::class, 'returnStringText']
     );
+    $this->context = new Context(Mockery::mock(SessionInterface::class));
 });
 
 afterEach(function () {
@@ -62,7 +64,7 @@ it('passes URI to handler if handler method expects it', function () {
         ->andReturn("Confirmed URI: {$this->testUri}");
     $this->container->shouldReceive('get')->with(ResourceHandlerFixture::class)->andReturn($handlerMock);
 
-    $result = $resource->read($this->container, $this->testUri);
+    $result = $resource->read($this->container, $this->testUri, $this->context);
     expect($result[0]->text)->toBe("Confirmed URI: {$this->testUri}");
 });
 
@@ -75,7 +77,7 @@ it('does not require handler method to accept URI', function () {
     $handlerMock->shouldReceive('resourceHandlerDoesNotNeedUri')->once()->andReturn("Success no URI");
     $this->container->shouldReceive('get')->with(ResourceHandlerFixture::class)->andReturn($handlerMock);
 
-    $result = $resource->read($this->container, $this->testUri);
+    $result = $resource->read($this->container, $this->testUri, $this->context);
     expect($result[0]->text)->toBe("Success no URI");
 });
 
@@ -98,7 +100,7 @@ it('formats various handler return types correctly', function (string $handlerMe
     $schema = ResourceSchema::make($this->testUri, 'format-test');
     $resource = RegisteredResource::make($schema, [ResourceHandlerFixture::class, $handlerMethod]);
 
-    $resultContents = $resource->read($this->container, $this->testUri);
+    $resultContents = $resource->read($this->container, $this->testUri, $this->context);
 
     expect($resultContents)->toBeArray()->toHaveCount(1);
     $content = $resultContents[0];
@@ -119,7 +121,7 @@ it('formats various handler return types correctly', function (string $handlerMe
 it('formats SplFileInfo based on schema MIME type (text)', function () {
     $schema = ResourceSchema::make($this->testUri, 'spl-text', mimeType: 'text/markdown');
     $resource = RegisteredResource::make($schema, [ResourceHandlerFixture::class, 'returnSplFileInfo']);
-    $result = $resource->read($this->container, $this->testUri);
+    $result = $resource->read($this->container, $this->testUri, $this->context);
 
     expect($result[0])->toBeInstanceOf(TextResourceContents::class);
     expect($result[0]->mimeType)->toBe('text/markdown');
@@ -129,7 +131,7 @@ it('formats SplFileInfo based on schema MIME type (text)', function () {
 it('formats SplFileInfo based on schema MIME type (blob if not text like)', function () {
     $schema = ResourceSchema::make($this->testUri, 'spl-blob', mimeType: 'image/png');
     $resource = RegisteredResource::make($schema, [ResourceHandlerFixture::class, 'returnSplFileInfo']);
-    $result = $resource->read($this->container, $this->testUri);
+    $result = $resource->read($this->container, $this->testUri, $this->context);
 
     expect($result[0])->toBeInstanceOf(BlobResourceContents::class);
     expect($result[0]->mimeType)->toBe('image/png');
@@ -138,7 +140,7 @@ it('formats SplFileInfo based on schema MIME type (blob if not text like)', func
 
 it('formats array of ResourceContents as is', function () {
     $resource = RegisteredResource::make($this->resourceSchema, [ResourceHandlerFixture::class, 'returnArrayOfResourceContents']);
-    $results = $resource->read($this->container, $this->testUri);
+    $results = $resource->read($this->container, $this->testUri, $this->context);
     expect($results)->toHaveCount(2);
     expect($results[0])->toBeInstanceOf(TextResourceContents::class)->text->toBe('Part 1 of many RC');
     expect($results[1])->toBeInstanceOf(BlobResourceContents::class)->blob->toBe(base64_encode('pngdata'));
@@ -146,7 +148,7 @@ it('formats array of ResourceContents as is', function () {
 
 it('formats array of EmbeddedResources by extracting their inner resource', function () {
     $resource = RegisteredResource::make($this->resourceSchema, [ResourceHandlerFixture::class, 'returnArrayOfEmbeddedResources']);
-    $results = $resource->read($this->container, $this->testUri);
+    $results = $resource->read($this->container, $this->testUri, $this->context);
     expect($results)->toHaveCount(2);
     expect($results[0])->toBeInstanceOf(TextResourceContents::class)->text->toBe('<doc1/>');
     expect($results[1])->toBeInstanceOf(BlobResourceContents::class)->blob->toBe(base64_encode('fontdata'));
@@ -154,7 +156,7 @@ it('formats array of EmbeddedResources by extracting their inner resource', func
 
 it('formats mixed array with ResourceContent/EmbeddedResource by processing each item', function () {
     $resource = RegisteredResource::make($this->resourceSchema, [ResourceHandlerFixture::class, 'returnMixedArrayWithResourceTypes']);
-    $results = $resource->read($this->container, $this->testUri);
+    $results = $resource->read($this->container, $this->testUri, $this->context);
 
     expect($results)->toBeArray()->toHaveCount(4);
     expect($results[0])->toBeInstanceOf(TextResourceContents::class)->text->toBe("A raw string piece");
@@ -175,17 +177,17 @@ it('propagates McpServerException from handler during read', function () {
             $mock->shouldReceive('resourceHandlerNeedsUri')->andThrow(McpServerException::invalidParams("Test error"));
         })
     );
-    $resource->read($this->container, $this->testUri);
+    $resource->read($this->container, $this->testUri, $this->context);
 })->throws(McpServerException::class, "Test error");
 
 it('propagates other exceptions from handler during read', function () {
     $resource = RegisteredResource::make($this->resourceSchema, [ResourceHandlerFixture::class, 'handlerThrowsException']);
-    $resource->read($this->container, $this->testUri);
+    $resource->read($this->container, $this->testUri, $this->context);
 })->throws(\DomainException::class, "Cannot read resource");
 
 it('throws RuntimeException for unformattable handler result', function () {
     $resource = RegisteredResource::make($this->resourceSchema, [ResourceHandlerFixture::class, 'returnUnformattableType']);
-    $resource->read($this->container, $this->testUri);
+    $resource->read($this->container, $this->testUri, $this->context);
 })->throws(\RuntimeException::class, "Cannot format resource read result for URI");
 
 

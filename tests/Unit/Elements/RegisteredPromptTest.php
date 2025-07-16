@@ -5,6 +5,8 @@ namespace PhpMcp\Server\Tests\Unit\Elements;
 use Mockery;
 use PhpMcp\Schema\Prompt as PromptSchema;
 use PhpMcp\Schema\PromptArgument;
+use PhpMcp\Server\Context;
+use PhpMcp\Server\Contracts\SessionInterface;
 use PhpMcp\Server\Elements\RegisteredPrompt;
 use PhpMcp\Schema\Content\PromptMessage;
 use PhpMcp\Schema\Enum\Role;
@@ -30,6 +32,8 @@ beforeEach(function () {
         'Generates a greeting.',
         [PromptArgument::make('name', 'The name to greet.', true)]
     );
+    
+    $this->context = new Context(Mockery::mock(SessionInterface::class));
 });
 
 it('constructs correctly with schema, handler, and completion providers', function () {
@@ -63,14 +67,14 @@ it('calls handler with prepared arguments via get()', function () {
     $this->container->shouldReceive('get')->with(PromptHandlerFixture::class)->andReturn($handlerMock);
 
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'generateSimpleGreeting']);
-    $messages = $prompt->get($this->container, ['name' => 'Alice', 'style' => 'warm']);
+    $messages = $prompt->get($this->container, ['name' => 'Alice', 'style' => 'warm'], $this->context);
 
     expect($messages[0]->content->text)->toBe('Warm greeting for Alice.');
 });
 
 it('formats single PromptMessage object from handler', function () {
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnSinglePromptMessageObject']);
-    $messages = $prompt->get($this->container, []);
+    $messages = $prompt->get($this->container, [], $this->context);
     expect($messages)->toBeArray()->toHaveCount(1);
     expect($messages[0])->toBeInstanceOf(PromptMessage::class);
     expect($messages[0]->content->text)->toBe("Single PromptMessage object.");
@@ -78,7 +82,7 @@ it('formats single PromptMessage object from handler', function () {
 
 it('formats array of PromptMessage objects from handler as is', function () {
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnArrayOfPromptMessageObjects']);
-    $messages = $prompt->get($this->container, []);
+    $messages = $prompt->get($this->container, [], $this->context);
     expect($messages)->toBeArray()->toHaveCount(2);
     expect($messages[0]->content->text)->toBe("First message object.");
     expect($messages[1]->content)->toBeInstanceOf(ImageContent::class);
@@ -86,13 +90,13 @@ it('formats array of PromptMessage objects from handler as is', function () {
 
 it('formats empty array from handler as empty array', function () {
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnEmptyArrayForPrompt']);
-    $messages = $prompt->get($this->container, []);
+    $messages = $prompt->get($this->container, [], $this->context);
     expect($messages)->toBeArray()->toBeEmpty();
 });
 
 it('formats simple user/assistant map from handler', function () {
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnSimpleUserAssistantMap']);
-    $messages = $prompt->get($this->container, []);
+    $messages = $prompt->get($this->container, [], $this->context);
     expect($messages)->toHaveCount(2);
     expect($messages[0]->role)->toBe(Role::User);
     expect($messages[0]->content->text)->toBe("This is the user's turn.");
@@ -102,7 +106,7 @@ it('formats simple user/assistant map from handler', function () {
 
 it('formats user/assistant map with Content objects', function () {
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnUserAssistantMapWithContentObjects']);
-    $messages = $prompt->get($this->container, []);
+    $messages = $prompt->get($this->container, [], $this->context);
     expect($messages[0]->role)->toBe(Role::User);
     expect($messages[0]->content)->toBeInstanceOf(TextContent::class)->text->toBe("User text content object.");
     expect($messages[1]->role)->toBe(Role::Assistant);
@@ -111,7 +115,7 @@ it('formats user/assistant map with Content objects', function () {
 
 it('formats user/assistant map with mixed content (string and Content object)', function () {
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnUserAssistantMapWithMixedContent']);
-    $messages = $prompt->get($this->container, []);
+    $messages = $prompt->get($this->container, [], $this->context);
     expect($messages[0]->role)->toBe(Role::User);
     expect($messages[0]->content)->toBeInstanceOf(TextContent::class)->text->toBe("Plain user string.");
     expect($messages[1]->role)->toBe(Role::Assistant);
@@ -120,7 +124,7 @@ it('formats user/assistant map with mixed content (string and Content object)', 
 
 it('formats user/assistant map with array content', function () {
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnUserAssistantMapWithArrayContent']);
-    $messages = $prompt->get($this->container, []);
+    $messages = $prompt->get($this->container, [], $this->context);
     expect($messages[0]->role)->toBe(Role::User);
     expect($messages[0]->content)->toBeInstanceOf(TextContent::class)->text->toBe("User array content");
     expect($messages[1]->role)->toBe(Role::Assistant);
@@ -129,7 +133,7 @@ it('formats user/assistant map with array content', function () {
 
 it('formats list of raw message arrays with various content types', function () {
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnListOfRawMessageArrays']);
-    $messages = $prompt->get($this->container, []);
+    $messages = $prompt->get($this->container, [], $this->context);
     expect($messages)->toHaveCount(6);
     expect($messages[0]->content->text)->toBe("First raw message string.");
     expect($messages[1]->content)->toBeInstanceOf(TextContent::class);
@@ -143,7 +147,7 @@ it('formats list of raw message arrays with various content types', function () 
 
 it('formats list of raw message arrays with scalar or array content (becoming JSON TextContent)', function () {
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnListOfRawMessageArraysWithScalars']);
-    $messages = $prompt->get($this->container, []);
+    $messages = $prompt->get($this->container, [], $this->context);
     expect($messages)->toHaveCount(5);
     expect($messages[0]->content->text)->toBe("123");
     expect($messages[1]->content->text)->toBe("true");
@@ -154,7 +158,7 @@ it('formats list of raw message arrays with scalar or array content (becoming JS
 
 it('formats mixed array of PromptMessage objects and raw message arrays', function () {
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'returnMixedArrayOfPromptMessagesAndRaw']);
-    $messages = $prompt->get($this->container, []);
+    $messages = $prompt->get($this->container, [], $this->context);
     expect($messages)->toHaveCount(4);
     expect($messages[0]->content)->toBeInstanceOf(TextContent::class)->text->toBe("This is a PromptMessage object.");
     expect($messages[1]->content)->toBeInstanceOf(TextContent::class)->text->toBe("This is a raw message array.");
@@ -182,7 +186,7 @@ it('throws RuntimeException for invalid prompt result formats', function (string
     }
 
     try {
-        $prompt->get($this->container, []);
+        $prompt->get($this->container, [], $this->context);
     } catch (\RuntimeException $e) {
         expect($e->getMessage())->toMatch($expectedErrorPattern);
     }
@@ -193,7 +197,7 @@ it('throws RuntimeException for invalid prompt result formats', function (string
 
 it('propagates exceptions from handler during get()', function () {
     $prompt = RegisteredPrompt::make($this->promptSchema, [PromptHandlerFixture::class, 'promptHandlerThrows']);
-    $prompt->get($this->container, []);
+    $prompt->get($this->container, [], $this->context);
 })->throws(\LogicException::class, "Prompt generation failed inside handler.");
 
 

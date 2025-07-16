@@ -2,6 +2,7 @@
 
 namespace PhpMcp\Server\Tests\Fixtures\General;
 
+use PhpMcp\Server\Context;
 use PhpMcp\Server\Tests\Fixtures\Enums\BackedIntEnum;
 use PhpMcp\Server\Tests\Fixtures\Enums\BackedStringEnum;
 use PhpMcp\Server\Tests\Fixtures\Enums\UnitEnum;
@@ -141,5 +142,12 @@ class VariousTypesHandler
 
     public function methodCausesTypeError(int $mustBeInt): void
     {
+    }
+
+    public function contextArg(Context $context): array {
+        return [
+            'session' => $context->session->get('testKey'),
+            'request' => $context->request->getHeaderLine('testHeader'),
+        ];
     }
 }

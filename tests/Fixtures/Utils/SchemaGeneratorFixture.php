@@ -3,6 +3,7 @@
 namespace PhpMcp\Server\Tests\Fixtures\Utils;
 
 use PhpMcp\Server\Attributes\Schema;
+use PhpMcp\Server\Context;
 use PhpMcp\Server\Tests\Fixtures\Enums\BackedIntEnum;
 use PhpMcp\Server\Tests\Fixtures\Enums\BackedStringEnum;
 use PhpMcp\Server\Tests\Fixtures\Enums\UnitEnum;
@@ -44,6 +45,10 @@ class SchemaGeneratorFixture
      * @param bool $verified Whether user is verified
      */
     public function typeHintsWithDocBlock(string $email, int $score, bool $verified): void
+    {
+    }
+
+    public function contextParameter(Context $context): void
     {
     }
 

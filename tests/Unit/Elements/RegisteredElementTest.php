@@ -3,6 +3,8 @@
 namespace PhpMcp\Server\Tests\Unit\Elements;
 
 use Mockery;
+use PhpMcp\Server\Context;
+use PhpMcp\Server\Contracts\SessionInterface;
 use PhpMcp\Server\Elements\RegisteredElement;
 use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Server\Tests\Fixtures\Enums\BackedIntEnum;
@@ -10,6 +12,7 @@ use PhpMcp\Server\Tests\Fixtures\Enums\BackedStringEnum;
 use PhpMcp\Server\Tests\Fixtures\Enums\UnitEnum;
 use PhpMcp\Server\Tests\Fixtures\General\VariousTypesHandler;
 use Psr\Container\ContainerInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use stdClass;
 
 // --- Test Fixtures for Handler Types ---
@@ -39,6 +42,7 @@ function my_global_test_function(bool $flag): string
 beforeEach(function () {
     $this->container = Mockery::mock(ContainerInterface::class);
     $this->container->shouldReceive('get')->with(VariousTypesHandler::class)->andReturn(new VariousTypesHandler());
+    $this->context = new Context(Mockery::mock(SessionInterface::class));
 });
 
 it('can be constructed as manual or discovered', function () {
@@ -53,7 +57,7 @@ it('can be constructed as manual or discovered', function () {
 it('prepares arguments in correct order for simple required types', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'simpleRequiredArgs']);
     $args = ['pString' => 'hello', 'pBool' => true, 'pInt' => 123];
-    $result = $element->handle($this->container, $args);
+    $result = $element->handle($this->container, $args, $this->context);
 
     $expectedResult = ['pString' => 'hello', 'pInt' => 123, 'pBool' => true];
 
@@ -63,13 +67,13 @@ it('prepares arguments in correct order for simple required types', function () 
 it('uses default values for missing optional arguments', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'optionalArgsWithDefaults']);
 
-    $result1 = $element->handle($this->container, ['pString' => 'override']);
+    $result1 = $element->handle($this->container, ['pString' => 'override'], $this->context);
     expect($result1['pString'])->toBe('override');
     expect($result1['pInt'])->toBe(100);
     expect($result1['pNullableBool'])->toBeTrue();
     expect($result1['pFloat'])->toBe(3.14);
 
-    $result2 = $element->handle($this->container, []);
+    $result2 = $element->handle($this->container, [], $this->context);
     expect($result2['pString'])->toBe('default_string');
     expect($result2['pInt'])->toBe(100);
     expect($result2['pNullableBool'])->toBeTrue();
@@ -78,7 +82,7 @@ it('uses default values for missing optional arguments', function () {
 
 it('passes null for nullable arguments if not provided', function () {
     $elementNoDefaults = new RegisteredElement([VariousTypesHandler::class, 'nullableArgsWithoutDefaults']);
-    $result2 = $elementNoDefaults->handle($this->container, []);
+    $result2 = $elementNoDefaults->handle($this->container, [], $this->context);
     expect($result2['pString'])->toBeNull();
     expect($result2['pInt'])->toBeNull();
     expect($result2['pArray'])->toBeNull();
@@ -86,7 +90,7 @@ it('passes null for nullable arguments if not provided', function () {
 
 it('passes null explicitly for nullable arguments', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'nullableArgsWithoutDefaults']);
-    $result = $element->handle($this->container, ['pString' => null, 'pInt' => null, 'pArray' => null]);
+    $result = $element->handle($this->container, ['pString' => null, 'pInt' => null, 'pArray' => null], $this->context);
     expect($result['pString'])->toBeNull();
     expect($result['pInt'])->toBeNull();
     expect($result['pArray'])->toBeNull();
@@ -104,14 +108,14 @@ it('handles mixed type arguments', function () {
         $obj
     ];
     foreach ($testValues as $value) {
-        $result = $element->handle($this->container, ['pMixed' => $value]);
+        $result = $element->handle($this->container, ['pMixed' => $value], $this->context);
         expect($result['pMixed'])->toBe($value);
     }
 });
 
 it('throws McpServerException for missing required argument', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'simpleRequiredArgs']);
-    $element->handle($this->container, ['pString' => 'hello', 'pInt' => 123]);
+    $element->handle($this->container, ['pString' => 'hello', 'pInt' => 123], $this->context);
 })->throws(McpServerException::class, 'Missing required argument `pBool`');
 
 dataset('valid_type_casts', [
@@ -168,7 +172,7 @@ it('casts argument types correctly for valid inputs (comprehensive)', function (
     ];
     $testArgs = array_merge($allArgs, [$paramName => $inputValue]);
 
-    $result = $element->handle($this->container, $testArgs);
+    $result = $element->handle($this->container, $testArgs, $this->context);
     expect($result[$paramName])->toEqual($expectedValue);
 })->with('valid_type_casts');
 
@@ -212,7 +216,7 @@ it('throws McpServerException for invalid type casting', function (string $param
     $testArgs = array_merge($allArgs, [$paramName => $invalidValue]);
 
     try {
-        $element->handle($this->container, $testArgs);
+        $element->handle($this->container, $testArgs, $this->context);
     } catch (McpServerException $e) {
         expect($e->getMessage())->toMatch($expectedMsgRegex);
     }
@@ -220,43 +224,57 @@ it('throws McpServerException for invalid type casting', function (string $param
 
 it('casts to BackedStringEnum correctly', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'backedEnumArgs']);
-    $result = $element->handle($this->container, ['pBackedString' => 'A', 'pBackedInt' => 1]);
+    $result = $element->handle($this->container, ['pBackedString' => 'A', 'pBackedInt' => 1], $this->context);
     expect($result['pBackedString'])->toBe(BackedStringEnum::OptionA);
 });
 
 it('throws for invalid BackedStringEnum value', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'backedEnumArgs']);
-    $element->handle($this->container, ['pBackedString' => 'Invalid', 'pBackedInt' => 1]);
+    $element->handle($this->container, ['pBackedString' => 'Invalid', 'pBackedInt' => 1], $this->context);
 })->throws(McpServerException::class, "Invalid value 'Invalid' for backed enum");
 
 it('casts to BackedIntEnum correctly', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'backedEnumArgs']);
-    $result = $element->handle($this->container, ['pBackedString' => 'A', 'pBackedInt' => 2]);
+    $result = $element->handle($this->container, ['pBackedString' => 'A', 'pBackedInt' => 2], $this->context);
     expect($result['pBackedInt'])->toBe(BackedIntEnum::Second);
 });
 
 it('throws for invalid BackedIntEnum value', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'backedEnumArgs']);
-    $element->handle($this->container, ['pBackedString' => 'A', 'pBackedInt' => 999]);
+    $element->handle($this->container, ['pBackedString' => 'A', 'pBackedInt' => 999], $this->context);
 })->throws(McpServerException::class, "Invalid value '999' for backed enum");
 
 it('casts to UnitEnum correctly', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'unitEnumArg']);
-    $result = $element->handle($this->container, ['pUnitEnum' => 'Yes']);
+    $result = $element->handle($this->container, ['pUnitEnum' => 'Yes'], $this->context);
     expect($result['pUnitEnum'])->toBe(UnitEnum::Yes);
 });
 
 it('throws for invalid UnitEnum value', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'unitEnumArg']);
-    $element->handle($this->container, ['pUnitEnum' => 'Invalid']);
+    $element->handle($this->container, ['pUnitEnum' => 'Invalid'], $this->context);
 })->throws(McpServerException::class, "Invalid value 'Invalid' for unit enum");
 
 
 it('throws ReflectionException if handler method does not exist', function () {
     $element = new RegisteredElement([VariousTypesHandler::class, 'nonExistentMethod']);
-    $element->handle($this->container, []);
+    $element->handle($this->container, [], $this->context);
 })->throws(\ReflectionException::class, "VariousTypesHandler::nonExistentMethod() does not exist");
 
+it('passes Context object', function() {
+    $sessionMock = Mockery::mock(SessionInterface::class);
+    $sessionMock->expects('get')->with('testKey')->andReturn('testValue');
+    $requestMock = Mockery::mock(ServerRequestInterface::class);
+    $requestMock->expects('getHeaderLine')->with('testHeader')->andReturn('testHeaderValue');
+
+    $context = new Context($sessionMock, $requestMock);
+    $element = new RegisteredElement([VariousTypesHandler::class, 'contextArg']);
+    $result = $element->handle($this->container, [], $context);
+    expect($result)->toBe([
+        'session' => 'testValue',
+        'request' => 'testHeaderValue'
+    ]);
+});
 
 describe('Handler Types', function () {
     it('handles invokable class handler', function () {
@@ -265,7 +283,7 @@ describe('Handler Types', function () {
             ->andReturn(new MyInvokableTestHandler());
 
         $element = new RegisteredElement(MyInvokableTestHandler::class);
-        $result = $element->handle($this->container, ['name' => 'World']);
+        $result = $element->handle($this->container, ['name' => 'World'], $this->context);
 
         expect($result)->toBe('Hello, World!');
     });
@@ -275,21 +293,21 @@ describe('Handler Types', function () {
             return $a . $b;
         };
         $element = new RegisteredElement($closure);
-        $result = $element->handle($this->container, ['a' => 'foo', 'b' => 'bar']);
+        $result = $element->handle($this->container, ['a' => 'foo', 'b' => 'bar'], $this->context);
         expect($result)->toBe('foobar');
     });
 
     it('handles static method handler', function () {
         $handler = [MyStaticMethodTestHandler::class, 'myStaticMethod'];
         $element = new RegisteredElement($handler);
-        $result = $element->handle($this->container, ['a' => 5, 'b' => 10]);
+        $result = $element->handle($this->container, ['a' => 5, 'b' => 10], $this->context);
         expect($result)->toBe(15);
     });
 
     it('handles global function name handler', function () {
         $handler = 'PhpMcp\Server\Tests\Unit\Elements\my_global_test_function';
         $element = new RegisteredElement($handler);
-        $result = $element->handle($this->container, ['flag' => true]);
+        $result = $element->handle($this->container, ['flag' => true], $this->context);
         expect($result)->toBe('on');
     });
 });
