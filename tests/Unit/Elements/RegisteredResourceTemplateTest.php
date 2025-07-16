@@ -4,6 +4,8 @@ namespace PhpMcp\Server\Tests\Unit\Elements;
 
 use Mockery;
 use PhpMcp\Schema\ResourceTemplate;
+use PhpMcp\Server\Context;
+use PhpMcp\Server\Contracts\SessionInterface;
 use PhpMcp\Server\Elements\RegisteredResourceTemplate;
 use PhpMcp\Schema\Content\TextResourceContents;
 use PhpMcp\Server\Tests\Fixtures\General\ResourceHandlerFixture;
@@ -32,6 +34,8 @@ beforeEach(function () {
         'user-doc-template',
         mimeType: 'application/json'
     );
+
+    $this->context = new Context(Mockery::mock(SessionInterface::class));
 });
 
 it('constructs correctly with schema, handler, and completion providers', function () {
@@ -122,7 +126,7 @@ it('reads resource using handler with extracted URI variables', function () {
 
     expect($template->matches($uri))->toBeTrue();
 
-    $resultContents = $template->read($this->container, $uri);
+    $resultContents = $template->read($this->container, $uri, $this->context);
 
     expect($resultContents)->toBeArray()->toHaveCount(1);
 
@@ -145,7 +149,7 @@ it('uses mimeType from schema if handler result does not specify one', function 
     $template = RegisteredResourceTemplate::make($schema, [ResourceHandlerFixture::class, 'getTemplatedContent']);
     expect($template->matches($uri))->toBeTrue();
 
-    $resultContents = $template->read($this->container, $uri);
+    $resultContents = $template->read($this->container, $uri, $this->context);
     expect($resultContents[0]->mimeType)->toBe('application/vnd.custom-template-xml');
 });
 
@@ -159,7 +163,7 @@ it('formats a simple string result from handler correctly for template', functio
     $mockHandler->shouldReceive('returnStringText')->with($uri)->once()->andReturn('Simple content from template handler');
     $this->container->shouldReceive('get')->with(ResourceHandlerFixture::class)->andReturn($mockHandler);
 
-    $resultContents = $template->read($this->container, $uri);
+    $resultContents = $template->read($this->container, $uri, $this->context);
     expect($resultContents[0])->toBeInstanceOf(TextResourceContents::class)
         ->and($resultContents[0]->text)->toBe('Simple content from template handler')
         ->and($resultContents[0]->mimeType)->toBe('text/x-custom'); // From schema
@@ -170,7 +174,7 @@ it('propagates exceptions from handler during read', function () {
     $schema = ResourceTemplate::make('item://{type}/{name}', 'test-simple-string', mimeType: 'text/x-custom');
     $template = RegisteredResourceTemplate::make($schema, [ResourceHandlerFixture::class, 'handlerThrowsException']);
     expect($template->matches($uri))->toBeTrue();
-    $template->read($this->container, $uri);
+    $template->read($this->container, $uri, $this->context);
 })->throws(\DomainException::class, "Cannot read resource");
 
 it('can be serialized to array and deserialized', function () {

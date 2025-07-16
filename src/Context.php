@@ -7,8 +7,8 @@ use Psr\Http\Message\ServerRequestInterface;
 final class Context
 {
     public function __construct(
-        public readonly ?ServerRequestInterface $request,
-        public readonly SessionInterface $session
+        public readonly SessionInterface $session,
+        public readonly ?ServerRequestInterface $request = null,
     )
     {
     }

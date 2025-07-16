@@ -31,7 +31,7 @@ class RegisteredElement implements JsonSerializable
         $this->isManual = $isManual;
     }
 
-    public function handle(ContainerInterface $container, array $arguments, ?Context $requestContext = null): mixed
+    public function handle(ContainerInterface $container, array $arguments, Context $requestContext): mixed
     {
         if (is_string($this->handler)) {
             if (class_exists($this->handler) && method_exists($this->handler, '__invoke')) {
@@ -67,7 +67,7 @@ class RegisteredElement implements JsonSerializable
     }
 
 
-    protected function prepareArguments(\ReflectionFunctionAbstract $reflection, array $arguments, ?Context $requestContext): array
+    protected function prepareArguments(\ReflectionFunctionAbstract $reflection, array $arguments, Context $requestContext): array
     {
         $finalArgs = [];
 
@@ -77,7 +77,7 @@ class RegisteredElement implements JsonSerializable
             $paramType = $parameter->getType();
             $paramPosition = $parameter->getPosition();
 
-            if ($paramType?->getName() === Context::class) {
+            if ($paramType instanceof ReflectionNamedType && $paramType->getName() === Context::class) {
                 $finalArgs[$paramPosition] = $requestContext;
 
                 continue;

@@ -33,6 +33,7 @@ beforeEach(function () {
         $this->toolSchema,
         [ToolHandlerFixture::class, 'greet']
     );
+    $this->context = new Context(Mockery::mock(SessionInterface::class));
 });
 
 it('constructs correctly and exposes schema', function () {
@@ -55,7 +56,7 @@ it('calls the handler with prepared arguments', function () {
     $mockHandler->shouldReceive('sum')->with(5, 10)->once()->andReturn(15);
     $this->container->shouldReceive('get')->with(ToolHandlerFixture::class)->andReturn($mockHandler);
 
-    $resultContents = $tool->call($this->container, ['a' => 5, 'b' => '10'], new Context(null, Mockery::mock(SessionInterface::class))); // '10' will be cast to int by prepareArguments
+    $resultContents = $tool->call($this->container, ['a' => 5, 'b' => '10'], $this->context); // '10' will be cast to int by prepareArguments
 
     expect($resultContents)->toBeArray()->toHaveCount(1);
     expect($resultContents[0])->toBeInstanceOf(TextContent::class)->text->toBe('15');
@@ -70,7 +71,7 @@ it('calls handler with no arguments if tool takes none and none provided', funct
     $mockHandler->shouldReceive('noParamsTool')->withNoArgs()->once()->andReturn(['status' => 'done']);
     $this->container->shouldReceive('get')->with(ToolHandlerFixture::class)->andReturn($mockHandler);
 
-    $resultContents = $tool->call($this->container, [], new Context(null, Mockery::mock(SessionInterface::class)));
+    $resultContents = $tool->call($this->container, [], $this->context);
     expect($resultContents[0])->toBeInstanceOf(TextContent::class)->text->toBe(json_encode(['status' => 'done'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
 });
 
@@ -92,7 +93,7 @@ it('formats various scalar and simple object/array handler results into TextCont
         [ToolHandlerFixture::class, $handlerMethod]
     );
 
-    $resultContents = $tool->call($this->container, [], new Context(null, Mockery::mock(SessionInterface::class)));
+    $resultContents = $tool->call($this->container, [], $this->context);
 
     expect($resultContents)->toBeArray()->toHaveCount(1);
     expect($resultContents[0])->toBeInstanceOf(TextContent::class)->text->toBe($expectedText);
@@ -103,7 +104,7 @@ it('returns single Content object from handler as array with one Content object'
         Tool::make('content-test-tool', ['type' => 'object', 'properties' => []]),
         [ToolHandlerFixture::class, 'returnTextContent']
     );
-    $resultContents = $tool->call($this->container, [], new Context(null, Mockery::mock(SessionInterface::class)));
+    $resultContents = $tool->call($this->container, [], $this->context);
 
     expect($resultContents)->toBeArray()->toHaveCount(1);
     expect($resultContents[0])->toBeInstanceOf(TextContent::class)->text->toBe("Pre-formatted TextContent.");
@@ -114,7 +115,7 @@ it('returns array of Content objects from handler as is', function () {
         Tool::make('content-array-tool', ['type' => 'object', 'properties' => []]),
         [ToolHandlerFixture::class, 'returnArrayOfContent']
     );
-    $resultContents = $tool->call($this->container, [], new Context(null, Mockery::mock(SessionInterface::class)));
+    $resultContents = $tool->call($this->container, [], $this->context);
 
     expect($resultContents)->toBeArray()->toHaveCount(2);
     expect($resultContents[0])->toBeInstanceOf(TextContent::class)->text->toBe("Part 1");
@@ -126,7 +127,7 @@ it('formats mixed array from handler into array of Content objects', function ()
         Tool::make('mixed-array-tool', ['type' => 'object', 'properties' => []]),
         [ToolHandlerFixture::class, 'returnMixedArray']
     );
-    $resultContents = $tool->call($this->container, [], new Context(null, Mockery::mock(SessionInterface::class)));
+    $resultContents = $tool->call($this->container, [], $this->context);
 
     expect($resultContents)->toBeArray()->toHaveCount(8);
 
@@ -145,7 +146,7 @@ it('formats empty array from handler into TextContent with "[]"', function () {
         Tool::make('empty-array-tool', ['type' => 'object', 'properties' => []]),
         [ToolHandlerFixture::class, 'returnEmptyArray']
     );
-    $resultContents = $tool->call($this->container, [], new Context(null, Mockery::mock(SessionInterface::class)));
+    $resultContents = $tool->call($this->container, [], $this->context);
 
     expect($resultContents)->toBeArray()->toHaveCount(1);
     expect($resultContents[0])->toBeInstanceOf(TextContent::class)->text->toBe('[]');
@@ -156,7 +157,7 @@ it('throws JsonException during formatResult if handler returns unencodable valu
         Tool::make('unencodable-tool', ['type' => 'object', 'properties' => []]),
         [ToolHandlerFixture::class, 'toolUnencodableResult']
     );
-    $tool->call($this->container, [], new Context(null, Mockery::mock(SessionInterface::class)));
+    $tool->call($this->container, [], $this->context);
 })->throws(JsonException::class);
 
 it('re-throws exceptions from handler execution wrapped in McpServerException from handle()', function () {
@@ -167,5 +168,5 @@ it('re-throws exceptions from handler execution wrapped in McpServerException fr
 
     $this->container->shouldReceive('get')->with(ToolHandlerFixture::class)->once()->andReturn(new ToolHandlerFixture());
 
-    $tool->call($this->container, [], new Context(null, Mockery::mock(SessionInterface::class)));
+    $tool->call($this->container, [], $this->context);
 })->throws(InvalidArgumentException::class, "Something went wrong in the tool.");
