@@ -132,9 +132,7 @@ class Schema
     public function toArray(): array
     {
         if ($this->definition !== null) {
-            return [
-                'definition' => $this->definition,
-            ];
+            return $this->definition;
         }
 
         $schema = [];

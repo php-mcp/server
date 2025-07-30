@@ -397,4 +397,17 @@ class SchemaGeneratorFixture
         $inferredParam
     ): void {
     }
+
+    /**
+     * Parameter with complete custom definition via #[Schema(definition: ...)]
+     */
+    public function parameterWithRawDefinition(
+        #[Schema(definition: [
+            'description' => 'Custom-defined schema',
+            'type' => 'string',
+            'format' => 'uuid'
+        ])]
+        string $custom
+    ): void {
+    }
 }
