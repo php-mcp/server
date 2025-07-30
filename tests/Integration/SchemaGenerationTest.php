@@ -354,3 +354,16 @@ it('infers parameter type as "any" (omits type) if only constraints are given in
 
     expect($schema['required'])->toEqual(['inferredParam']);
 });
+
+it('uses raw parameter-level schema definition as-is', function () {
+    $method = new ReflectionMethod(SchemaGeneratorFixture::class, 'parameterWithRawDefinition');
+    $schema = $this->schemaGenerator->generate($method);
+
+    expect($schema['properties']['custom'])->toEqual([
+        'description' => 'Custom-defined schema',
+        'type' => 'string',
+        'format' => 'uuid'
+    ]);
+
+    expect($schema['required'])->toEqual(['custom']);
+});
