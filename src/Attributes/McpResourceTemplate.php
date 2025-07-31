@@ -10,7 +10,7 @@ use PhpMcp\Schema\Annotations;
  * This is informational, used for 'resources/templates/list'.
  */
 #[Attribute(Attribute::TARGET_METHOD | Attribute::TARGET_CLASS)]
-final class McpResourceTemplate
+class McpResourceTemplate
 {
     /**
      * @param  string  $uriTemplate  The URI template string (RFC 6570).
