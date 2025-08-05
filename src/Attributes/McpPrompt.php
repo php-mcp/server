@@ -9,7 +9,7 @@ use Attribute;
  * The method should return the prompt messages, potentially using arguments for templating.
  */
 #[Attribute(Attribute::TARGET_METHOD | Attribute::TARGET_CLASS)]
-final class McpPrompt
+class McpPrompt
 {
     /**
      * @param  ?string  $name  Overrides the prompt name (defaults to method name).

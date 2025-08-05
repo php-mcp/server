@@ -10,7 +10,7 @@ use PhpMcp\Schema\Annotations;
  * Used primarily for the 'resources/list' discovery.
  */
 #[Attribute(Attribute::TARGET_METHOD | Attribute::TARGET_CLASS)]
-final class McpResource
+class McpResource
 {
     /**
      * @param  string  $uri  The specific URI identifying this resource instance. Must be unique within the server.
