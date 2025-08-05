@@ -183,6 +183,10 @@ class SchemaGenerator
         // Parameter-level takes highest precedence
         $parameterLevelSchema = $paramInfo['parameter_schema'];
         if (!empty($parameterLevelSchema)) {
+            if (isset($parameterLevelSchema['definition']) && is_array($parameterLevelSchema['definition'])) {
+                return $parameterLevelSchema['definition'];
+            }
+
             $mergedSchema = $this->mergeSchemas($mergedSchema, $parameterLevelSchema);
         }
 
