@@ -22,6 +22,7 @@ class MockSseClient
     private array $receivedSseEvents = []; // Stores raw SSE events (type, data, id)
     public ?string $endpointUrl = null; // The /message endpoint URL provided by server
     public ?string $clientId = null; // The clientId from the /message endpoint URL
+    public ?ResponseInterface $lastConnectResponse = null; // Last connect response for header testing
 
     public function __construct(int $timeout = 2)
     {
@@ -32,6 +33,7 @@ class MockSseClient
     {
         return $this->browser->requestStreaming('GET', $sseBaseUrl)
             ->then(function (ResponseInterface $response) {
+                $this->lastConnectResponse = $response; // Store response for header testing
                 if ($response->getStatusCode() !== 200) {
                     $body = (string) $response->getBody();
                     throw new \RuntimeException("SSE connection failed with status {$response->getStatusCode()}: {$body}");

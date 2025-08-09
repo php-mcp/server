@@ -67,6 +67,9 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
 
     /**
      * @param bool $enableJsonResponse If true, the server will return JSON responses instead of starting an SSE stream.
+     * @param bool $stateless If true, the server will not emit client_connected events.
+     * @param EventStoreInterface $eventStore If provided, the server will replay events to the client.
+     * @param array<callable(\Psr\Http\Message\ServerRequestInterface, callable): (\Psr\Http\Message\ResponseInterface|\React\Promise\PromiseInterface)> $middlewares Middlewares to be applied to the HTTP server.
      * This can be useful for simple request/response scenarios without streaming.
      */
     public function __construct(
@@ -76,12 +79,19 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         private ?array $sslContext = null,
         private readonly bool $enableJsonResponse = true,
         private readonly bool $stateless = false,
-        ?EventStoreInterface $eventStore = null
+        ?EventStoreInterface $eventStore = null,
+        private array $middlewares = []
     ) {
         $this->logger = new NullLogger();
         $this->loop = Loop::get();
         $this->mcpPath = '/' . trim($mcpPath, '/');
         $this->eventStore = $eventStore;
+
+        foreach ($this->middlewares as $mw) {
+            if (!is_callable($mw)) {
+                throw new \InvalidArgumentException('All provided middlewares must be callable.');
+            }
+        }
     }
 
     protected function generateId(): string
@@ -119,7 +129,8 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
                 $this->loop
             );
 
-            $this->http = new HttpServer($this->loop, $this->createRequestHandler());
+            $handlers = array_merge($this->middlewares, [$this->createRequestHandler()]);
+            $this->http = new HttpServer($this->loop, ...$handlers);
             $this->http->listen($this->socket);
 
             $this->socket->on('error', function (Throwable $error) {

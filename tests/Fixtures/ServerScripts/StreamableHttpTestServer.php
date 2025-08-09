@@ -10,6 +10,14 @@ use PhpMcp\Server\Transports\StreamableHttpServerTransport;
 use PhpMcp\Server\Tests\Fixtures\General\ToolHandlerFixture;
 use PhpMcp\Server\Tests\Fixtures\General\ResourceHandlerFixture;
 use PhpMcp\Server\Tests\Fixtures\General\PromptHandlerFixture;
+use PhpMcp\Server\Tests\Fixtures\General\RequestAttributeChecker;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\HeaderMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\RequestAttributeMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\ShortCircuitMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\FirstMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\SecondMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\ThirdMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\ErrorMiddleware;
 use PhpMcp\Server\Defaults\InMemoryEventStore;
 use Psr\Log\AbstractLogger;
 use Psr\Log\NullLogger;
@@ -41,9 +49,20 @@ try {
         ->withTool([ToolHandlerFixture::class, 'greet'], 'greet_streamable_tool')
         ->withTool([ToolHandlerFixture::class, 'sum'], 'sum_streamable_tool') // For batch testing
         ->withTool([ToolHandlerFixture::class, 'toolReadsContext'], 'tool_reads_context') // for Context testing
+        ->withTool([RequestAttributeChecker::class, 'checkAttribute'], 'check_request_attribute_tool')
         ->withResource([ResourceHandlerFixture::class, 'getStaticText'], "test://streamable/static", 'static_streamable_resource')
         ->withPrompt([PromptHandlerFixture::class, 'generateSimpleGreeting'], 'simple_streamable_prompt')
         ->build();
+
+    $middlewares = [
+        new HeaderMiddleware(),
+        new RequestAttributeMiddleware(),
+        new ShortCircuitMiddleware(),
+        new FirstMiddleware(),
+        new SecondMiddleware(),
+        new ThirdMiddleware(),
+        new ErrorMiddleware()
+    ];
 
     $transport = new StreamableHttpServerTransport(
         host: $host,
@@ -51,7 +70,8 @@ try {
         mcpPath: $mcpPath,
         enableJsonResponse: $enableJsonResponse,
         stateless: $stateless,
-        eventStore: $eventStore
+        eventStore: $eventStore,
+        middlewares: $middlewares
     );
 
     $server->listen($transport);

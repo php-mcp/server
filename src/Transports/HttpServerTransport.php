@@ -62,17 +62,25 @@ class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterf
      * @param  int  $port  Port to listen on (e.g., 8080).
      * @param  string  $mcpPathPrefix  URL prefix for MCP endpoints (e.g., 'mcp').
      * @param  array|null  $sslContext  Optional SSL context options for React SocketServer (for HTTPS).
+     * @param array<callable(\Psr\Http\Message\ServerRequestInterface, callable): (\Psr\Http\Message\ResponseInterface|\React\Promise\PromiseInterface)> $middlewares Middlewares to be applied to the HTTP server.
      */
     public function __construct(
         private readonly string $host = '127.0.0.1',
         private readonly int $port = 8080,
         private readonly string $mcpPathPrefix = 'mcp',
         private readonly ?array $sslContext = null,
+        private array $middlewares = []
     ) {
         $this->logger = new NullLogger();
         $this->loop = Loop::get();
         $this->ssePath = '/' . trim($mcpPathPrefix, '/') . '/sse';
         $this->messagePath = '/' . trim($mcpPathPrefix, '/') . '/message';
+
+        foreach ($this->middlewares as $mw) {
+            if (!is_callable($mw)) {
+                throw new \InvalidArgumentException('All provided middlewares must be callable.');
+            }
+        }
     }
 
     public function setLogger(LoggerInterface $logger): void
@@ -114,7 +122,8 @@ class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterf
                 $this->loop
             );
 
-            $this->http = new HttpServer($this->loop, $this->createRequestHandler());
+            $handlers = array_merge($this->middlewares, [$this->createRequestHandler()]);
+            $this->http = new HttpServer($this->loop, ...$handlers);
             $this->http->listen($this->socket);
 
             $this->socket->on('error', function (Throwable $error) {
@@ -261,7 +270,10 @@ class HttpServerTransport implements ServerTransportInterface, LoggerAwareInterf
             return new Response(400, ['Content-Type' => 'application/json'], json_encode($error, $jsonEncodeFlags));
         }
 
-        $this->emit('message', [$message, $sessionId]);
+        $context = [
+            'request' => $request,
+        ];
+        $this->emit('message', [$message, $sessionId, $context]);
 
         return new Response(202, ['Content-Type' => 'text/plain'], 'Accepted');
     }

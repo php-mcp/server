@@ -1073,6 +1073,74 @@ $server = Server::make()
     ->build();
 ```
 
+### Middleware Support
+
+Both `HttpServerTransport` and `StreamableHttpServerTransport` support PSR-7 compatible middleware for intercepting and modifying HTTP requests and responses. Middleware allows you to extract common functionality like authentication, logging, CORS handling, and request validation into reusable components.
+
+Middleware must be a valid PHP callable that accepts a PSR-7 `ServerRequestInterface` as the first argument and a `callable` as the second argument.
+
+```php
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\ResponseInterface;
+use React\Promise\PromiseInterface;
+
+class AuthMiddleware
+{
+    public function __invoke(ServerRequestInterface $request, callable $next)
+    {
+        $apiKey = $request->getHeaderLine('Authorization');
+        if (empty($apiKey)) {
+            return new Response(401, [], 'Authorization required');
+        }
+        
+        $request = $request->withAttribute('user_id', $this->validateApiKey($apiKey));
+        $result = $next($request);
+        
+        return match (true) {
+            $result instanceof PromiseInterface => $result->then(fn($response) => $this->handle($response)),
+            $result instanceof ResponseInterface => $this->handle($result),
+            default => $result
+        };
+    }
+    
+    private function handle($response)
+    {
+        return $response instanceof ResponseInterface
+            ? $response->withHeader('X-Auth-Provider', 'mcp-server')
+            : $response;
+    }
+}
+
+$middlewares = [
+    new AuthMiddleware(),
+    new LoggingMiddleware(),
+    function(ServerRequestInterface $request, callable $next) {
+        $result = $next($request);
+        return match (true) {
+            $result instanceof PromiseInterface => $result->then(function($response) {
+                return $response instanceof ResponseInterface 
+                    ? $response->withHeader('Access-Control-Allow-Origin', '*')
+                    : $response;
+            }),
+            $result instanceof ResponseInterface => $result->withHeader('Access-Control-Allow-Origin', '*'),
+            default => $result
+        };
+    }
+];
+
+$transport = new StreamableHttpServerTransport(
+    host: '127.0.0.1',
+    port: 8080,
+    middlewares: $middlewares
+);
+```
+
+**Important Considerations:**
+
+- **Response Handling**: Middleware must handle both synchronous `ResponseInterface` and asynchronous `PromiseInterface` returns from `$next($request)`, since ReactPHP operates asynchronously
+- **Invokable Pattern**: The recommended pattern is to use invokable classes with a separate `handle()` method to process responses, making the async logic reusable
+- **Execution Order**: Middleware executes in the order provided, with the last middleware being closest to your MCP handlers
+
 ### SSL Context Configuration
 
 For HTTPS deployments of `StreamableHttpServerTransport`, configure SSL context options:

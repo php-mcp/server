@@ -259,7 +259,7 @@ it('can handle tool list request over HTTP/SSE', function () {
 
     expect($toolListResponse['id'])->toBe('tool-list-http-1');
     expect($toolListResponse)->not->toHaveKey('error');
-    expect($toolListResponse['result']['tools'])->toBeArray()->toHaveCount(1);
+    expect($toolListResponse['result']['tools'])->toBeArray()->toHaveCount(2);
     expect($toolListResponse['result']['tools'][0]['name'])->toBe('greet_http_tool');
 
     $this->sseClient->close();
@@ -417,3 +417,96 @@ it('returns 404 for unknown paths', function () {
         $this->fail("Request to unknown path failed with unexpected error: " . $e->getMessage());
     }
 })->group('integration', 'http_transport');
+
+it('executes middleware that adds headers to response', function () {
+    $this->sseClient = new MockSseClient();
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+
+    // 1. Connect
+    await($this->sseClient->connect($sseBaseUrl));
+    await(delay(0.05, $this->loop));
+
+    // 2. Check that the middleware-added header is present in the response
+    expect($this->sseClient->lastConnectResponse->getHeaderLine('X-Test-Middleware'))->toBe('header-added');
+
+    $this->sseClient->close();
+})->group('integration', 'http_transport', 'middleware');
+
+it('executes middleware that modifies request attributes', function () {
+    $this->sseClient = new MockSseClient();
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+
+    // 1. Connect 
+    await($this->sseClient->connect($sseBaseUrl));
+    await(delay(0.05, $this->loop));
+
+    // 2. Initialize
+    await($this->sseClient->sendHttpRequest('init-middleware-attr', 'initialize', [
+        'protocolVersion' => Protocol::LATEST_PROTOCOL_VERSION,
+        'clientInfo' => ['name' => 'MiddlewareTestClient'],
+        'capabilities' => []
+    ]));
+    await($this->sseClient->getNextMessageResponse('init-middleware-attr'));
+    await($this->sseClient->sendHttpNotification('notifications/initialized'));
+    await(delay(0.05, $this->loop));
+
+    // 3. Call tool that checks for middleware-added attribute
+    await($this->sseClient->sendHttpRequest('tool-attr-check', 'tools/call', [
+        'name' => 'check_request_attribute_tool',
+        'arguments' => []
+    ]));
+    $toolResponse = await($this->sseClient->getNextMessageResponse('tool-attr-check'));
+
+    expect($toolResponse['result']['content'][0]['text'])->toBe('middleware-value-found: middleware-value');
+
+    $this->sseClient->close();
+})->group('integration', 'http_transport', 'middleware');
+
+it('executes middleware that can short-circuit request processing', function () {
+    $browser = new Browser($this->loop);
+    $shortCircuitUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/short-circuit";
+
+    $promise = $browser->get($shortCircuitUrl);
+
+    try {
+        $response = await(timeout($promise, HTTP_PROCESS_TIMEOUT_SECONDS - 2, $this->loop));
+        $this->fail("Expected a 418 status code response, but request succeeded");
+    } catch (ResponseException $e) {
+        expect($e->getResponse()->getStatusCode())->toBe(418);
+        $body = (string) $e->getResponse()->getBody();
+        expect($body)->toBe('Short-circuited by middleware');
+    } catch (\Throwable $e) {
+        $this->fail("Short-circuit middleware test failed: " . $e->getMessage());
+    }
+})->group('integration', 'http_transport', 'middleware');
+
+it('executes multiple middlewares in correct order', function () {
+    $this->sseClient = new MockSseClient();
+    $sseBaseUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/sse";
+
+    // 1. Connect
+    await($this->sseClient->connect($sseBaseUrl));
+    await(delay(0.05, $this->loop));
+
+    // 2. Check that headers from multiple middlewares are present in correct order
+    expect($this->sseClient->lastConnectResponse->getHeaderLine('X-Middleware-Order'))->toBe('third,second,first');
+
+    $this->sseClient->close();
+})->group('integration', 'http_transport', 'middleware');
+
+it('handles middleware that throws exceptions gracefully', function () {
+    $browser = new Browser($this->loop);
+    $errorUrl = "http://" . HTTP_SERVER_HOST . ":" . $this->port . "/" . HTTP_MCP_PATH_PREFIX . "/error-middleware";
+
+    $promise = $browser->get($errorUrl);
+
+    try {
+        await(timeout($promise, HTTP_PROCESS_TIMEOUT_SECONDS - 2, $this->loop));
+        $this->fail("Error middleware should have thrown an exception.");
+    } catch (ResponseException $e) {
+        expect($e->getResponse()->getStatusCode())->toBe(500);
+        $body = (string) $e->getResponse()->getBody();
+        // ReactPHP handles exceptions and returns a generic error message
+        expect($body)->toContain('Internal Server Error');
+    }
+})->group('integration', 'http_transport', 'middleware');

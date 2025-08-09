@@ -217,7 +217,7 @@ describe('JSON MODE', function () {
         expect($toolListResult['statusCode'])->toBe(200);
         expect($toolListResult['body']['id'])->toBe('tool-list-json-1');
         expect($toolListResult['body']['result']['tools'])->toBeArray();
-        expect(count($toolListResult['body']['result']['tools']))->toBe(3);
+        expect(count($toolListResult['body']['result']['tools']))->toBe(4);
         expect($toolListResult['body']['result']['tools'][0]['name'])->toBe('greet_streamable_tool');
         expect($toolListResult['body']['result']['tools'][1]['name'])->toBe('sum_streamable_tool');
         expect($toolListResult['body']['result']['tools'][2]['name'])->toBe('tool_reads_context');
@@ -460,7 +460,7 @@ describe('STREAM MODE', function () {
         expect($toolListResponse['id'])->toBe('tool-list-stream-1');
         expect($toolListResponse)->not->toHaveKey('error');
         expect($toolListResponse['result']['tools'])->toBeArray();
-        expect(count($toolListResponse['result']['tools']))->toBe(3);
+        expect(count($toolListResponse['result']['tools']))->toBe(4);
         expect($toolListResponse['result']['tools'][0]['name'])->toBe('greet_streamable_tool');
         expect($toolListResponse['result']['tools'][1]['name'])->toBe('sum_streamable_tool');
         expect($toolListResponse['result']['tools'][2]['name'])->toBe('tool_reads_context');
@@ -663,7 +663,7 @@ describe('STATELESS MODE', function () {
         expect($toolListResult['body']['id'])->toBe('tool-list-stateless-1');
         expect($toolListResult['body'])->not->toHaveKey('error');
         expect($toolListResult['body']['result']['tools'])->toBeArray();
-        expect(count($toolListResult['body']['result']['tools']))->toBe(3);
+        expect(count($toolListResult['body']['result']['tools']))->toBe(4);
         expect($toolListResult['body']['result']['tools'][0]['name'])->toBe('greet_streamable_tool');
         expect($toolListResult['body']['result']['tools'][1]['name'])->toBe('sum_streamable_tool');
         expect($toolListResult['body']['result']['tools'][2]['name'])->toBe('tool_reads_context');
@@ -862,3 +862,103 @@ it('can delete client session with DELETE request', function () {
         expect($decodedBody['error']['message'])->toContain('Invalid or expired session');
     }
 })->group('integration', 'streamable_http_json');
+
+it('executes middleware that adds headers to response', function () {
+    $this->process = new Process($this->jsonModeCommand, getcwd() ?: null, null, []);
+    $this->process->start();
+    $this->jsonClient = new MockJsonHttpClient(STREAMABLE_HTTP_HOST, $this->port, STREAMABLE_MCP_PATH);
+    await(delay(0.1));
+
+    // 1. Send a request and check that middleware-added header is present
+    $response = await($this->jsonClient->sendRequest('initialize', [
+        'protocolVersion' => Protocol::LATEST_PROTOCOL_VERSION,
+        'clientInfo' => ['name' => 'MiddlewareTestClient'],
+        'capabilities' => []
+    ], 'init-middleware-headers'));
+
+    // Check that the response has the header added by middleware
+    expect($this->jsonClient->lastResponseHeaders)->toContain('X-Test-Middleware: header-added');
+})->group('integration', 'streamable_http', 'middleware');
+
+it('executes middleware that modifies request attributes', function () {
+    $this->process = new Process($this->jsonModeCommand, getcwd() ?: null, null, []);
+    $this->process->start();
+    $this->jsonClient = new MockJsonHttpClient(STREAMABLE_HTTP_HOST, $this->port, STREAMABLE_MCP_PATH);
+    await(delay(0.1));
+
+    // 1. Initialize 
+    await($this->jsonClient->sendRequest('initialize', [
+        'protocolVersion' => Protocol::LATEST_PROTOCOL_VERSION,
+        'clientInfo' => ['name' => 'MiddlewareAttrTestClient', 'version' => '1.0'],
+        'capabilities' => []
+    ], 'init-middleware-attr'));
+    await($this->jsonClient->sendNotification('notifications/initialized'));
+
+    // 2. Call tool that checks for middleware-added attribute
+    $toolResponse = await($this->jsonClient->sendRequest('tools/call', [
+        'name' => 'check_request_attribute_tool',
+        'arguments' => []
+    ], 'tool-attr-check'));
+
+    expect($toolResponse['body']['result']['content'][0]['text'])->toBe('middleware-value-found: middleware-value');
+})->group('integration', 'streamable_http', 'middleware');
+
+it('executes middleware that can short-circuit request processing', function () {
+    $this->process = new Process($this->jsonModeCommand, getcwd() ?: null, null, []);
+    $this->process->start();
+    await(delay(0.1));
+
+    $browser = new Browser();
+    $shortCircuitUrl = "http://" . STREAMABLE_HTTP_HOST . ":" . $this->port . "/" . STREAMABLE_MCP_PATH . "/short-circuit";
+
+    $promise = $browser->get($shortCircuitUrl);
+
+    try {
+        $response = await(timeout($promise, STREAMABLE_HTTP_PROCESS_TIMEOUT - 2));
+        $this->fail("Expected a 418 status code response, but request succeeded");
+    } catch (ResponseException $e) {
+        expect($e->getResponse()->getStatusCode())->toBe(418);
+        $body = (string) $e->getResponse()->getBody();
+        expect($body)->toBe('Short-circuited by middleware');
+    } catch (\Throwable $e) {
+        $this->fail("Short-circuit middleware test failed: " . $e->getMessage());
+    }
+})->group('integration', 'streamable_http', 'middleware');
+
+it('executes multiple middlewares in correct order', function () {
+    $this->process = new Process($this->jsonModeCommand, getcwd() ?: null, null, []);
+    $this->process->start();
+    $this->jsonClient = new MockJsonHttpClient(STREAMABLE_HTTP_HOST, $this->port, STREAMABLE_MCP_PATH);
+    await(delay(0.1));
+
+    // 1. Send a request and check middleware order
+    await($this->jsonClient->sendRequest('initialize', [
+        'protocolVersion' => Protocol::LATEST_PROTOCOL_VERSION,
+        'clientInfo' => ['name' => 'MiddlewareOrderTestClient'],
+        'capabilities' => []
+    ], 'init-middleware-order'));
+
+    // Check that headers from multiple middlewares are present in correct order
+    expect($this->jsonClient->lastResponseHeaders)->toContain('X-Middleware-Order: third,second,first');
+})->group('integration', 'streamable_http', 'middleware');
+
+it('handles middleware that throws exceptions gracefully', function () {
+    $this->process = new Process($this->jsonModeCommand, getcwd() ?: null, null, []);
+    $this->process->start();
+    await(delay(0.1));
+
+    $browser = new Browser();
+    $errorUrl = "http://" . STREAMABLE_HTTP_HOST . ":" . $this->port . "/" . STREAMABLE_MCP_PATH . "/error-middleware";
+
+    $promise = $browser->get($errorUrl);
+
+    try {
+        await(timeout($promise, STREAMABLE_HTTP_PROCESS_TIMEOUT - 2));
+        $this->fail("Error middleware should have thrown an exception.");
+    } catch (ResponseException $e) {
+        expect($e->getResponse()->getStatusCode())->toBe(500);
+        $body = (string) $e->getResponse()->getBody();
+        // ReactPHP handles exceptions and returns a generic error message
+        expect($body)->toContain('Internal Server Error');
+    }
+})->group('integration', 'streamable_http', 'middleware');
