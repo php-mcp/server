@@ -13,6 +13,7 @@ class MockJsonHttpClient
     public Browser $browser;
     public string $baseUrl;
     public ?string $sessionId = null;
+    public array $lastResponseHeaders = []; // Store last response headers for testing
 
     public function __construct(string $host, int $port, string $mcpPath, int $timeout = 2)
     {
@@ -37,6 +38,14 @@ class MockJsonHttpClient
 
         return $this->browser->post($this->baseUrl, $headers, $body)
             ->then(function (ResponseInterface $response) use ($method) {
+                // Store response headers for testing
+                $this->lastResponseHeaders = [];
+                foreach ($response->getHeaders() as $name => $values) {
+                    foreach ($values as $value) {
+                        $this->lastResponseHeaders[] = "{$name}: {$value}";
+                    }
+                }
+
                 $bodyContent = (string) $response->getBody()->getContents();
                 $statusCode = $response->getStatusCode();
 

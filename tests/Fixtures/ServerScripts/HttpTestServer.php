@@ -10,6 +10,14 @@ use PhpMcp\Server\Transports\HttpServerTransport;
 use PhpMcp\Server\Tests\Fixtures\General\ToolHandlerFixture;
 use PhpMcp\Server\Tests\Fixtures\General\ResourceHandlerFixture;
 use PhpMcp\Server\Tests\Fixtures\General\PromptHandlerFixture;
+use PhpMcp\Server\Tests\Fixtures\General\RequestAttributeChecker;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\HeaderMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\RequestAttributeMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\ShortCircuitMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\FirstMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\SecondMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\ThirdMiddleware;
+use PhpMcp\Server\Tests\Fixtures\Middlewares\ErrorMiddleware;
 use Psr\Log\AbstractLogger;
 use Psr\Log\NullLogger;
 
@@ -32,11 +40,22 @@ try {
         ->withServerInfo('HttpIntegrationTestServer', '0.1.0')
         ->withLogger($logger)
         ->withTool([ToolHandlerFixture::class, 'greet'], 'greet_http_tool')
+        ->withTool([RequestAttributeChecker::class, 'checkAttribute'], 'check_request_attribute_tool')
         ->withResource([ResourceHandlerFixture::class, 'getStaticText'], "test://http/static", 'static_http_resource')
         ->withPrompt([PromptHandlerFixture::class, 'generateSimpleGreeting'], 'simple_http_prompt')
         ->build();
 
-    $transport = new HttpServerTransport($host, $port, $mcpPathPrefix);
+    $middlewares = [
+        new HeaderMiddleware(),
+        new RequestAttributeMiddleware(),
+        new ShortCircuitMiddleware(),
+        new FirstMiddleware(),
+        new SecondMiddleware(),
+        new ThirdMiddleware(),
+        new ErrorMiddleware()
+    ];
+
+    $transport = new HttpServerTransport($host, $port, $mcpPathPrefix, null, $middlewares);
     $server->listen($transport);
 
     exit(0);
