@@ -8,7 +8,7 @@ final class ValidationException extends \Exception
 {
     public static function invalidSchemaDefinition(\Throwable $previous): self
     {
-        return new ValidationException(
+        return new self(
             errors: [
                 [
                     'pointer' => '',
@@ -22,7 +22,7 @@ final class ValidationException extends \Exception
 
     public static function invalidSchemaStructure(\Throwable $previous): self
     {
-        return new ValidationException(
+        return new self(
             errors: [['pointer' => '', 'keyword' => 'internal', 'message' => $previous->getMessage()]],
             previous: $previous,
         );
@@ -30,7 +30,7 @@ final class ValidationException extends \Exception
 
     public static function internalError(\Throwable $previous): self
     {
-        return new ValidationException(
+        return new self(
             errors: [
                 [
                     'pointer' => '',
