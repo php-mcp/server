@@ -6,6 +6,7 @@ use InvalidArgumentException;
 use JsonException;
 use Opis\JsonSchema\Errors\ValidationError;
 use Opis\JsonSchema\Validator;
+use PhpMcp\Server\Exception\ValidationException;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -14,23 +15,21 @@ use Throwable;
  */
 class SchemaValidator
 {
-    private ?Validator $jsonSchemaValidator = null;
-
-    private LoggerInterface $logger;
-
-    public function __construct(LoggerInterface $logger)
-    {
-        $this->logger = $logger;
+    public function __construct(
+        private readonly LoggerInterface $logger,
+        private ?Validator $jsonSchemaValidator = null,
+    ) {
     }
 
     /**
      * Validates data against a JSON schema.
      *
-     * @param  mixed  $data  The data to validate (should generally be decoded JSON).
-     * @param  array|object  $schema  The JSON Schema definition (as PHP array or object).
-     * @return list<array{pointer: string, keyword: string, message: string}> Array of validation errors, empty if valid.
+     * @param mixed $data The data to validate (should generally be decoded JSON).
+     * @param array|object $schema The JSON Schema definition (as PHP array or object).
+     *
+     * @throws ValidationException If validation fails.
      */
-    public function validateAgainstJsonSchema(mixed $data, array|object $schema): array
+    public function validateAgainstJsonSchema(mixed $data, array|object $schema): void
     {
         if (is_array($data) && empty($data)) {
             $data = new \stdClass();
@@ -53,17 +52,20 @@ class SchemaValidator
             // Opis Validator generally prefers objects for object validation
             $dataToValidate = $this->convertDataForValidator($data);
         } catch (JsonException $e) {
-            $this->logger->error('MCP SDK: Invalid schema structure provided for validation (JSON conversion failed).', ['exception' => $e]);
+            $this->logger->error(
+                'MCP SDK: Invalid schema structure provided for validation (JSON conversion failed).',
+                ['exception' => $e],
+            );
 
-            return [['pointer' => '', 'keyword' => 'internal', 'message' => 'Invalid schema definition provided (JSON error).']];
+            throw ValidationException::invalidSchemaDefinition($e);
         } catch (InvalidArgumentException $e) {
             $this->logger->error('MCP SDK: Invalid schema structure provided for validation.', ['exception' => $e]);
 
-            return [['pointer' => '', 'keyword' => 'internal', 'message' => $e->getMessage()]];
+            throw ValidationException::invalidSchemaStructure($e);
         } catch (Throwable $e) {
             $this->logger->error('MCP SDK: Error preparing data/schema for validation.', ['exception' => $e]);
 
-            return [['pointer' => '', 'keyword' => 'internal', 'message' => 'Internal validation preparation error.']];
+            throw ValidationException::internalError($e);
         }
 
         $validator = $this->getJsonSchemaValidator();
@@ -78,11 +80,11 @@ class SchemaValidator
                 'schema' => json_encode($schemaObject),
             ]);
 
-            return [['pointer' => '', 'keyword' => 'internal', 'message' => 'Schema validation process failed: ' . $e->getMessage()]];
+            throw ValidationException::internalError($e);
         }
 
         if ($result->isValid()) {
-            return [];
+            return;
         }
 
         $formattedErrors = [];
@@ -100,7 +102,9 @@ class SchemaValidator
             ];
         }
 
-        return $formattedErrors;
+        if (!empty($formattedErrors)) {
+            throw new ValidationException($formattedErrors);
+        }
     }
 
     /**
@@ -123,7 +127,7 @@ class SchemaValidator
     {
         if (is_array($data)) {
             // Check if it's an associative array (keys are not sequential numbers 0..N-1)
-            if (! empty($data) && array_keys($data) !== range(0, count($data) - 1)) {
+            if (!empty($data) && array_keys($data) !== range(0, count($data) - 1)) {
                 $obj = new \stdClass();
                 foreach ($data as $key => $value) {
                     $obj->{$key} = $this->convertDataForValidator($value);
@@ -212,7 +216,10 @@ class SchemaValidator
                 } elseif (is_array($schemaData) && isset($schemaData['enum']) && is_array($schemaData['enum'])) {
                     $allowedValues = $schemaData['enum'];
                 } else {
-                    $this->logger->warning("MCP SDK: Could not retrieve 'enum' values from schema info for error.", ['error_args' => $args]);
+                    $this->logger->warning(
+                        "MCP SDK: Could not retrieve 'enum' values from schema info for error.",
+                        ['error_args' => $args],
+                    );
                 }
                 if (empty($allowedValues)) {
                     $message = 'Value does not match the allowed enumeration.';
