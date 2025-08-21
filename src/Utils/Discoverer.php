@@ -34,8 +34,8 @@ class Discoverer
     private SchemaGenerator $schemaGenerator;
 
     public function __construct(
-        private Registry $registry,
-        private LoggerInterface $logger,
+        private readonly Registry $registry,
+        private readonly LoggerInterface $logger,
         ?DocBlockParser $docBlockParser = null,
         ?SchemaGenerator $schemaGenerator = null,
     ) {

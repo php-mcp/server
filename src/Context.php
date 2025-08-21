@@ -9,7 +9,6 @@ final class Context
     public function __construct(
         public readonly SessionInterface $session,
         public readonly ?ServerRequestInterface $request = null,
-    )
-    {
+    ) {
     }
 }

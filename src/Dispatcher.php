@@ -22,8 +22,8 @@ use PhpMcp\Schema\Request\ReadResourceRequest;
 use PhpMcp\Schema\Request\ResourceSubscribeRequest;
 use PhpMcp\Schema\Request\ResourceUnsubscribeRequest;
 use PhpMcp\Schema\Request\SetLogLevelRequest;
-use PhpMcp\Server\Configuration;
 use PhpMcp\Server\Contracts\SessionInterface;
+use PhpMcp\Server\Contracts\ToolExecutorInterface;
 use PhpMcp\Server\Exception\McpServerException;
 use PhpMcp\Schema\Content\TextContent;
 use PhpMcp\Schema\Result\CallToolResult;
@@ -36,10 +36,10 @@ use PhpMcp\Schema\Result\ListResourcesResult;
 use PhpMcp\Schema\Result\ListResourceTemplatesResult;
 use PhpMcp\Schema\Result\ListToolsResult;
 use PhpMcp\Schema\Result\ReadResourceResult;
-use PhpMcp\Server\Protocol;
-use PhpMcp\Server\Registry;
+use PhpMcp\Server\Exception\ValidationException;
 use PhpMcp\Server\Session\SubscriptionManager;
 use PhpMcp\Server\Utils\SchemaValidator;
+use PhpMcp\Server\Utils\ToolExecutor;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -53,12 +53,14 @@ class Dispatcher
         protected Configuration $configuration,
         protected Registry $registry,
         protected SubscriptionManager $subscriptionManager,
-        protected ?SchemaValidator $schemaValidator = null,
+        protected ?ToolExecutorInterface $toolExecutor = null,
     ) {
         $this->container = $this->configuration->container;
         $this->logger = $this->configuration->logger;
-
-        $this->schemaValidator ??= new SchemaValidator($this->logger);
+        $this->toolExecutor ??= new ToolExecutor(
+            container: $this->container,
+            schemaValidator: new SchemaValidator($this->logger),
+        );
     }
 
     public function handleRequest(Request $request, Context $context): Result
@@ -157,36 +159,19 @@ class Dispatcher
         $arguments = $request->arguments;
 
         $registeredTool = $this->registry->getTool($toolName);
-        if (! $registeredTool) {
+        if (!$registeredTool) {
             throw McpServerException::methodNotFound("Tool '{$toolName}' not found.");
         }
 
-        $inputSchema = $registeredTool->schema->inputSchema;
-
-        $validationErrors = $this->schemaValidator->validateAgainstJsonSchema($arguments, $inputSchema);
-
-        if (! empty($validationErrors)) {
-            $errorMessages = [];
-
-            foreach ($validationErrors as $errorDetail) {
-                $pointer = $errorDetail['pointer'] ?? '';
-                $message = $errorDetail['message'] ?? 'Unknown validation error';
-                $errorMessages[] = ($pointer !== '/' && $pointer !== '' ? "Property '{$pointer}': " : '') . $message;
-            }
-
-            $summaryMessage = "Invalid parameters for tool '{$toolName}': " . implode('; ', array_slice($errorMessages, 0, 3));
-
-            if (count($errorMessages) > 3) {
-                $summaryMessage .= '; ...and more errors.';
-            }
-
-            throw McpServerException::invalidParams($summaryMessage, data: ['validation_errors' => $validationErrors]);
-        }
-
         try {
-            $result = $registeredTool->call($this->container, $arguments, $context);
+            $result = $this->toolExecutor->call($registeredTool, $arguments, $context);
 
             return new CallToolResult($result, false);
+        } catch (ValidationException $e) {
+            throw McpServerException::invalidParams(
+                $e->buildMessage($toolName),
+                data: ['validation_errors' => $e->errors],
+            );
         } catch (JsonException $e) {
             $this->logger->warning('Failed to JSON encode tool result.', ['tool' => $toolName, 'exception' => $e]);
             $errorMessage = "Failed to serialize tool result: {$e->getMessage()}";
@@ -228,7 +213,7 @@ class Dispatcher
 
         $registeredResource = $this->registry->getResource($uri);
 
-        if (! $registeredResource) {
+        if (!$registeredResource) {
             throw McpServerException::invalidParams("Resource URI '{$uri}' not found.");
         }
 
@@ -253,8 +238,10 @@ class Dispatcher
         return new EmptyResult();
     }
 
-    public function handleResourceUnsubscribe(ResourceUnsubscribeRequest $request, SessionInterface $session): EmptyResult
-    {
+    public function handleResourceUnsubscribe(
+        ResourceUnsubscribeRequest $request,
+        SessionInterface $session,
+    ): EmptyResult {
         $this->subscriptionManager->unsubscribe($session->getId(), $request->uri);
         return new EmptyResult();
     }
@@ -276,15 +263,17 @@ class Dispatcher
         $arguments = $request->arguments;
 
         $registeredPrompt = $this->registry->getPrompt($promptName);
-        if (! $registeredPrompt) {
+        if (!$registeredPrompt) {
             throw McpServerException::invalidParams("Prompt '{$promptName}' not found.");
         }
 
         $arguments = (array) $arguments;
 
         foreach ($registeredPrompt->schema->arguments as $argDef) {
-            if ($argDef->required && ! array_key_exists($argDef->name, $arguments)) {
-                throw McpServerException::invalidParams("Missing required argument '{$argDef->name}' for prompt '{$promptName}'.");
+            if ($argDef->required && !array_key_exists($argDef->name, $arguments)) {
+                throw McpServerException::invalidParams(
+                    "Missing required argument '{$argDef->name}' for prompt '{$promptName}'.",
+                );
             }
         }
 
@@ -293,7 +282,10 @@ class Dispatcher
 
             return new GetPromptResult($result, $registeredPrompt->schema->description);
         } catch (JsonException $e) {
-            $this->logger->warning('Failed to JSON encode prompt messages.', ['exception' => $e, 'promptName' => $promptName]);
+            $this->logger->warning(
+                'Failed to JSON encode prompt messages.',
+                ['exception' => $e, 'promptName' => $promptName],
+            );
             throw McpServerException::internalError("Failed to serialize prompt messages for '{$promptName}'.", $e);
         } catch (McpServerException $e) {
             throw $e;
@@ -314,8 +306,10 @@ class Dispatcher
         return new EmptyResult();
     }
 
-    public function handleCompletionComplete(CompletionCompleteRequest $request, SessionInterface $session): CompletionCompleteResult
-    {
+    public function handleCompletionComplete(
+        CompletionCompleteRequest $request,
+        SessionInterface $session,
+    ): CompletionCompleteResult {
         $ref = $request->ref;
         $argumentName = $request->argument['name'];
         $currentValue = $request->argument['value'];
@@ -325,7 +319,7 @@ class Dispatcher
         if ($ref->type === 'ref/prompt') {
             $identifier = $ref->name;
             $registeredPrompt = $this->registry->getPrompt($identifier);
-            if (! $registeredPrompt) {
+            if (!$registeredPrompt) {
                 throw McpServerException::invalidParams("Prompt '{$identifier}' not found.");
             }
 
@@ -336,15 +330,17 @@ class Dispatcher
                     break;
                 }
             }
-            if (! $foundArg) {
-                throw McpServerException::invalidParams("Argument '{$argumentName}' not found in prompt '{$identifier}'.");
+            if (!$foundArg) {
+                throw McpServerException::invalidParams(
+                    "Argument '{$argumentName}' not found in prompt '{$identifier}'.",
+                );
             }
 
             return $registeredPrompt->complete($this->container, $argumentName, $currentValue, $session);
         } elseif ($ref->type === 'ref/resource') {
             $identifier = $ref->uri;
             $registeredResourceTemplate = $this->registry->getResourceTemplate($identifier);
-            if (! $registeredResourceTemplate) {
+            if (!$registeredResourceTemplate) {
                 throw McpServerException::invalidParams("Resource template '{$identifier}' not found.");
             }
 
@@ -356,8 +352,10 @@ class Dispatcher
                 }
             }
 
-            if (! $foundArg) {
-                throw McpServerException::invalidParams("URI variable '{$argumentName}' not found in resource template '{$identifier}'.");
+            if (!$foundArg) {
+                throw McpServerException::invalidParams(
+                    "URI variable '{$argumentName}' not found in resource template '{$identifier}'.",
+                );
             }
 
             return $registeredResourceTemplate->complete($this->container, $argumentName, $currentValue, $session);
@@ -366,8 +364,10 @@ class Dispatcher
         }
     }
 
-    public function handleNotificationInitialized(InitializedNotification $notification, SessionInterface $session): EmptyResult
-    {
+    public function handleNotificationInitialized(
+        InitializedNotification $notification,
+        SessionInterface $session,
+    ): EmptyResult {
         $session->set('initialized', true);
 
         return new EmptyResult();
