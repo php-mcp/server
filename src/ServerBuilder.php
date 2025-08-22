@@ -323,7 +323,7 @@ final class ServerBuilder
                     $docBlock = $docBlockParser->parseDocBlock($reflection->getDocComment() ?? null);
 
                     $name = $data['name'] ?? ($methodName === '__invoke' ? $classShortName : $methodName);
-                    $description = $data['description'] ?? $docBlockParser->getSummary($docBlock) ?? null;
+                    $description = $data['description'] ?? $docBlockParser->getDescription($docBlock) ?? null;
                 }
 
                 $inputSchema = $data['inputSchema'] ?? $schemaGenerator->generate($reflection);
