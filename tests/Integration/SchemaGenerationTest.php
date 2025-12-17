@@ -367,3 +367,38 @@ it('uses raw parameter-level schema definition as-is', function () {
 
     expect($schema['required'])->toEqual(['custom']);
 });
+
+it('handles anyOf schema without type conflict and preserves default from signature', function () {
+    $method = new ReflectionMethod(SchemaGeneratorFixture::class, 'parameterWithAnyOfDefinition');
+    $schema = $this->schemaGenerator->generate($method);
+
+    // The key test: anyOf should be present without conflicting "type": "array"
+    expect($schema['properties']['properties'])->toHaveKey('anyOf');
+    expect($schema['properties']['properties'])->not->toHaveKey('type');
+
+    expect($schema['properties']['properties'])->toEqual([
+        'anyOf' => [
+            ['type' => 'object', 'additionalProperties' => true],
+            ['type' => 'array', 'items' => ['type' => 'object']]
+        ],
+        'description' => 'Properties as {"key":"value"} object or array format',
+        'default' => []
+    ]);
+});
+
+it('drops inferred type when method-level schema uses anyOf without type', function () {
+    $method = new ReflectionMethod(SchemaGeneratorFixture::class, 'methodLevelAnyOfProperty');
+    $schema = $this->schemaGenerator->generate($method);
+
+    expect($schema['properties']['payload'])->toHaveKey('anyOf');
+    expect($schema['properties']['payload'])->not->toHaveKey('type');
+    expect($schema['properties']['payload'])->toEqual([
+        'anyOf' => [
+            ['type' => 'object', 'additionalProperties' => true],
+            ['type' => 'array', 'items' => ['type' => 'object']]
+        ],
+        'description' => 'Payload as object or array of objects'
+    ]);
+
+    expect($schema['required'])->toContain('payload');
+});

@@ -410,4 +410,37 @@ class SchemaGeneratorFixture
         string $custom
     ): void {
     }
+
+    /**
+     * Parameter with anyOf in definition; default comes from PHP signature.
+     * This tests the fix for schema merge conflicts where inferred "type": "array"
+     * from PHP type hint would conflict with anyOf allowing object notation.
+     */
+    public function parameterWithAnyOfDefinition(
+        #[Schema(definition: [
+            'anyOf' => [
+                ['type' => 'object', 'additionalProperties' => true],
+                ['type' => 'array', 'items' => ['type' => 'object']]
+            ],
+            'description' => 'Properties as {"key":"value"} object or array format',
+        ])]
+        array|stdClass $properties = []
+    ): void {
+    }
+
+    /**
+     * Method-level schema with anyOf property and array type hint to ensure inferred type is dropped.
+     */
+    #[Schema(properties: [
+        'payload' => [
+            'anyOf' => [
+                ['type' => 'object', 'additionalProperties' => true],
+                ['type' => 'array', 'items' => ['type' => 'object']]
+            ],
+            'description' => 'Payload as object or array of objects'
+        ]
+    ])]
+    public function methodLevelAnyOfProperty(array $payload): void
+    {
+    }
 }

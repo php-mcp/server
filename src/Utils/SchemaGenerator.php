@@ -184,7 +184,14 @@ class SchemaGenerator
         $parameterLevelSchema = $paramInfo['parameter_schema'];
         if (!empty($parameterLevelSchema)) {
             if (isset($parameterLevelSchema['definition']) && is_array($parameterLevelSchema['definition'])) {
-                return $parameterLevelSchema['definition'];
+                $definitionSchema = $parameterLevelSchema['definition'];
+
+                // Preserve PHP default values even when using a full definition
+                if ($paramInfo['has_default'] && !array_key_exists('default', $definitionSchema)) {
+                    $definitionSchema['default'] = $paramInfo['default_value'];
+                }
+
+                return $definitionSchema;
             }
 
             $mergedSchema = $this->mergeSchemas($mergedSchema, $parameterLevelSchema);
@@ -202,6 +209,12 @@ class SchemaGenerator
     private function mergeSchemas(array $recessiveSchema, array $dominantSchema): array
     {
         $mergedSchema = array_merge($recessiveSchema, $dominantSchema);
+
+        $dominantHasPolymorphic = isset($dominantSchema['anyOf']) || isset($dominantSchema['oneOf']) || isset($dominantSchema['allOf']);
+        if ($dominantHasPolymorphic && !isset($dominantSchema['type'])) {
+            // Remove inferred/recessive type to avoid conflicts with polymorphic schemas
+            unset($mergedSchema['type']);
+        }
 
         return $mergedSchema;
     }
