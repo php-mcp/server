@@ -128,6 +128,12 @@ class Dispatcher
         $session->set('client_info', $request->clientInfo->toArray());
         $session->set('protocol_version', $protocolVersion);
 
+        // Mark client as initialized immediately after successful handshake.
+        // Many real-world MCP clients (Claude Code, Gemini) skip
+        // the notifications/initialized step, causing "Client session not
+        // initialized" errors on all subsequent requests.
+        $session->set('initialized', true);
+
         $serverInfo = $this->configuration->serverInfo;
         $capabilities = $this->configuration->capabilities;
         $instructions = $this->configuration->instructions;
