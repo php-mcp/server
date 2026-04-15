@@ -98,9 +98,13 @@ final class ServerBuilder
     /**
      * Sets the server's identity. Required.
      */
-    public function withServerInfo(string $name, string $version): self
+    public function withServerInfo(string $name, string $version, ?string $instructions = null): self
     {
-        $this->serverInfo = Implementation::make(name: trim($name), version: trim($version));
+        $this->serverInfo = Implementation::make(
+            name: trim($name), 
+            version: trim($version), 
+            instructions: $instructions ? trim($instructions) : null
+        );
 
         return $this;
     }
