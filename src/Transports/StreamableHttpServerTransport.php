@@ -82,6 +82,12 @@ class StreamableHttpServerTransport implements ServerTransportInterface, LoggerA
         ?EventStoreInterface $eventStore = null,
         private array $middlewares = []
     ) {
+        if (! class_exists(HttpServer::class)) {
+            throw new TransportException(
+                'react/http is not installed. It is an optional dependency, required only by the HTTP transports. Install it with "composer require react/http".'
+            );
+        }
+
         $this->logger = new NullLogger();
         $this->loop = Loop::get();
         $this->mcpPath = '/' . trim($mcpPath, '/');

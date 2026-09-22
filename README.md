@@ -30,13 +30,21 @@ This package supports the **2025-03-26** version of the Model Context Protocol w
 
 - **PHP** >= 8.1
 - **Composer**
-- **For HTTP Transport**: An event-driven PHP environment (CLI recommended)
+- **For HTTP Transport**: An event-driven PHP environment (CLI recommended) and the optional `react/http` package (see Installation)
 - **Extensions**: `json`, `mbstring`, `pcre` (typically enabled by default)
 
 ## 📦 Installation
 
 ```bash
 composer require php-mcp/server
+```
+
+The HTTP transports need `react/http`, which is an optional dependency so that
+projects using only the stdio transport or their own framework integration are
+not tied to its dependency tree:
+
+```bash
+composer require react/http
 ```
 
 > **💡 Laravel Users**: Consider using [`php-mcp/laravel`](https://github.com/php-mcp/laravel) for enhanced framework integration, configuration management, and Artisan commands.
