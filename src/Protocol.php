@@ -120,7 +120,12 @@ class Protocol
         $session = $this->sessionManager->getSession($sessionId);
 
         if ($session === null) {
-            $error = Error::forInvalidRequest('Invalid or expired session. Please re-initialize the session.', $message->id);
+            if ($message instanceof Notification) {
+                $this->logger->warning('Notification received for invalid or expired session. Ignoring.', ['sessionId' => $sessionId, 'method' => $message->method]);
+                return;
+            }
+
+            $error = Error::forInvalidRequest('Invalid or expired session. Please re-initialize the session.', $message->getId());
             $messageContext['status_code'] = 404;
 
             $this->transport->sendMessage($error, $sessionId, $messageContext)

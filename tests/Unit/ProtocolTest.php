@@ -271,6 +271,31 @@ it('sends error response if session is not found', function () {
     $this->session->shouldNotHaveReceived('save');
 });
 
+it('ignores notification if session is not found', function () {
+    $notification = createNotification('notifications/initialized');
+    $this->sessionManager->shouldReceive('getSession')->with('unknown-client')->andReturn(null);
+
+    $this->transport->shouldNotReceive('sendMessage');
+    $this->dispatcher->shouldNotReceive('handleNotification');
+
+    $this->protocol->processMessage($notification, 'unknown-client', ['is_initialize_request' => false]);
+    $this->session->shouldNotHaveReceived('save');
+});
+
+it('sends error response with first request id if session is not found for batch', function () {
+    $batchRequest = new BatchRequest([createNotification('notifications/initialized'), createRequest('tools/list', [], 'batch-req-1')]);
+    $this->sessionManager->shouldReceive('getSession')->with('unknown-client')->andReturn(null);
+
+    $this->transport->shouldReceive('sendMessage')->once()
+        ->with(Mockery::on(function (Error $error) {
+            expectErrorResponse($error, \PhpMcp\Schema\Constants::INVALID_REQUEST, 'batch-req-1');
+            return true;
+        }), 'unknown-client', Mockery::any())
+        ->andReturn(resolve(null));
+
+    $this->protocol->processMessage($batchRequest, 'unknown-client');
+});
+
 it('sends error response if session is not initialized for non-initialize request', function () {
     $request = createRequest('tools/list');
     $this->session->shouldReceive('get')->with('initialized', false)->andReturn(false);
